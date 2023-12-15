@@ -107,6 +107,10 @@ type evaluationStateData struct {
 	Operation walkOperation
 }
 
+func (e evaluationStateData) GetConsts() map[string]cty.Value {
+	return e.Evaluator.Config.Module.Consts
+}
+
 // InstanceKeyEvalData is the old name for instances.RepetitionData, aliased
 // here for compatibility. In new code, use instances.RepetitionData instead.
 type InstanceKeyEvalData = instances.RepetitionData

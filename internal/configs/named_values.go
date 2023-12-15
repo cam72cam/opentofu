@@ -480,6 +480,31 @@ func (o *Output) Addr() addrs.OutputValue {
 	return addrs.OutputValue{Name: o.Name}
 }
 
+func decodeConstBlock(block *hcl.Block) (map[string]cty.Value, hcl.Diagnostics) {
+	attrs, diags := block.Body.JustAttributes()
+	if len(attrs) == 0 {
+		return nil, diags
+	}
+
+	consts := make(map[string]cty.Value)
+
+	for name, attr := range attrs {
+		if !hclsyntax.ValidIdentifier(name) {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Invalid const value name",
+				Detail:   badIdentifierDetail,
+				Subject:  &attr.NameRange,
+			})
+		}
+		val, decDiags := attr.Expr.Value(nil)
+		diags = append(decDiags)
+		consts[name] = val
+	}
+
+	return consts, nil
+}
+
 // Local represents a single entry from a "locals" block in a module or file.
 // The "locals" block itself is not represented, because it serves only to
 // provide context for us to interpret its contents.

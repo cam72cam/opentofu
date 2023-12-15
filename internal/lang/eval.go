@@ -437,6 +437,7 @@ func (s *Scope) evalContext(refs []*addrs.Reference, selfAddr addrs.Referenceabl
 	vals["data"] = cty.ObjectVal(buildResourceObjects(dataResources))
 	vals["module"] = cty.ObjectVal(wholeModules)
 	vals["var"] = cty.ObjectVal(inputVariables)
+	vals["const"] = cty.ObjectVal(s.Data.GetConsts())
 	vals["local"] = cty.ObjectVal(localValues)
 	vals["path"] = cty.ObjectVal(pathAttrs)
 	vals["terraform"] = cty.ObjectVal(terraformAttrs)

@@ -5,6 +5,7 @@ package configs
 
 import (
 	"github.com/hashicorp/hcl/v2"
+	"github.com/zclconf/go-cty/cty"
 )
 
 // LoadConfigFile reads the file at the given path and parses it as a config
@@ -21,15 +22,15 @@ import (
 //
 // This method wraps LoadHCLFile, and so it inherits the syntax selection
 // behaviors documented for that method.
-func (p *Parser) LoadConfigFile(path string) (*File, hcl.Diagnostics) {
-	return p.loadConfigFile(path, false)
+func (p *Parser) LoadConfigFile(path string, constCtx *hcl.EvalContext) (*File, hcl.Diagnostics) {
+	return p.loadConfigFile(path, false, constCtx)
 }
 
 // LoadConfigFileOverride is the same as LoadConfigFile except that it relaxes
 // certain required attribute constraints in order to interpret the given
 // file as an overrides file.
-func (p *Parser) LoadConfigFileOverride(path string) (*File, hcl.Diagnostics) {
-	return p.loadConfigFile(path, true)
+func (p *Parser) LoadConfigFileOverride(path string, constCtx *hcl.EvalContext) (*File, hcl.Diagnostics) {
+	return p.loadConfigFile(path, true, constCtx)
 }
 
 // LoadTestFile reads the file at the given path and parses it as a OpenTofu
@@ -48,7 +49,31 @@ func (p *Parser) LoadTestFile(path string) (*TestFile, hcl.Diagnostics) {
 	return test, diags
 }
 
-func (p *Parser) loadConfigFile(path string, override bool) (*File, hcl.Diagnostics) {
+func (p *Parser) loadConsts(path string) (map[string]cty.Value, hcl.Diagnostics) {
+	body, diags := p.LoadHCLFile(path)
+	if body == nil {
+		return nil, diags
+	}
+
+	content, contentDiags := body.Content(configFileSchema)
+	diags = append(diags, contentDiags...)
+
+	consts := make(map[string]cty.Value)
+	for _, block := range content.Blocks {
+		switch block.Type {
+		case "const":
+			decoded, defsDiags := decodeConstBlock(block)
+			diags = append(diags, defsDiags...)
+			for n, v := range decoded {
+				// TODO conflicts?
+				consts[n] = v
+			}
+		}
+	}
+	return consts, diags
+}
+
+func (p *Parser) loadConfigFile(path string, override bool, constCtx *hcl.EvalContext) (*File, hcl.Diagnostics) {
 	body, diags := p.LoadHCLFile(path)
 	if body == nil {
 		return nil, diags
@@ -153,7 +178,7 @@ func (p *Parser) loadConfigFile(path string, override bool) (*File, hcl.Diagnost
 			}
 
 		case "module":
-			cfg, cfgDiags := decodeModuleBlock(block, override)
+			cfg, cfgDiags := decodeModuleBlock(block, override, constCtx)
 			diags = append(diags, cfgDiags...)
 			if cfg != nil {
 				file.ModuleCalls = append(file.ModuleCalls, cfg)
@@ -290,6 +315,9 @@ var configFileSchema = &hcl.BodySchema{
 		{
 			Type:       "check",
 			LabelNames: []string{"name"},
+		},
+		{
+			Type: "const",
 		},
 	},
 }

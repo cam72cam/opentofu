@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/zclconf/go-cty/cty"
 )
 
 const (
@@ -42,12 +43,21 @@ func (p *Parser) LoadConfigDir(path string) (*Module, hcl.Diagnostics) {
 		return nil, diags
 	}
 
-	primary, fDiags := p.loadFiles(primaryPaths, false)
+	consts, cd := p.loadDirConsts(append(primaryPaths, overridePaths...))
+	diags = append(diags, cd...)
+
+	constCtx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"const": cty.ObjectVal(consts),
+		},
+	}
+
+	primary, fDiags := p.loadFiles(primaryPaths, false, constCtx)
 	diags = append(diags, fDiags...)
-	override, fDiags := p.loadFiles(overridePaths, true)
+	override, fDiags := p.loadFiles(overridePaths, true, constCtx)
 	diags = append(diags, fDiags...)
 
-	mod, modDiags := NewModule(primary, override)
+	mod, modDiags := NewModule(primary, override, consts)
 	diags = append(diags, modDiags...)
 
 	mod.SourceDir = path
@@ -63,9 +73,18 @@ func (p *Parser) LoadConfigDirWithTests(path string, testDirectory string) (*Mod
 		return nil, diags
 	}
 
-	primary, fDiags := p.loadFiles(primaryPaths, false)
+	consts, cd := p.loadDirConsts(append(primaryPaths, overridePaths...))
+	diags = append(diags, cd...)
+
+	constCtx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"const": cty.ObjectVal(consts),
+		},
+	}
+
+	primary, fDiags := p.loadFiles(primaryPaths, false, constCtx)
 	diags = append(diags, fDiags...)
-	override, fDiags := p.loadFiles(overridePaths, true)
+	override, fDiags := p.loadFiles(overridePaths, true, constCtx)
 	diags = append(diags, fDiags...)
 	tests, fDiags := p.loadTestFiles(path, testPaths)
 	diags = append(diags, fDiags...)
@@ -103,7 +122,7 @@ func (p *Parser) IsConfigDir(path string) bool {
 	return (len(primaryPaths) + len(overridePaths)) > 0
 }
 
-func (p *Parser) loadFiles(paths []string, override bool) ([]*File, hcl.Diagnostics) {
+func (p *Parser) loadFiles(paths []string, override bool, constCtx *hcl.EvalContext) ([]*File, hcl.Diagnostics) {
 	var files []*File
 	var diags hcl.Diagnostics
 
@@ -111,9 +130,9 @@ func (p *Parser) loadFiles(paths []string, override bool) ([]*File, hcl.Diagnost
 		var f *File
 		var fDiags hcl.Diagnostics
 		if override {
-			f, fDiags = p.LoadConfigFileOverride(path)
+			f, fDiags = p.LoadConfigFileOverride(path, constCtx)
 		} else {
-			f, fDiags = p.LoadConfigFile(path)
+			f, fDiags = p.LoadConfigFile(path, constCtx)
 		}
 		diags = append(diags, fDiags...)
 		if f != nil {
@@ -122,6 +141,21 @@ func (p *Parser) loadFiles(paths []string, override bool) ([]*File, hcl.Diagnost
 	}
 
 	return files, diags
+}
+
+func (p *Parser) loadDirConsts(paths []string) (map[string]cty.Value, hcl.Diagnostics) {
+	consts := make(map[string]cty.Value)
+	var diags hcl.Diagnostics
+
+	for _, path := range paths {
+		c, fd := p.loadConsts(path)
+		diags = append(diags, fd...)
+		for k, v := range c {
+			consts[k] = v
+		}
+	}
+
+	return consts, diags
 }
 
 // dirFiles finds OpenTofu configuration files within dir, splitting them into

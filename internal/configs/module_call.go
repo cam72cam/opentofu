@@ -37,7 +37,7 @@ type ModuleCall struct {
 	DeclRange hcl.Range
 }
 
-func decodeModuleBlock(block *hcl.Block, override bool) (*ModuleCall, hcl.Diagnostics) {
+func decodeModuleBlock(block *hcl.Block, override bool, constCtx *hcl.EvalContext) (*ModuleCall, hcl.Diagnostics) {
 	var diags hcl.Diagnostics
 
 	mc := &ModuleCall{
@@ -74,7 +74,9 @@ func decodeModuleBlock(block *hcl.Block, override bool) (*ModuleCall, hcl.Diagno
 	if attr, exists := content.Attributes["source"]; exists {
 		mc.SourceSet = true
 		mc.SourceAddrRange = attr.Expr.Range()
-		valDiags := gohcl.DecodeExpression(attr.Expr, nil, &mc.SourceAddrRaw)
+		// This is where we can inject the version constant
+		valDiags := gohcl.DecodeExpression(attr.Expr, constCtx, &mc.SourceAddrRaw)
+
 		diags = append(diags, valDiags...)
 		if !valDiags.HasErrors() {
 			var addr addrs.ModuleSource
@@ -84,6 +86,7 @@ func decodeModuleBlock(block *hcl.Block, override bool) (*ModuleCall, hcl.Diagno
 			} else {
 				addr, err = addrs.ParseModuleSource(mc.SourceAddrRaw)
 			}
+
 			mc.SourceAddr = addr
 			if err != nil {
 				// NOTE: We leave mc.SourceAddr as nil for any situation where the

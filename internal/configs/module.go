@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/experiments"
@@ -40,6 +41,7 @@ type Module struct {
 	ProviderLocalNames   map[addrs.Provider]string
 	ProviderMetas        map[addrs.Provider]*ProviderMeta
 
+	Consts    map[string]cty.Value
 	Variables map[string]*Variable
 	Locals    map[string]*Local
 	Outputs   map[string]*Output
@@ -97,7 +99,7 @@ type File struct {
 // NewModuleWithTests matches NewModule except it will also load in the provided
 // test files.
 func NewModuleWithTests(primaryFiles, overrideFiles []*File, testFiles map[string]*TestFile) (*Module, hcl.Diagnostics) {
-	mod, diags := NewModule(primaryFiles, overrideFiles)
+	mod, diags := NewModule(primaryFiles, overrideFiles, nil)
 	if mod != nil {
 		mod.Tests = testFiles
 	}
@@ -112,11 +114,12 @@ func NewModuleWithTests(primaryFiles, overrideFiles []*File, testFiles map[strin
 // will be incomplete and error diagnostics will be returned. Careful static
 // analysis of the returned Module is still possible in this case, but the
 // module will probably not be semantically valid.
-func NewModule(primaryFiles, overrideFiles []*File) (*Module, hcl.Diagnostics) {
+func NewModule(primaryFiles, overrideFiles []*File, consts map[string]cty.Value) (*Module, hcl.Diagnostics) {
 	var diags hcl.Diagnostics
 	mod := &Module{
 		ProviderConfigs:    map[string]*Provider{},
 		ProviderLocalNames: map[addrs.Provider]string{},
+		Consts:             consts,
 		Variables:          map[string]*Variable{},
 		Locals:             map[string]*Local{},
 		Outputs:            map[string]*Output{},
