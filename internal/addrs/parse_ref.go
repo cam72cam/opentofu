@@ -235,6 +235,14 @@ func parseRef(traversal hcl.Traversal) (*Reference, tfdiags.Diagnostics) {
 			Remaining:   remain,
 		}, diags
 
+	case "const":
+		name, rng, remain, diags := parseSingleAttrRef(traversal)
+		return &Reference{
+			Subject:     ConstValue{Name: name},
+			SourceRange: tfdiags.SourceRangeFromHCL(rng),
+			Remaining:   remain,
+		}, diags
+
 	case "module":
 		callName, callRange, remain, diags := parseSingleAttrRef(traversal)
 		if diags.HasErrors() {

@@ -107,10 +107,6 @@ type evaluationStateData struct {
 	Operation walkOperation
 }
 
-func (e evaluationStateData) GetConsts() map[string]cty.Value {
-	return e.Evaluator.Config.Module.Consts
-}
-
 // InstanceKeyEvalData is the old name for instances.RepetitionData, aliased
 // here for compatibility. In new code, use instances.RepetitionData instead.
 type InstanceKeyEvalData = instances.RepetitionData
@@ -307,6 +303,39 @@ func (d *evaluationStateData) GetInputVariable(addr addrs.InputVariable, rng tfd
 	// Mark if sensitive
 	if config.Sensitive {
 		val = val.Mark(marks.Sensitive)
+	}
+
+	return val, diags
+}
+
+func (d *evaluationStateData) GetConstValue(addr addrs.ConstValue, rng tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+
+	moduleConfig := d.Evaluator.Config.DescendentForInstance(d.ModulePath)
+	if moduleConfig == nil {
+		// should never happen, since we can't be evaluating in a module
+		// that wasn't mentioned in configuration.
+		panic(fmt.Sprintf("const value read from %s, which has no configuration", d.ModulePath))
+	}
+
+	val, ok := moduleConfig.Module.Consts[addr.Name]
+	if !ok {
+		var suggestions []string
+		for k := range moduleConfig.Module.Consts {
+			suggestions = append(suggestions, k)
+		}
+		suggestion := didyoumean.NameSuggestion(addr.Name, suggestions)
+		if suggestion != "" {
+			suggestion = fmt.Sprintf(" Did you mean %q?", suggestion)
+		}
+
+		diags := diags.Append(&hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  `Reference to undeclared const value`,
+			Detail:   fmt.Sprintf(`A const value with the name %q has not been declared.%s`, addr.Name, suggestion),
+			Subject:  rng.ToHCL().Ptr(),
+		})
+		return cty.DynamicVal, diags
 	}
 
 	return val, diags

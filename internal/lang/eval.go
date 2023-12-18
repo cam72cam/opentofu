@@ -282,6 +282,7 @@ func (s *Scope) evalContext(refs []*addrs.Reference, selfAddr addrs.Referenceabl
 	wholeModules := map[string]cty.Value{}
 	inputVariables := map[string]cty.Value{}
 	localValues := map[string]cty.Value{}
+	constValues := map[string]cty.Value{}
 	outputValues := map[string]cty.Value{}
 	pathAttrs := map[string]cty.Value{}
 	terraformAttrs := map[string]cty.Value{}
@@ -388,6 +389,11 @@ func (s *Scope) evalContext(refs []*addrs.Reference, selfAddr addrs.Referenceabl
 			diags = diags.Append(valDiags)
 			localValues[subj.Name] = val
 
+		case addrs.ConstValue:
+			val, valDiags := normalizeRefValue(s.Data.GetConstValue(subj, rng))
+			diags = diags.Append(valDiags)
+			constValues[subj.Name] = val
+
 		case addrs.PathAttr:
 			val, valDiags := normalizeRefValue(s.Data.GetPathAttr(subj, rng))
 			diags = diags.Append(valDiags)
@@ -437,8 +443,8 @@ func (s *Scope) evalContext(refs []*addrs.Reference, selfAddr addrs.Referenceabl
 	vals["data"] = cty.ObjectVal(buildResourceObjects(dataResources))
 	vals["module"] = cty.ObjectVal(wholeModules)
 	vals["var"] = cty.ObjectVal(inputVariables)
-	vals["const"] = cty.ObjectVal(s.Data.GetConsts())
 	vals["local"] = cty.ObjectVal(localValues)
+	vals["const"] = cty.ObjectVal(constValues)
 	vals["path"] = cty.ObjectVal(pathAttrs)
 	vals["terraform"] = cty.ObjectVal(terraformAttrs)
 	vals["count"] = cty.ObjectVal(countAttrs)
