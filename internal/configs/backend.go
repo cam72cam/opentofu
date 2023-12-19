@@ -15,6 +15,7 @@ import (
 type Backend struct {
 	Type   string
 	Config hcl.Body
+	Ctx    *hcl.EvalContext
 
 	TypeRange hcl.Range
 	DeclRange hcl.Range
@@ -44,7 +45,7 @@ func (b *Backend) Hash(schema *configschema.Block) int {
 	// hash them as nulls.
 	schema = schema.NoneRequired()
 	spec := schema.DecoderSpec()
-	val, _ := hcldec.Decode(b.Config, spec, nil)
+	val, _ := hcldec.Decode(b.Config, spec, b.Ctx)
 	if val == cty.NilVal {
 		val = cty.UnknownVal(schema.ImpliedType())
 	}

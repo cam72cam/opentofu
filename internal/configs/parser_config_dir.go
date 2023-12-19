@@ -89,7 +89,7 @@ func (p *Parser) LoadConfigDirWithTests(path string, testDirectory string) (*Mod
 	tests, fDiags := p.loadTestFiles(path, testPaths)
 	diags = append(diags, fDiags...)
 
-	mod, modDiags := NewModuleWithTests(primary, override, tests)
+	mod, modDiags := NewModuleWithTests(primary, override, tests, consts)
 	diags = append(diags, modDiags...)
 
 	mod.SourceDir = path

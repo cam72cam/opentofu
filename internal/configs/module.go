@@ -98,8 +98,8 @@ type File struct {
 
 // NewModuleWithTests matches NewModule except it will also load in the provided
 // test files.
-func NewModuleWithTests(primaryFiles, overrideFiles []*File, testFiles map[string]*TestFile) (*Module, hcl.Diagnostics) {
-	mod, diags := NewModule(primaryFiles, overrideFiles, nil)
+func NewModuleWithTests(primaryFiles, overrideFiles []*File, testFiles map[string]*TestFile, consts map[string]cty.Value) (*Module, hcl.Diagnostics) {
+	mod, diags := NewModule(primaryFiles, overrideFiles, consts)
 	if mod != nil {
 		mod.Tests = testFiles
 	}
@@ -177,6 +177,15 @@ func NewModule(primaryFiles, overrideFiles []*File, consts map[string]cty.Value)
 	}
 
 	diags = append(diags, checkModuleExperiments(mod)...)
+
+	if mod.Backend != nil {
+		// Hack in the backend context for now
+		mod.Backend.Ctx = &hcl.EvalContext{
+			Variables: map[string]cty.Value{
+				"const": cty.ObjectVal(mod.Consts),
+			},
+		}
+	}
 
 	// Generate the FQN -> LocalProviderName map
 	mod.gatherProviderLocalNames()
