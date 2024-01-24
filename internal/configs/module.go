@@ -39,6 +39,7 @@ type Module struct {
 	ProviderRequirements *RequiredProviders
 	ProviderLocalNames   map[addrs.Provider]string
 	ProviderMetas        map[addrs.Provider]*ProviderMeta
+	StateEncryption      *StateEncryption
 
 	Variables map[string]*Variable
 	Locals    map[string]*Local
@@ -78,6 +79,7 @@ type File struct {
 	ProviderConfigs   []*Provider
 	ProviderMetas     []*ProviderMeta
 	RequiredProviders []*RequiredProviders
+	StateEncryptions  []*StateEncryptions
 
 	Variables []*Variable
 	Locals    []*Local
@@ -274,6 +276,19 @@ func (m *Module) appendFile(file *File) hcl.Diagnostics {
 			})
 		}
 		m.ProviderMetas[provider] = pm
+	}
+
+	for _, b := range file.StateEncryptions {
+		if m.StateEncryption != nil {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Duplicate state_encryption configuration",
+				Detail:   fmt.Sprintf("A module may have only one state_encryption configuration. The backend was previously configured at %s.", m.StateEncryption.DeclRange),
+				Subject:  &b.DeclRange,
+			})
+			continue
+		}
+		m.StateEncryption = b
 	}
 
 	for _, v := range file.Variables {
@@ -543,6 +558,22 @@ func (m *Module) mergeFile(file *File) hcl.Diagnostics {
 			}
 			mergeDiags := existing.merge(pc)
 			diags = append(diags, mergeDiags...)
+		}
+	}
+
+	if len(file.StateEncryptions) != 0 {
+		switch len(file.StateEncryptions) {
+		case 1:
+			m.StateEncryption = file.StateEncryptions[0]
+		default:
+			// An override file with multiple state_encryptions is still invalid, even
+			// though it can override state_encryptions from _other_ files.
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Duplicate state_encryption configuration",
+				Detail:   fmt.Sprintf("Each override file may have only one state_encryption configuration. A state_encryption was previously configured at %s.", file.StateEncryptions[0].DeclRange),
+				Subject:  &file.StateEncryptions[1].DeclRange,
+			})
 		}
 	}
 

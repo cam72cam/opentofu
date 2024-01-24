@@ -74,6 +74,12 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 		return 1
 	}
 
+	// Prepare state encryption
+	c.StateEncryption(&StateEncryptionOpts{
+		ViewType:       args.ViewType,
+		ConfigOverride: state_encryptionConfigOverrideBody(args),
+	})
+
 	// Build the operation request
 	opReq, opDiags := c.OperationRequest(be, view, args.ViewType, args.Operation, args.OutPath, args.GenerateConfigPath)
 	diags = diags.Append(opDiags)
