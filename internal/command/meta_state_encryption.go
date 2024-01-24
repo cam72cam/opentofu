@@ -1,7 +1,11 @@
 package command
 
 import (
+	"os"
+
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/hashicorp/hcl/v2/json"
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/states/encryption"
 	"github.com/opentofu/opentofu/internal/tfdiags"
@@ -56,5 +60,29 @@ func (m *Meta) loadStateEncryptionFile(path string) (*configs.StateEncryptionMap
 }
 
 func (m *Meta) loadStateEncryptionEnv() (*configs.StateEncryptionMap, tfdiags.Diagnostics) {
-	return nil, nil //TODO
+	path := "STATE_ENCRYPTION"
+
+	raw := os.Getenv(path)
+
+	if len(raw) == 0 {
+		// Undefined
+		return nil, nil
+	}
+
+	var diags tfdiags.Diagnostics
+	var fDiags hcl.Diagnostics
+	var file *hcl.File
+
+	if raw[0] == byte('{') {
+		file, fDiags = json.Parse([]byte(raw), path)
+	} else {
+		file, fDiags = hclsyntax.ParseConfig([]byte(raw), path, hcl.Pos{Byte: 0, Line: 1, Column: 1})
+	}
+
+	diags = diags.Append(fDiags)
+
+	cfg, cfgDiags := configs.LoadStateEncryptionMap(file.Body, hcl.Range{Filename: path})
+	diags = diags.Append(cfgDiags)
+
+	return cfg, diags
 }
