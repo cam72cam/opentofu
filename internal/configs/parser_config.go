@@ -110,7 +110,7 @@ func (p *Parser) loadConfigFile(path string, override bool) (*File, hcl.Diagnost
 					}
 
 				case "state_encryption":
-					cfg, cfgDiags := decodeStateEncryptionBlock(block, override)
+					cfg, cfgDiags := decodeStateEncryptionMap(block)
 					diags = append(diags, cfgDiags...)
 					if cfg != nil {
 						file.StateEncryptions = append(file.StateEncryptions, cfg)

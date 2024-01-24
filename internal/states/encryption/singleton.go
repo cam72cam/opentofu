@@ -3,6 +3,7 @@ package encryption
 import (
 	"sync"
 
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/logging"
 )
 
@@ -24,11 +25,11 @@ import (
 //	    t.Cleanup(ClearSingleton)
 //	    encryption := encryption.GetSingleton()
 //	}
-func GetSingleton() Encryption {
+func SetupSingleton(cMap configs.StateEncryptionMap) Encryption {
 	lock.Lock()
 	defer lock.Unlock()
 	if instance == nil {
-		instance = New(logging.HCLogger())
+		instance = New(logging.HCLogger(), cMap)
 	}
 	return instance
 }

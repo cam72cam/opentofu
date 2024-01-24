@@ -188,6 +188,15 @@ func (c *InitCommand) Run(args []string) int {
 		return 1
 	}
 
+	// Handle State Encryption
+	stateSetupDiags := c.Meta.StateEncryptionSetup(rootModEarly)
+	diags = diags.Append(stateSetupDiags)
+	if stateSetupDiags.HasErrors() {
+		c.Ui.Error(c.Colorize().Color(strings.TrimSpace(errInitConfigError)))
+		c.showDiagnostics(diags)
+		return 1
+	}
+
 	var back backend.Backend
 
 	// There may be config errors or backend init errors but these will be shown later _after_

@@ -207,6 +207,8 @@ type Meta struct {
 	variableArgs rawFlags
 	input        bool
 
+	stateEncryptionArgs rawFlags
+
 	// Targets for this context (private)
 	targets     []addrs.Targetable
 	targetFlags []string
@@ -589,6 +591,12 @@ func (m *Meta) extendedFlagSet(n string) *flag.FlagSet {
 	varFiles := m.variableArgs.Alias("-var-file")
 	f.Var(varValues, "var", "variables")
 	f.Var(varFiles, "var-file", "variable file")
+
+	if m.stateEncryptionArgs.items == nil {
+		m.stateEncryptionArgs = newRawFlags("-state-encryption")
+	}
+	stateEncryptions := m.stateEncryptionArgs.Alias("-state-encryption")
+	f.Var(stateEncryptions, "state-encryption", "")
 
 	// commands that bypass locking will supply their own flag on this var,
 	// but set the initial meta value to true as a failsafe.
