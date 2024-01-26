@@ -83,6 +83,8 @@ type Config struct {
 	// This field is meaningless for the root module, where it will always
 	// be nil.
 	Version *version.Version
+
+	StateEncryption *StateEncryptionMap
 }
 
 // ModuleRequirements represents the provider requirements for an individual

@@ -348,6 +348,7 @@ func (n *nodeExpandPlannableResource) resourceInstanceSubgraph(ctx EvalContext, 
 		a.Dependencies = n.dependencies
 		a.preDestroyRefresh = n.preDestroyRefresh
 		a.generateConfigPath = n.generateConfigPath
+		a.StateEncryption = n.StateEncryption
 
 		m = &NodePlannableResourceInstance{
 			NodeAbstractResourceInstance: a,

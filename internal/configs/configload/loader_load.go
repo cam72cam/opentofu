@@ -46,6 +46,16 @@ func (l *Loader) loadConfig(rootMod *configs.Module, diags hcl.Diagnostics) (*co
 	cfg, cDiags := configs.BuildConfig(rootMod, configs.ModuleWalkerFunc(l.moduleWalkerLoad))
 	diags = append(diags, cDiags...)
 
+	cfg.StateEncryption = cfg.Root.Module.StateEncryption
+
+	if cfg.StateEncryption == nil {
+		cfg.StateEncryption = l.StateEncryption
+	} else {
+		cfg.StateEncryption.Merge(l.StateEncryption)
+	}
+
+	println(cfg.StateEncryption)
+
 	return cfg, diags
 }
 

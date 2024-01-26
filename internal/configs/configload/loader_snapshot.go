@@ -37,6 +37,14 @@ func (l *Loader) LoadConfigWithSnapshot(rootDir string) (*configs.Config, *Snaps
 	addDiags := l.addModuleToSnapshot(snap, "", rootDir, "", nil)
 	diags = append(diags, addDiags...)
 
+	cfg.StateEncryption = cfg.Root.Module.StateEncryption
+
+	if cfg.StateEncryption == nil {
+		cfg.StateEncryption = l.StateEncryption
+	} else if l.StateEncryption != nil {
+		cfg.StateEncryption.Merge(l.StateEncryption)
+	}
+
 	return cfg, snap, diags
 }
 

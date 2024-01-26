@@ -26,6 +26,8 @@ type Loader struct {
 	// modules is used to install and locate descendent modules that are
 	// referenced (directly or indirectly) from the root module.
 	modules moduleMgr
+
+	StateEncryption *configs.StateEncryptionMap
 }
 
 // Config is used with NewLoader to specify configuration arguments for the
@@ -42,6 +44,8 @@ type Config struct {
 	// not supported, which should be true only in specialized circumstances
 	// such as in tests.
 	Services *disco.Disco
+
+	StateEncryption *configs.StateEncryptionMap
 }
 
 // NewLoader creates and returns a loader that reads configuration from the
@@ -64,6 +68,7 @@ func NewLoader(config *Config) (*Loader, error) {
 			Services:   config.Services,
 			Registry:   reg,
 		},
+		StateEncryption: config.StateEncryption,
 	}
 
 	err := ret.modules.readModuleManifestSnapshot()

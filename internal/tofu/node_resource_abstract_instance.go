@@ -1447,10 +1447,14 @@ func (n *NodeAbstractResourceInstance) readDataSource(ctx EvalContext, configVal
 		return newVal, diags
 	}
 
-	println(n.StateEncryption)
 	var enc *configs.StateEncryption
 	if n.StateEncryption != nil {
-		enc = n.StateEncryption.Configs[n.Addr.String()]
+		var ok bool
+		key := fmt.Sprintf("%s:%s", configs.StateEncryptionKeyRemoteState, n.Addr.String())
+		enc, ok = n.StateEncryption.Configs[key]
+		if ok {
+			fmt.Printf("Found Encryption Config: %#v", enc)
+		}
 	}
 
 	resp := provider.ReadDataSource(providers.ReadDataSourceRequest{

@@ -359,9 +359,15 @@ func (m *Meta) registerSynthConfigSource(filename string, src []byte) {
 // terminate.
 func (m *Meta) initConfigLoader() (*configload.Loader, error) {
 	if m.configLoader == nil {
+		enc, diags := m.loadStateEncryptionEnv()
+		if diags.HasErrors() {
+			panic(diags)
+		}
+
 		loader, err := configload.NewLoader(&configload.Config{
-			ModulesDir: m.modulesDir(),
-			Services:   m.Services,
+			ModulesDir:      m.modulesDir(),
+			Services:        m.Services,
+			StateEncryption: enc,
 		})
 		if err != nil {
 			return nil, err
