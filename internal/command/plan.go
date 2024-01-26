@@ -4,6 +4,7 @@
 package command
 
 import (
+	"flag"
 	"fmt"
 	"strings"
 
@@ -31,7 +32,9 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 	c.Meta.Color = c.Meta.color
 
 	// Parse and validate flags
-	args, diags := arguments.ParsePlan(rawArgs)
+	args, diags := arguments.ParsePlan(rawArgs, func(f *flag.FlagSet) {
+		c.Meta.stateEncryptionFlags(f)
+	})
 
 	// Instantiate the view, even if there are flag errors, so that we render
 	// diagnostics according to the desired view
@@ -73,12 +76,6 @@ func (c *PlanCommand) Run(rawArgs []string) int {
 		view.Diagnostics(diags)
 		return 1
 	}
-
-	// Prepare state encryption
-	/*c.StateEncryption(&StateEncryptionOpts{
-		ViewType:       args.ViewType,
-		ConfigOverride: state_encryptionConfigOverrideBody(args),
-	})*/
 
 	// Build the operation request
 	opReq, opDiags := c.OperationRequest(be, view, args.ViewType, args.Operation, args.OutPath, args.GenerateConfigPath)

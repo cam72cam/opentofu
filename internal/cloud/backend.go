@@ -27,6 +27,7 @@ import (
 
 	"github.com/opentofu/opentofu/internal/backend"
 	"github.com/opentofu/opentofu/internal/command/jsonformat"
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/configs/configschema"
 	"github.com/opentofu/opentofu/internal/httpclient"
 	"github.com/opentofu/opentofu/internal/plans"
@@ -644,7 +645,7 @@ func (b *Cloud) DeleteWorkspace(name string, force bool) error {
 }
 
 // StateMgr implements backend.Enhanced.
-func (b *Cloud) StateMgr(name string) (statemgr.Full, error) {
+func (b *Cloud) StateMgr(name string, enc *configs.StateEncryption) (statemgr.Full, error) {
 	var remoteTFVersion string
 
 	if name == backend.DefaultStateName {

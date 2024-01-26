@@ -22,6 +22,7 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/mitchellh/colorstring"
 	"github.com/opentofu/opentofu/internal/backend"
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/configs/configschema"
 	"github.com/opentofu/opentofu/internal/httpclient"
 	"github.com/opentofu/opentofu/internal/logging"
@@ -641,7 +642,7 @@ func (b *Remote) DeleteWorkspace(name string, _ bool) error {
 }
 
 // StateMgr implements backend.Enhanced.
-func (b *Remote) StateMgr(name string) (statemgr.Full, error) {
+func (b *Remote) StateMgr(name string, enc *configs.StateEncryption) (statemgr.Full, error) {
 	if b.workspace == "" && name == backend.DefaultStateName {
 		return nil, backend.ErrDefaultWorkspaceNotSupported
 	}

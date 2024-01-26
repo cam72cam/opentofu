@@ -13,6 +13,7 @@ import (
 	"google.golang.org/api/iterator"
 
 	"github.com/opentofu/opentofu/internal/backend"
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/states/remote"
 	"github.com/opentofu/opentofu/internal/states/statemgr"
@@ -90,7 +91,7 @@ func (b *Backend) client(name string) (*remoteClient, error) {
 
 // StateMgr reads and returns the named state from GCS. If the named state does
 // not yet exist, a new state file is created.
-func (b *Backend) StateMgr(name string) (statemgr.Full, error) {
+func (b *Backend) StateMgr(name string, enc *configs.StateEncryption) (statemgr.Full, error) {
 	c, err := b.client(name)
 	if err != nil {
 		return nil, err

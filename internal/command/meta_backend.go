@@ -552,7 +552,10 @@ func (m *Meta) backendFromConfig(opts *BackendOpts) (backend.Backend, tfdiags.Di
 	// if we're using a remote backend. This may not yet exist which means
 	// we haven't used a non-local backend before. That is okay.
 	statePath := filepath.Join(m.DataDir(), DefaultStateFilename)
-	sMgr := &clistate.LocalState{Path: statePath}
+	sMgr := &clistate.LocalState{
+		Path:            statePath,
+		StateEncryption: m.StateEncryption,
+	}
 	if err := sMgr.RefreshState(); err != nil {
 		diags = diags.Append(fmt.Errorf("Failed to load state: %w", err))
 		return nil, diags
@@ -780,7 +783,10 @@ func (m *Meta) backendFromState(ctx context.Context) (backend.Backend, tfdiags.D
 	// if we're using a remote backend. This may not yet exist which means
 	// we haven't used a non-local backend before. That is okay.
 	statePath := filepath.Join(m.DataDir(), DefaultStateFilename)
-	sMgr := &clistate.LocalState{Path: statePath}
+	sMgr := &clistate.LocalState{
+		Path:            statePath,
+		StateEncryption: m.StateEncryption,
+	}
 	if err := sMgr.RefreshState(); err != nil {
 		diags = diags.Append(fmt.Errorf("Failed to load state: %w", err))
 		return nil, diags
@@ -971,7 +977,7 @@ func (m *Meta) backend_C_r_s(c *configs.Backend, cHash int, sMgr *clistate.Local
 
 	var localStates []statemgr.Full
 	for _, workspace := range workspaces {
-		localState, err := localB.StateMgr(workspace)
+		localState, err := localB.StateMgr(workspace, m.StateEncryption.Configs[configs.StateEncryptionKeyStateFile])
 		if err != nil {
 			diags = diags.Append(fmt.Errorf(errBackendLocalRead, err))
 			return nil, diags

@@ -266,6 +266,8 @@ type Meta struct {
 	// Used with commands which write state to allow users to write remote
 	// state even if the remote and local OpenTofu versions don't match.
 	ignoreRemoteVersion bool
+
+	StateEncryption *configs.StateEncryptionMap
 }
 
 type testingOverrides struct {
@@ -592,17 +594,19 @@ func (m *Meta) extendedFlagSet(n string) *flag.FlagSet {
 	f.Var(varValues, "var", "variables")
 	f.Var(varFiles, "var-file", "variable file")
 
-	if m.stateEncryptionArgs.items == nil {
-		m.stateEncryptionArgs = newRawFlags("-state-encryption")
-	}
-	stateEncryptions := m.stateEncryptionArgs.Alias("-state-encryption")
-	f.Var(stateEncryptions, "state-encryption", "")
-
 	// commands that bypass locking will supply their own flag on this var,
 	// but set the initial meta value to true as a failsafe.
 	m.stateLock = true
 
 	return f
+}
+
+func (m *Meta) stateEncryptionFlags(f *flag.FlagSet) {
+	if m.stateEncryptionArgs.items == nil {
+		m.stateEncryptionArgs = newRawFlags("-state-encryption")
+	}
+	stateEncryptions := m.stateEncryptionArgs.Alias("-state-encryption")
+	f.Var(stateEncryptions, "state-encryption", "")
 }
 
 // process will process any -no-color entries out of the arguments. This

@@ -16,6 +16,7 @@ import (
 	types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 
 	"github.com/opentofu/opentofu/internal/backend"
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/states/remote"
 	"github.com/opentofu/opentofu/internal/states/statemgr"
@@ -140,7 +141,7 @@ func (b *Backend) remoteClient(name string) (*RemoteClient, error) {
 	return client, nil
 }
 
-func (b *Backend) StateMgr(name string) (statemgr.Full, error) {
+func (b *Backend) StateMgr(name string, enc *configs.StateEncryption) (statemgr.Full, error) {
 	client, err := b.remoteClient(name)
 	if err != nil {
 		return nil, err

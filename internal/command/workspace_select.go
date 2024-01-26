@@ -10,6 +10,7 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
 
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
@@ -105,7 +106,7 @@ func (c *WorkspaceSelectCommand) Run(args []string) int {
 
 	if !found {
 		if orCreate {
-			_, err = b.StateMgr(name)
+			_, err = b.StateMgr(name, c.Meta.StateEncryption.Configs[configs.StateEncryptionKeyBackend])
 			if err != nil {
 				c.Ui.Error(err.Error())
 				return 1

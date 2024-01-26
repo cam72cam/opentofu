@@ -14,6 +14,7 @@ import (
 	"time"
 
 	multierror "github.com/hashicorp/go-multierror"
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/legacy/tofu"
 	"github.com/opentofu/opentofu/internal/states/statemgr"
 )
@@ -27,6 +28,8 @@ type LocalState struct {
 	// If PathOut already exists, it will be overwritten.
 	Path    string
 	PathOut string
+
+	StateEncryption *configs.StateEncryptionMap
 
 	// the file handle corresponding to PathOut
 	stateFileOut *os.File
@@ -102,7 +105,12 @@ func (s *LocalState) WriteState(state *tofu.State) error {
 		s.state.Serial++
 	}
 
-	if err := tofu.WriteState(s.state, s.stateFileOut); err != nil {
+	var enc *configs.StateEncryption
+	if s.StateEncryption != nil {
+		enc = s.StateEncryption.Configs[configs.StateEncryptionKeyStateFile]
+	}
+
+	if err := tofu.WriteState(s.state, enc, s.stateFileOut); err != nil {
 		return err
 	}
 

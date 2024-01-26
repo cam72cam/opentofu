@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/states/statemgr"
 	"github.com/opentofu/opentofu/internal/tfdiags"
@@ -53,7 +54,7 @@ func (c *StateMeta) State() (statemgr.Full, error) {
 		}
 
 		// Get the state
-		s, err := b.StateMgr(workspace)
+		s, err := b.StateMgr(workspace, c.Meta.StateEncryption.Configs[configs.StateEncryptionKeyBackend])
 		if err != nil {
 			return nil, err
 		}

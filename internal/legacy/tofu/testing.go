@@ -16,7 +16,7 @@ func TestStateFile(t *testing.T, path string, state *State) {
 	}
 	defer f.Close()
 
-	if err := WriteState(state, f); err != nil {
+	if err := WriteState(state, nil, f); err != nil {
 		t.Fatalf("err: %s", err)
 	}
 }

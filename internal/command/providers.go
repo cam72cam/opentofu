@@ -99,7 +99,7 @@ func (c *ProvidersCommand) Run(args []string) int {
 		c.Ui.Error(fmt.Sprintf("Error selecting workspace: %s", err))
 		return 1
 	}
-	s, err := b.StateMgr(env)
+	s, err := b.StateMgr(env, c.Meta.StateEncryption.Configs[configs.StateEncryptionKeyBackend])
 	if err != nil {
 		c.Ui.Error(fmt.Sprintf("Failed to load state: %s", err))
 		return 1

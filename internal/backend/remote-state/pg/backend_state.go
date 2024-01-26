@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/opentofu/opentofu/internal/backend"
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/states/remote"
 	"github.com/opentofu/opentofu/internal/states/statemgr"
@@ -52,7 +53,7 @@ func (b *Backend) DeleteWorkspace(name string, _ bool) error {
 	return nil
 }
 
-func (b *Backend) StateMgr(name string) (statemgr.Full, error) {
+func (b *Backend) StateMgr(name string, enc *configs.StateEncryption) (statemgr.Full, error) {
 	// Build the state client
 	var stateMgr statemgr.Full = &remote.State{
 		Client: &RemoteClient{

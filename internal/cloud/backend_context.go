@@ -37,7 +37,7 @@ func (b *Cloud) LocalRun(op *backend.Operation) (*backend.LocalRun, statemgr.Ful
 
 	// Get the latest state.
 	log.Printf("[TRACE] cloud: requesting state manager for workspace %q", remoteWorkspaceName)
-	stateMgr, err := b.StateMgr(op.Workspace)
+	stateMgr, err := b.StateMgr(op.Workspace, nil)
 	if err != nil {
 		diags = diags.Append(fmt.Errorf("error loading state: %w", err))
 		return nil, nil, diags

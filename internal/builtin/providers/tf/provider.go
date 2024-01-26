@@ -77,7 +77,7 @@ func (p *Provider) ReadDataSource(req providers.ReadDataSourceRequest) providers
 		return res
 	}
 
-	newState, diags := dataSourceRemoteStateRead(req.Config)
+	newState, diags := dataSourceRemoteStateRead(req.Config, req.StateEncryption)
 
 	res.State = newState
 	res.Diagnostics = diags

@@ -12,6 +12,11 @@ import (
 )
 
 func (m *Meta) StateEncryptionSetup(rootMod *configs.Module) tfdiags.Diagnostics {
+	if m.StateEncryption != nil {
+		// Already loaded
+		return nil
+	}
+
 	var diags tfdiags.Diagnostics
 
 	base := rootMod.StateEncryption
@@ -43,6 +48,9 @@ func (m *Meta) StateEncryptionSetup(rootMod *configs.Module) tfdiags.Diagnostics
 	if base != nil {
 		encryption.SetupSingleton(*base)
 	}
+
+	m.StateEncryption = base
+	println("Setup State Encryption!")
 
 	return diags
 }

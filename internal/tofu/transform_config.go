@@ -147,6 +147,8 @@ func (t *ConfigTransformer) transformSingle(g *Graph, config *configs.Config, ge
 				Module:   path,
 			},
 			importTargets: imports,
+
+			StateEncryption: config.Root.Module.StateEncryption,
 		}
 
 		var node dag.Vertex = abstract
@@ -181,6 +183,8 @@ func (t *ConfigTransformer) transformSingle(g *Graph, config *configs.Config, ge
 			Addr:               i.Addr.ConfigResource(),
 			importTargets:      []*ImportTarget{i},
 			generateConfigPath: generateConfigPath,
+
+			StateEncryption: config.Root.Module.StateEncryption,
 		}
 
 		var node dag.Vertex = abstract

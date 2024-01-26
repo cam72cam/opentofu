@@ -16,6 +16,7 @@ import (
 	"github.com/opentofu/opentofu/internal/command/jsonformat"
 	"github.com/opentofu/opentofu/internal/command/jsonprovider"
 	"github.com/opentofu/opentofu/internal/command/jsonstate"
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/states/statefile"
 )
@@ -109,7 +110,7 @@ func (c *StateShowCommand) Run(args []string) int {
 		c.Streams.Eprintf("Error selecting workspace: %s\n", err)
 		return 1
 	}
-	stateMgr, err := b.StateMgr(env)
+	stateMgr, err := b.StateMgr(env, c.Meta.StateEncryption.Configs[configs.StateEncryptionKeyBackend])
 	if err != nil {
 		c.Streams.Eprintln(fmt.Sprintf(errStateLoadingState, err))
 		return 1

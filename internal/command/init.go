@@ -64,6 +64,7 @@ func (c *InitCommand) Run(args []string) int {
 	cmdFlags.StringVar(&flagLockfile, "lockfile", "", "Set a dependency lockfile mode")
 	cmdFlags.BoolVar(&c.Meta.ignoreRemoteVersion, "ignore-remote-version", false, "continue even if remote and local OpenTofu versions are incompatible")
 	cmdFlags.StringVar(&testsDirectory, "test-directory", "tests", "test-directory")
+	c.Meta.stateEncryptionFlags(cmdFlags)
 	cmdFlags.Usage = func() { c.Ui.Error(c.Help()) }
 	if err := cmdFlags.Parse(args); err != nil {
 		return 1
@@ -229,7 +230,7 @@ func (c *InitCommand) Run(args []string) int {
 			c.Ui.Error(fmt.Sprintf("Error selecting workspace: %s", err))
 			return 1
 		}
-		sMgr, err := back.StateMgr(workspace)
+		sMgr, err := back.StateMgr(workspace, c.Meta.StateEncryption.Configs[configs.StateEncryptionKeyBackend])
 		if err != nil {
 			c.Ui.Error(fmt.Sprintf("Error loading state: %s", err))
 			return 1

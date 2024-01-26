@@ -14,6 +14,7 @@ import (
 	"github.com/opentofu/opentofu/internal/command/arguments"
 	"github.com/opentofu/opentofu/internal/command/clistate"
 	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 )
@@ -105,7 +106,7 @@ func (c *WorkspaceDeleteCommand) Run(args []string) int {
 	}
 
 	// we need the actual state to see if it's empty
-	stateMgr, err := b.StateMgr(workspace)
+	stateMgr, err := b.StateMgr(workspace, c.Meta.StateEncryption.Configs[configs.StateEncryptionKeyBackend])
 	if err != nil {
 		c.Ui.Error(err.Error())
 		return 1

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/states/statefile"
 	"github.com/opentofu/opentofu/internal/states/statemgr"
 )
@@ -47,7 +48,7 @@ func (c *StatePullCommand) Run(args []string) int {
 		c.Ui.Error(fmt.Sprintf("Error selecting workspace: %s", err))
 		return 1
 	}
-	stateMgr, err := b.StateMgr(env)
+	stateMgr, err := b.StateMgr(env, c.Meta.StateEncryption.Configs[configs.StateEncryptionKeyBackend])
 	if err != nil {
 		c.Ui.Error(fmt.Sprintf(errStateLoadingState, err))
 		return 1

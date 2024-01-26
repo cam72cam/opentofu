@@ -4,6 +4,8 @@
 package arguments
 
 import (
+	"flag"
+
 	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
@@ -37,7 +39,7 @@ type Plan struct {
 // ParsePlan processes CLI arguments, returning a Plan value and errors.
 // If errors are encountered, a Plan value is still returned representing
 // the best effort interpretation of the arguments.
-func ParsePlan(args []string) (*Plan, tfdiags.Diagnostics) {
+func ParsePlan(args []string, additional func(*flag.FlagSet)) (*Plan, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	plan := &Plan{
 		State:     &State{},
@@ -53,6 +55,10 @@ func ParsePlan(args []string) (*Plan, tfdiags.Diagnostics) {
 
 	var json bool
 	cmdFlags.BoolVar(&json, "json", false, "json")
+
+	if additional != nil {
+		additional(cmdFlags)
+	}
 
 	if err := cmdFlags.Parse(args); err != nil {
 		diags = diags.Append(tfdiags.Sourceless(

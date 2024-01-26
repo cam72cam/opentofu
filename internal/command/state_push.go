@@ -14,6 +14,7 @@ import (
 	"github.com/opentofu/opentofu/internal/command/arguments"
 	"github.com/opentofu/opentofu/internal/command/clistate"
 	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/states/statefile"
 	"github.com/opentofu/opentofu/internal/states/statemgr"
 	"github.com/opentofu/opentofu/internal/tfdiags"
@@ -98,7 +99,7 @@ func (c *StatePushCommand) Run(args []string) int {
 	}
 
 	// Get the state manager for the currently-selected workspace
-	stateMgr, err := b.StateMgr(workspace)
+	stateMgr, err := b.StateMgr(workspace, c.Meta.StateEncryption.Configs[configs.StateEncryptionKeyBackend])
 	if err != nil {
 		c.Ui.Error(fmt.Sprintf("Failed to load destination state: %s", err))
 		return 1

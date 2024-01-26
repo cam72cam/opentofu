@@ -82,6 +82,8 @@ type NodeAbstractResource struct {
 	// generateConfigPath tells this node which file to write generated config
 	// into. If empty, then config should not be generated.
 	generateConfigPath string
+
+	StateEncryption *configs.StateEncryptionMap
 }
 
 var (

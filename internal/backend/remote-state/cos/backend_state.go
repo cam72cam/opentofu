@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/opentofu/opentofu/internal/backend"
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/states/remote"
 	"github.com/opentofu/opentofu/internal/states/statemgr"
@@ -76,7 +77,7 @@ func (b *Backend) DeleteWorkspace(name string, _ bool) error {
 }
 
 // StateMgr manage the state, if the named state not exists, a new file will created
-func (b *Backend) StateMgr(name string) (statemgr.Full, error) {
+func (b *Backend) StateMgr(name string, enc *configs.StateEncryption) (statemgr.Full, error) {
 	log.Printf("[DEBUG] state manager, current workspace: %v", name)
 
 	c, err := b.client(name)

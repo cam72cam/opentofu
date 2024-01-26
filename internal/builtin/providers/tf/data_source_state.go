@@ -9,6 +9,7 @@ import (
 
 	"github.com/opentofu/opentofu/internal/backend"
 	"github.com/opentofu/opentofu/internal/backend/remote"
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/configs/configschema"
 	"github.com/opentofu/opentofu/internal/providers"
 	"github.com/opentofu/opentofu/internal/tfdiags"
@@ -100,7 +101,7 @@ func dataSourceRemoteStateValidate(cfg cty.Value) tfdiags.Diagnostics {
 	return diags
 }
 
-func dataSourceRemoteStateRead(d cty.Value) (cty.Value, tfdiags.Diagnostics) {
+func dataSourceRemoteStateRead(d cty.Value, enc *configs.StateEncryption) (cty.Value, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	b, cfg, moreDiags := getBackend(d)
@@ -129,7 +130,7 @@ func dataSourceRemoteStateRead(d cty.Value) (cty.Value, tfdiags.Diagnostics) {
 		workspaceName = workspaceVal.AsString()
 	}
 
-	state, err := b.StateMgr(workspaceName)
+	state, err := b.StateMgr(workspaceName, enc)
 	if err != nil {
 		diags = diags.Append(tfdiags.AttributeValue(
 			tfdiags.Error,

@@ -20,6 +20,7 @@ import (
 	"github.com/opentofu/opentofu/internal/command/arguments"
 	"github.com/opentofu/opentofu/internal/command/clistate"
 	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/states/statemgr"
 	"github.com/opentofu/opentofu/internal/tofu"
@@ -260,7 +261,9 @@ func (m *Meta) backendMigrateState_S_s(opts *backendMigrateOpts) error {
 func (m *Meta) backendMigrateState_s_s(opts *backendMigrateOpts) error {
 	log.Printf("[INFO] backendMigrateState: single-to-single migrating %q workspace to %q workspace", opts.sourceWorkspace, opts.destinationWorkspace)
 
-	sourceState, err := opts.Source.StateMgr(opts.sourceWorkspace)
+	enc := m.StateEncryption.Configs[configs.StateEncryptionKeyBackend]
+
+	sourceState, err := opts.Source.StateMgr(opts.sourceWorkspace, enc)
 	if err != nil {
 		return fmt.Errorf(strings.TrimSpace(
 			errMigrateSingleLoadDefault), opts.SourceType, err)
@@ -276,7 +279,7 @@ func (m *Meta) backendMigrateState_s_s(opts *backendMigrateOpts) error {
 		return nil
 	}
 
-	destinationState, err := opts.Destination.StateMgr(opts.destinationWorkspace)
+	destinationState, err := opts.Destination.StateMgr(opts.destinationWorkspace, enc)
 	if err == backend.ErrDefaultWorkspaceNotSupported {
 		// If the backend doesn't support using the default state, we ask the user
 		// for a new name and migrate the default state to the given named state.
@@ -290,7 +293,7 @@ func (m *Meta) backendMigrateState_s_s(opts *backendMigrateOpts) error {
 			// Update the name of the destination state.
 			opts.destinationWorkspace = name
 
-			destinationState, err := opts.Destination.StateMgr(opts.destinationWorkspace)
+			destinationState, err := opts.Destination.StateMgr(opts.destinationWorkspace, enc)
 			if err != nil {
 				return nil, err
 			}
@@ -593,7 +596,7 @@ func (m *Meta) backendMigrateTFC(opts *backendMigrateOpts) error {
 
 		// If the current workspace is has no state we do not need to ask
 		// if they want to migrate the state.
-		sourceState, err := opts.Source.StateMgr(currentWorkspace)
+		sourceState, err := opts.Source.StateMgr(currentWorkspace, m.StateEncryption.Configs[configs.StateEncryptionKeyBackend])
 		if err != nil {
 			return err
 		}
@@ -679,7 +682,7 @@ func (m *Meta) backendMigrateState_S_TFC(opts *backendMigrateOpts, sourceWorkspa
 		if sourceWorkspaces[i] == backend.DefaultStateName {
 			// For the default workspace we want to look to see if there is any state
 			// before we ask for a workspace name to migrate the default workspace into.
-			sourceState, err := opts.Source.StateMgr(backend.DefaultStateName)
+			sourceState, err := opts.Source.StateMgr(backend.DefaultStateName, m.StateEncryption.Configs[configs.StateEncryptionKeyBackend])
 			if err != nil {
 				return fmt.Errorf(strings.TrimSpace(
 					errMigrateSingleLoadDefault), opts.SourceType, err)

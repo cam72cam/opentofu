@@ -9,6 +9,7 @@ import (
 
 	"github.com/opentofu/opentofu/internal/command/arguments"
 	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 )
@@ -79,7 +80,7 @@ func (c *OutputCommand) Outputs(statePath string) (map[string]*states.OutputValu
 	}
 
 	// Get the state
-	stateStore, err := b.StateMgr(env)
+	stateStore, err := b.StateMgr(env, c.Meta.StateEncryption.Configs[configs.StateEncryptionKeyBackend])
 	if err != nil {
 		diags = diags.Append(fmt.Errorf("Failed to load state: %w", err))
 		return nil, diags

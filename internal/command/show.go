@@ -165,7 +165,7 @@ func (c *ShowCommand) showFromLatestStateSnapshot() (*statefile.File, tfdiags.Di
 	}
 
 	// Get the latest state snapshot from the backend for the current workspace
-	stateFile, stateErr := getStateFromBackend(b, workspace)
+	stateFile, stateErr := getStateFromBackend(b, workspace, c.Meta.StateEncryption.Configs[configs.StateEncryptionKeyBackend])
 	if stateErr != nil {
 		diags = diags.Append(stateErr)
 		return nil, diags
@@ -335,9 +335,9 @@ func getStateFromPath(path string) (*statefile.File, error) {
 }
 
 // getStateFromBackend returns the State for the current workspace, if available.
-func getStateFromBackend(b backend.Backend, workspace string) (*statefile.File, error) {
+func getStateFromBackend(b backend.Backend, workspace string, enc *configs.StateEncryption) (*statefile.File, error) {
 	// Get the state store for the given workspace
-	stateStore, err := b.StateMgr(workspace)
+	stateStore, err := b.StateMgr(workspace, enc)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to load state manager: %w", err)
 	}

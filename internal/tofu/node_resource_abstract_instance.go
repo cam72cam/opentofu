@@ -1447,10 +1447,17 @@ func (n *NodeAbstractResourceInstance) readDataSource(ctx EvalContext, configVal
 		return newVal, diags
 	}
 
+	println(n.StateEncryption)
+	var enc *configs.StateEncryption
+	if n.StateEncryption != nil {
+		enc = n.StateEncryption.Configs[n.Addr.String()]
+	}
+
 	resp := provider.ReadDataSource(providers.ReadDataSourceRequest{
-		TypeName:     n.Addr.ContainingResource().Resource.Type,
-		Config:       configVal,
-		ProviderMeta: metaConfigVal,
+		TypeName:        n.Addr.ContainingResource().Resource.Type,
+		Config:          configVal,
+		ProviderMeta:    metaConfigVal,
+		StateEncryption: enc,
 	})
 	diags = diags.Append(resp.Diagnostics.InConfigBody(config.Config, n.Addr.String()))
 	if diags.HasErrors() {

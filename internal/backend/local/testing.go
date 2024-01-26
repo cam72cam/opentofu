@@ -11,6 +11,7 @@ import (
 
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/backend"
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/configs/configschema"
 	"github.com/opentofu/opentofu/internal/providers"
 	"github.com/opentofu/opentofu/internal/states"
@@ -125,12 +126,12 @@ func (b *TestLocalSingleState) DeleteWorkspace(string, bool) error {
 	return backend.ErrWorkspacesNotSupported
 }
 
-func (b *TestLocalSingleState) StateMgr(name string) (statemgr.Full, error) {
+func (b *TestLocalSingleState) StateMgr(name string, enc *configs.StateEncryption) (statemgr.Full, error) {
 	if name != backend.DefaultStateName {
 		return nil, backend.ErrWorkspacesNotSupported
 	}
 
-	return b.Local.StateMgr(name)
+	return b.Local.StateMgr(name, enc)
 }
 
 // TestLocalNoDefaultState is a backend implementation that wraps
@@ -170,11 +171,11 @@ func (b *TestLocalNoDefaultState) DeleteWorkspace(name string, force bool) error
 	return b.Local.DeleteWorkspace(name, force)
 }
 
-func (b *TestLocalNoDefaultState) StateMgr(name string) (statemgr.Full, error) {
+func (b *TestLocalNoDefaultState) StateMgr(name string, enc *configs.StateEncryption) (statemgr.Full, error) {
 	if name == backend.DefaultStateName {
 		return nil, backend.ErrDefaultWorkspaceNotSupported
 	}
-	return b.Local.StateMgr(name)
+	return b.Local.StateMgr(name, enc)
 }
 
 func testStateFile(t *testing.T, path string, s *states.State) {
@@ -206,7 +207,7 @@ func mustResourceInstanceAddr(s string) addrs.AbsResourceInstance {
 // True is returned if a lock was obtained.
 func assertBackendStateUnlocked(t *testing.T, b *Local) bool {
 	t.Helper()
-	stateMgr, _ := b.StateMgr(backend.DefaultStateName)
+	stateMgr, _ := b.StateMgr(backend.DefaultStateName, nil)
 	if _, err := stateMgr.Lock(statemgr.NewLockInfo()); err != nil {
 		t.Errorf("state is already locked: %s", err.Error())
 		// lock was obtained
@@ -221,7 +222,7 @@ func assertBackendStateUnlocked(t *testing.T, b *Local) bool {
 // True is returned if a lock was not obtained.
 func assertBackendStateLocked(t *testing.T, b *Local) bool {
 	t.Helper()
-	stateMgr, _ := b.StateMgr(backend.DefaultStateName)
+	stateMgr, _ := b.StateMgr(backend.DefaultStateName, nil)
 	if _, err := stateMgr.Lock(statemgr.NewLockInfo()); err != nil {
 		// lock was not obtained
 		return true

@@ -150,6 +150,13 @@ func (m *Meta) loadBackendConfig(rootDir string) (*configs.Backend, tfdiags.Diag
 		return nil, diags
 	}
 
+	// Initialize State Encryption
+	stateDiags := m.StateEncryptionSetup(mod)
+	diags = diags.Append(stateDiags)
+	if stateDiags.HasErrors() {
+		return nil, diags
+	}
+
 	if mod.CloudConfig != nil {
 		backendConfig := mod.CloudConfig.ToBackendConfig()
 		return &backendConfig, nil

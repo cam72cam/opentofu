@@ -520,13 +520,13 @@ func (s *State) MarshalEqual(other *State) bool {
 	recvBuf := &bytes.Buffer{}
 	otherBuf := &bytes.Buffer{}
 
-	err := WriteState(s, recvBuf)
+	err := WriteState(s, nil, recvBuf)
 	if err != nil {
 		// should never happen, since we're writing to a buffer
 		panic(err)
 	}
 
-	err = WriteState(other, otherBuf)
+	err = WriteState(other, nil, otherBuf)
 	if err != nil {
 		// should never happen, since we're writing to a buffer
 		panic(err)
@@ -2116,7 +2116,7 @@ func ReadStateV3(jsonBytes []byte) (*State, error) {
 	// If our state is now written out differently, bump the serial number to
 	// prevent conflicts.
 	var buf bytes.Buffer
-	err := WriteState(state, &buf)
+	err := WriteState(state, nil, &buf)
 	if err != nil {
 		return nil, err
 	}
@@ -2130,7 +2130,7 @@ func ReadStateV3(jsonBytes []byte) (*State, error) {
 }
 
 // WriteState writes a state somewhere in a binary format.
-func WriteState(d *State, dst io.Writer) error {
+func WriteState(d *State, enc *configs.StateEncryption, dst io.Writer) error {
 	// writing a nil state is a noop.
 	if d == nil {
 		return nil
@@ -2158,14 +2158,25 @@ func WriteState(d *State, dst io.Writer) error {
 		}
 	}
 
-	// Encode the data in a human-friendly way
-	data, err := json.MarshalIndent(d, "", "    ")
-	if err != nil {
-		return fmt.Errorf("Failed to encode state: %w", err)
-	}
+	var data []byte
+	var err error
 
-	// We append a newline to the data because MarshalIndent doesn't
-	data = append(data, '\n')
+	if enc == nil || enc.Method == nil {
+		// Encode the data in a human-friendly way
+		data, err = json.MarshalIndent(d, "", "    ")
+		if err != nil {
+			return fmt.Errorf("Failed to encode state: %w", err)
+		}
+
+		// We append a newline to the data because MarshalIndent doesn't
+		data = append(data, '\n')
+	} else {
+		// TODO This is where we inject the configured state encryptor
+		/*data, err = encryption.EncryptState(enc, d)
+		if err != nil {
+			return fmt.Errorf("Failed to encode state: %w", err)
+		}*/
+	}
 
 	// Write the data out to the dst
 	if _, err := io.Copy(dst, bytes.NewReader(data)); err != nil {

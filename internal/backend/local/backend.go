@@ -15,6 +15,7 @@ import (
 
 	"github.com/opentofu/opentofu/internal/backend"
 	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/configs/configschema"
 	"github.com/opentofu/opentofu/internal/logging"
 	"github.com/opentofu/opentofu/internal/states/statemgr"
@@ -238,10 +239,10 @@ func (b *Local) DeleteWorkspace(name string, force bool) error {
 	return os.RemoveAll(filepath.Join(b.stateWorkspaceDir(), name))
 }
 
-func (b *Local) StateMgr(name string) (statemgr.Full, error) {
+func (b *Local) StateMgr(name string, enc *configs.StateEncryption) (statemgr.Full, error) {
 	// If we have a backend handling state, delegate to that.
 	if b.Backend != nil {
-		return b.Backend.StateMgr(name)
+		return b.Backend.StateMgr(name, enc)
 	}
 
 	if s, ok := b.states[name]; ok {

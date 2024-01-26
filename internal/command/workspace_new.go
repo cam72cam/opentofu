@@ -15,6 +15,7 @@ import (
 	"github.com/opentofu/opentofu/internal/command/arguments"
 	"github.com/opentofu/opentofu/internal/command/clistate"
 	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/states/statefile"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 )
@@ -101,7 +102,7 @@ func (c *WorkspaceNewCommand) Run(args []string) int {
 		}
 	}
 
-	_, err = b.StateMgr(workspace)
+	_, err = b.StateMgr(workspace, c.Meta.StateEncryption.Configs[configs.StateEncryptionKeyBackend])
 	if err != nil {
 		c.Ui.Error(err.Error())
 		return 1
@@ -122,7 +123,7 @@ func (c *WorkspaceNewCommand) Run(args []string) int {
 	}
 
 	// load the new Backend state
-	stateMgr, err := b.StateMgr(workspace)
+	stateMgr, err := b.StateMgr(workspace, c.Meta.StateEncryption.Configs[configs.StateEncryptionKeyBackend])
 	if err != nil {
 		c.Ui.Error(err.Error())
 		return 1
