@@ -6,6 +6,7 @@ package gohcl
 import (
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 
@@ -116,6 +117,16 @@ func decodeBodyToStruct(body hcl.Body, ctx *hcl.EvalContext, val reflect.Value) 
 			synthExpr := hcl.StaticExpr(cty.NullVal(cty.DynamicPseudoType), body.MissingItemRange())
 			fieldV.Set(reflect.ValueOf(synthExpr))
 			continue
+		}
+
+		if strings.HasPrefix(field.Type.String(), "gohcl.Attr[") {
+			// Set range fields
+			fieldV.FieldByName("Range").Set(reflect.ValueOf(attr.Range))
+			fieldV.FieldByName("NameRange").Set(reflect.ValueOf(attr.NameRange))
+
+			// referr to Value
+			field, _ = fieldV.Type().FieldByName("Value")
+			fieldV = fieldV.FieldByName("Value")
 		}
 
 		switch {

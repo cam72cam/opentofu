@@ -26,7 +26,7 @@ func TestConfig_asAWSBase(t *testing.T) {
 			name: "minconfig",
 			input: `
 				kms_key_id = "my-kms-key-id"
-				key_spec = "AES_256"
+				key_spec = "AES_256a"
 				region = "magic-mountain"`,
 			expected: awsbase.Config{
 				Region:                 "magic-mountain",
@@ -173,10 +173,12 @@ func TestConfig_asAWSBase(t *testing.T) {
 				t.Fatal(diags.Error())
 			}
 
-			if config.KMSKeyID != "my-kms-key-id" {
+			println(config.KeySpec.String())
+
+			if config.KMSKeyID.Value != "my-kms-key-id" {
 				t.Fatal("missing kms_key_id")
 			}
-			if config.KeySpec != "AES_256" {
+			if config.KeySpec.Value != "AES_256" {
 				t.Fatal("missing key_spec")
 			}
 

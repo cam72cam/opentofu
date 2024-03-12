@@ -11,6 +11,7 @@ import (
 	awsbase "github.com/hashicorp/aws-sdk-go-base/v2"
 	baselogging "github.com/hashicorp/aws-sdk-go-base/v2/logging"
 	"github.com/opentofu/opentofu/internal/encryption/keyprovider"
+	"github.com/opentofu/opentofu/internal/gohcl"
 	"github.com/opentofu/opentofu/internal/httpclient"
 	"github.com/opentofu/opentofu/internal/logging"
 	"github.com/opentofu/opentofu/version"
@@ -18,8 +19,8 @@ import (
 
 type Config struct {
 	// KeyProvider Config
-	KMSKeyID string `hcl:"kms_key_id"`
-	KeySpec  string `hcl:"key_spec"`
+	KMSKeyID gohcl.Attr[string] `hcl:"kms_key_id"`
+	KeySpec  gohcl.Attr[string] `hcl:"key_spec"`
 
 	// Mirrored S3 Backend Config, mirror any changes
 	AccessKey                      string                     `hcl:"access_key,optional"`

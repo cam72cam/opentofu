@@ -29,7 +29,7 @@ func (p keyProvider) Provide(rawMeta keyprovider.KeyMeta) (keyprovider.Output, k
 	var spec types.DataKeySpec
 
 	for _, opt := range spec.Values() {
-		if string(opt) == p.KeySpec {
+		if string(opt) == p.KeySpec.Value {
 			spec = opt
 		}
 	}
@@ -39,7 +39,7 @@ func (p keyProvider) Provide(rawMeta keyprovider.KeyMeta) (keyprovider.Output, k
 	}
 
 	generatedKeyData, err := p.svc.GenerateDataKey(p.ctx, &kms.GenerateDataKeyInput{
-		KeyId:   aws.String(p.KMSKeyID),
+		KeyId:   aws.String(p.KMSKeyID.Value),
 		KeySpec: spec,
 	})
 
@@ -55,7 +55,7 @@ func (p keyProvider) Provide(rawMeta keyprovider.KeyMeta) (keyprovider.Output, k
 	if len(inMeta.CiphertextBlob) != 0 {
 		// We have an existing decryption key to decrypt
 		decryptedKeyData, err := p.svc.Decrypt(p.ctx, &kms.DecryptInput{
-			KeyId:          aws.String(p.KMSKeyID),
+			KeyId:          aws.String(p.KMSKeyID.Value),
 			CiphertextBlob: inMeta.CiphertextBlob,
 		})
 

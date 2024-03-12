@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
 	awsbase "github.com/hashicorp/aws-sdk-go-base/v2"
+	"github.com/opentofu/opentofu/internal/gohcl"
 )
 
 // skipCheck checks if the test should be skipped or not based on environment variables
@@ -35,8 +36,8 @@ func TestKMSProvider_Simple(t *testing.T) {
 
 	// Constructs a aws kms key provider config that accepts the alias as the key id
 	providerConfig := Config{
-		KMSKeyID: alias,
-		KeySpec:  "AES_256",
+		KMSKeyID: gohcl.Attr[string]{Value: alias},
+		KeySpec:  gohcl.Attr[string]{Value: "AES_256"},
 	}
 
 	// Mimic the creation of the aws client here via providerConfig.asAWSBase() so that
