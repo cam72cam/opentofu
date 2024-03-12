@@ -71,36 +71,14 @@ type TargetConfig struct {
 }
 
 // EnforcableTargetConfig is an extension of the TargetConfig that supports the enforced form.
-//
-// Note: This struct is copied because gohcl does not support embedding.
 type EnforcableTargetConfig struct {
-	Enforced bool           `hcl:"enforced,optional"`
-	Method   hcl.Expression `hcl:"method,optional"`
-	Fallback *TargetConfig  `hcl:"fallback,block"`
-}
-
-// AsTargetConfig converts the struct into its parent TargetConfig.
-func (e EnforcableTargetConfig) AsTargetConfig() *TargetConfig {
-	return &TargetConfig{
-		Method:   e.Method,
-		Fallback: e.Fallback,
-	}
+	TargetConfig
+	Enforced bool `hcl:"enforced,optional"`
 }
 
 // NamedTargetConfig is an extension of the TargetConfig that describes a
 // terraform.encryption.remote.remote_state_data.* block.
-//
-// Note: This struct is copied because gohcl does not support embedding.
 type NamedTargetConfig struct {
-	Name     string         `hcl:"name,label"`
-	Method   hcl.Expression `hcl:"method,optional"`
-	Fallback *TargetConfig  `hcl:"fallback,block"`
-}
-
-// AsTargetConfig converts the struct into its parent TargetConfig.
-func (n NamedTargetConfig) AsTargetConfig() *TargetConfig {
-	return &TargetConfig{
-		Method:   n.Method,
-		Fallback: n.Fallback,
-	}
+	TargetConfig
+	Name string `hcl:"name,label"`
 }

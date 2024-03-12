@@ -61,7 +61,7 @@ func (base *baseEncryption) buildTargetMethods(meta map[keyprovider.Addr][]byte)
 // build sets up a single target for encryption. It returns the primary and fallback methods for the target, as well
 // as a list of diagnostics if the target is invalid.
 // The targetName parameter is used for error messages only.
-func (e *targetBuilder) build(target *config.TargetConfig, targetName string) (methods []method.Method, diags hcl.Diagnostics) {
+func (e *targetBuilder) build(target config.TargetConfig, targetName string) (methods []method.Method, diags hcl.Diagnostics) {
 
 	// gohcl has some weirdness around attributes that are not provided, but are hcl.Expressions
 	// They will set the attribute field to a static null expression
@@ -95,7 +95,7 @@ func (e *targetBuilder) build(target *config.TargetConfig, targetName string) (m
 
 	// Attempt to fetch the fallback method if it's been configured
 	if target.Fallback != nil {
-		fallback, fallbackDiags := e.build(target.Fallback, targetName+".fallback")
+		fallback, fallbackDiags := e.build(*target.Fallback, targetName+".fallback")
 		diags = append(diags, fallbackDiags...)
 		methods = append(methods, fallback...)
 	}

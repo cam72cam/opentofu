@@ -49,7 +49,7 @@ type planEncryption struct {
 	base *baseEncryption
 }
 
-func newPlanEncryption(enc *encryption, target *config.TargetConfig, enforced bool, name string) (PlanEncryption, hcl.Diagnostics) {
+func newPlanEncryption(enc *encryption, target config.TargetConfig, enforced bool, name string) (PlanEncryption, hcl.Diagnostics) {
 	base, diags := newBaseEncryption(enc, target, enforced, name)
 	return &planEncryption{base}, diags
 }

@@ -81,7 +81,7 @@ func mergeKeyProviderConfigs(configs []KeyProviderConfig, overrides []KeyProvide
 	return merged
 }
 
-func mergeTargetConfigs(cfg *TargetConfig, override *TargetConfig) *TargetConfig {
+func mergeOptionalTargetConfigs(cfg *TargetConfig, override *TargetConfig) *TargetConfig {
 	if cfg == nil {
 		return override
 	}
@@ -89,7 +89,12 @@ func mergeTargetConfigs(cfg *TargetConfig, override *TargetConfig) *TargetConfig
 		return cfg
 	}
 
-	merged := &TargetConfig{}
+	target := mergeTargetConfigs(*cfg, *override)
+	return &target
+}
+
+func mergeTargetConfigs(cfg TargetConfig, override TargetConfig) TargetConfig {
+	merged := TargetConfig{}
 
 	if override.Method != nil {
 		merged.Method = override.Method
@@ -114,11 +119,9 @@ func mergeEnforcableTargetConfigs(cfg *EnforcableTargetConfig, override *Enforca
 		return cfg
 	}
 
-	mergeTarget := mergeTargetConfigs(cfg.AsTargetConfig(), override.AsTargetConfig())
 	return &EnforcableTargetConfig{
-		Enforced: cfg.Enforced || override.Enforced,
-		Method:   mergeTarget.Method,
-		Fallback: mergeTarget.Fallback,
+		Enforced:     cfg.Enforced || override.Enforced,
+		TargetConfig: mergeTargetConfigs(cfg.TargetConfig, override.TargetConfig),
 	}
 }
 
@@ -131,7 +134,7 @@ func mergeRemoteConfigs(cfg *RemoteConfig, override *RemoteConfig) *RemoteConfig
 	}
 
 	merged := &RemoteConfig{
-		Default: mergeTargetConfigs(cfg.Default, override.Default),
+		Default: mergeOptionalTargetConfigs(cfg.Default, override.Default),
 		Targets: make([]NamedTargetConfig, len(cfg.Targets)),
 	}
 
@@ -141,12 +144,9 @@ func mergeRemoteConfigs(cfg *RemoteConfig, override *RemoteConfig) *RemoteConfig
 		for i, t := range merged.Targets {
 			found = t.Name == overrideTarget.Name
 			if found {
-				// gohcl does not support struct embedding
-				mergeTarget := mergeTargetConfigs(t.AsTargetConfig(), overrideTarget.AsTargetConfig())
 				merged.Targets[i] = NamedTargetConfig{
-					Name:     t.Name,
-					Method:   mergeTarget.Method,
-					Fallback: mergeTarget.Fallback,
+					Name:         t.Name,
+					TargetConfig: mergeTargetConfigs(t.TargetConfig, overrideTarget.TargetConfig),
 				}
 				break
 			}

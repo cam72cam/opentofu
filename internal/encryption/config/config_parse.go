@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/gohcl"
+	"github.com/opentofu/opentofu/internal/gohcl"
 )
 
 // DecodeConfig takes a hcl.Body and decodes it into a Config struct.

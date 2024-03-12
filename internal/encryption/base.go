@@ -22,12 +22,12 @@ const (
 
 type baseEncryption struct {
 	enc      *encryption
-	target   *config.TargetConfig
+	target   config.TargetConfig
 	enforced bool
 	name     string
 }
 
-func newBaseEncryption(enc *encryption, target *config.TargetConfig, enforced bool, name string) (*baseEncryption, hcl.Diagnostics) {
+func newBaseEncryption(enc *encryption, target config.TargetConfig, enforced bool, name string) (*baseEncryption, hcl.Diagnostics) {
 	base := &baseEncryption{
 		enc:      enc,
 		target:   target,
@@ -58,11 +58,6 @@ func IsEncryptionPayload(data []byte) (bool, error) {
 }
 
 func (s *baseEncryption) encrypt(data []byte) ([]byte, error) {
-	// No configuration provided, don't do anything
-	if s.target == nil {
-		return data, nil
-	}
-
 	es := basedata{
 		Meta:    make(map[keyprovider.Addr][]byte),
 		Version: encryptionVersion,
@@ -105,10 +100,6 @@ func (s *baseEncryption) encrypt(data []byte) ([]byte, error) {
 
 // TODO Find a way to make these errors actionable / clear
 func (s *baseEncryption) decrypt(data []byte, validator func([]byte) error) ([]byte, error) {
-	if s.target == nil {
-		return data, nil
-	}
-
 	es := basedata{}
 	err := json.Unmarshal(data, &es)
 

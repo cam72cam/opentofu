@@ -57,7 +57,7 @@ type stateEncryption struct {
 	base *baseEncryption
 }
 
-func newStateEncryption(enc *encryption, target *config.TargetConfig, enforced bool, name string) (StateEncryption, hcl.Diagnostics) {
+func newStateEncryption(enc *encryption, target config.TargetConfig, enforced bool, name string) (StateEncryption, hcl.Diagnostics) {
 	base, diags := newBaseEncryption(enc, target, enforced, name)
 	return &stateEncryption{base}, diags
 }
