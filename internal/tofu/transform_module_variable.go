@@ -106,9 +106,10 @@ func (t *ModuleVariableTransformer) transformSingle(g *Graph, parent, c *configs
 			Addr: addrs.InputVariable{
 				Name: v.Name,
 			},
-			Module: c.Path,
-			Config: v,
-			Expr:   expr,
+			Module:     c.Path,
+			Config:     v,
+			Expr:       expr,
+			IterValues: callConfig.IterValues,
 		}
 		g.Add(node)
 	}

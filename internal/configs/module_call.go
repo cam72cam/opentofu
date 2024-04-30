@@ -8,9 +8,11 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/getmodules"
+	"github.com/opentofu/opentofu/internal/instances"
 )
 
 // ModuleCall represents a "module" block in a module or file.
@@ -26,11 +28,15 @@ type ModuleCall struct {
 
 	Config hcl.Body
 
+	IterValues *instances.RepetitionData
+
 	HasVersion bool
 	Version    VersionConstraint
 
 	Count   hcl.Expression
 	ForEach hcl.Expression
+
+	ForEachMap map[string]*ModuleCall
 
 	Providers []PassedProviderConfig
 
@@ -41,6 +47,64 @@ type ModuleCall struct {
 
 func (mc *ModuleCall) IncludeContext(ctx *StaticContext) hcl.Diagnostics {
 	var diags hcl.Diagnostics
+
+	if mc.ForEach != nil {
+		feRef := ctx.Evaluate(mc.ForEach, StaticIdentifier{Module: ctx.Params.Name, Type: mc.Name, Name: "for_each"})
+		feVal, feDiags := feRef.Value(nil)
+		if !feDiags.HasErrors() {
+			mc.ForEachMap = make(map[string]*ModuleCall)
+
+			for mk, mv := range feVal.AsValueMap() {
+				mk := mk
+				mv := mv
+
+				mctx := ctx.clone()
+				mctx.each = make(StaticReferences)
+				mctx.each["key"] = StaticReference{
+					Identifier: StaticIdentifier{
+						Type: "each",
+						Name: "key",
+					},
+					Value: func(stack []StaticIdentifier) (cty.Value, hcl.Diagnostics) {
+						return cty.StringVal(mk), nil
+					},
+				}
+				mctx.each["value"] = StaticReference{
+					Identifier: StaticIdentifier{
+						Type: "each",
+						Name: "value",
+					},
+					Value: func(stack []StaticIdentifier) (cty.Value, hcl.Diagnostics) { return mv, nil },
+				}
+
+				mcInstance := &ModuleCall{
+					Name:       fmt.Sprintf(`%s["%s"]`, mc.Name, mk),
+					Source:     mc.Source,
+					SourceSet:  mc.SourceSet,
+					Config:     mc.Config,
+					HasVersion: mc.HasVersion,
+					Version:    mc.Version,
+					Providers:  mc.Providers, //TODO?
+					DependsOn:  mc.DependsOn,
+					DeclRange:  mc.DeclRange,
+					IterValues: &instances.RepetitionData{
+						EachKey:   cty.StringVal(mk),
+						EachValue: mv,
+					},
+				}
+
+				iDiags := mcInstance.IncludeContext(mctx)
+				diags = append(diags, iDiags...)
+
+				if !iDiags.HasErrors() {
+					mc.ForEachMap[mcInstance.Name] = mcInstance
+				}
+			}
+			return diags
+		}
+
+		// TODO inject each.key/value for error handling
+	}
 
 	valDiags := ctx.DecodeExpression(mc.Source, StaticIdentifier{Module: ctx.Params.Name, Name: mc.Name}, &mc.SourceAddrRaw)
 	diags = append(diags, valDiags...)

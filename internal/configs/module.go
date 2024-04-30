@@ -183,9 +183,19 @@ func NewModule(primaryFiles, overrideFiles []*File, params StaticModuleCall) (*M
 		mod.Backend.ctx = ctx
 	}
 
+	newMods := make(map[string]*ModuleCall)
 	for _, mc := range mod.ModuleCalls {
 		mc.IncludeContext(ctx)
+		if mc.ForEachMap != nil {
+			// Apply dynamic expansion here if applicable, replacing the original module
+			for k, v := range mc.ForEachMap {
+				newMods[k] = v
+			}
+		} else {
+			newMods[mc.Name] = mc
+		}
 	}
+	mod.ModuleCalls = newMods
 
 	diags = append(diags, checkModuleExperiments(mod)...)
 

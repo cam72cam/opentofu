@@ -68,6 +68,7 @@ type StaticContext struct {
 	// Cache
 	vars      StaticReferences
 	locals    StaticReferences
+	each      StaticReferences
 	workspace StaticReference
 }
 
@@ -98,6 +99,16 @@ func CreateStaticContext(vars map[string]*Variable, locals map[string]*Local, Pa
 	}
 
 	return &ctx, nil
+}
+
+func (s *StaticContext) clone() *StaticContext {
+	return &StaticContext{
+		Params:    s.Params,
+		vars:      s.vars,
+		locals:    s.locals,
+		each:      s.each,
+		workspace: s.workspace,
+	}
 }
 
 func (s *StaticContext) addVariable(variable *Variable) {
@@ -178,6 +189,17 @@ func (s *StaticContext) followTraversal(trav hcl.Traversal) (*StaticReference, h
 			}}
 		}
 		return &local, nil
+	case "each":
+		each, ok := s.each[ident.Name]
+		if !ok {
+			return nil, hcl.Diagnostics{&hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Undefined each",
+				Detail:   fmt.Sprintf("Undefined each %s", ident.Name),
+				Subject:  trav.SourceRange().Ptr(),
+			}}
+		}
+		return &each, nil
 	case "terraform":
 		return &s.workspace, nil
 	default:

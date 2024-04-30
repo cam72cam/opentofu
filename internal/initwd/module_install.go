@@ -167,7 +167,7 @@ func (i *ModuleInstaller) moduleInstallWalker(ctx context.Context, manifest mods
 				// A module with an invalid name shouldn't be installed at all. This is
 				// mostly a concern for remote modules, since we need to be able to convert
 				// the name to a valid path.
-				return nil, nil, diags
+				//TODO Add index to request? return nil, nil, diags
 			}
 
 			key := manifest.ModuleKey(req.Path)

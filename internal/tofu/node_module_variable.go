@@ -21,10 +21,11 @@ import (
 // nodeExpandModuleVariable is the placeholder for an variable that has not yet had
 // its module path expanded.
 type nodeExpandModuleVariable struct {
-	Addr   addrs.InputVariable
-	Module addrs.Module
-	Config *configs.Variable
-	Expr   hcl.Expression
+	Addr       addrs.InputVariable
+	Module     addrs.Module
+	Config     *configs.Variable
+	Expr       hcl.Expression
+	IterValues *instances.RepetitionData
 }
 
 var (
@@ -66,6 +67,7 @@ func (n *nodeExpandModuleVariable) DynamicExpand(ctx EvalContext) (*Graph, error
 			Config:         n.Config,
 			Expr:           n.Expr,
 			ModuleInstance: module,
+			IterValues:     n.IterValues,
 		}
 		g.Add(o)
 	}
@@ -134,6 +136,7 @@ type nodeModuleVariable struct {
 	// ModuleInstance in order to create the appropriate context for evaluating
 	// ModuleCallArguments, ex. so count.index and each.key can resolve
 	ModuleInstance addrs.ModuleInstance
+	IterValues     *instances.RepetitionData
 }
 
 // Ensure that we are implementing all of the interfaces we think we are
@@ -233,9 +236,13 @@ func (n *nodeModuleVariable) evalModuleVariable(ctx EvalContext, validateOnly bo
 			}
 
 		default:
-			// Get the repetition data for this module instance,
-			// so we can create the appropriate scope for evaluating our expression
-			moduleInstanceRepetitionData = ctx.InstanceExpander().GetModuleInstanceRepetitionData(n.ModuleInstance)
+			if n.IterValues != nil {
+				moduleInstanceRepetitionData = *n.IterValues
+			} else {
+				// Get the repetition data for this module instance,
+				// so we can create the appropriate scope for evaluating our expression
+				moduleInstanceRepetitionData = ctx.InstanceExpander().GetModuleInstanceRepetitionData(n.ModuleInstance)
+			}
 		}
 
 		scope := ctx.EvaluationScope(nil, nil, moduleInstanceRepetitionData)
