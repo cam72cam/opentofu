@@ -85,7 +85,7 @@ func (t *ModuleExpansionTransformer) Transform(g *Graph) error {
 
 func (t *ModuleExpansionTransformer) transform(g *Graph, c *configs.Config, parentNode dag.Vertex) error {
 	_, call := c.Path.Call()
-	modCall := c.Parent.Module.ModuleCalls[call.Name]
+	modCall := c.Parent.Module.ModuleCallsExpanded()[call.Name]
 
 	n := &nodeExpandModule{
 		Addr:       c.Path,

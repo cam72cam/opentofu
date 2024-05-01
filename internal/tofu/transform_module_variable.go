@@ -66,7 +66,7 @@ func (t *ModuleVariableTransformer) transformSingle(g *Graph, parent, c *configs
 
 	// Find the call in the parent module configuration, so we can get the
 	// expressions given for each input variable at the call site.
-	callConfig, exists := parent.Module.ModuleCalls[call.Name]
+	callConfig, exists := parent.Module.ModuleCallsExpanded()[call.Name]
 	if !exists {
 		// This should never happen, since it indicates an improperly-constructed
 		// configuration tree.

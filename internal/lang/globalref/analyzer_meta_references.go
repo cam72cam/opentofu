@@ -102,6 +102,7 @@ func (a *Analyzer) metaReferencesInputVariable(calleeAddr addrs.ModuleInstance, 
 	if call == nil {
 		return nil
 	}
+	// TODO we probably need to expand intentionally here!
 
 	// Now we need to look for an attribute matching the variable name inside
 	// the module block body.

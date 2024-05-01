@@ -618,7 +618,7 @@ func (c *Config) resolveProviderTypes() map[string]addrs.Provider {
 	}
 
 	// connect module call providers to the correct type
-	for _, mod := range c.Module.ModuleCalls {
+	for _, mod := range c.Module.ModuleCallsExpanded() {
 		for _, p := range mod.Providers {
 			if addr, known := providers[p.InParent.Name]; known {
 				p.InParent.providerType = addr
@@ -628,7 +628,7 @@ func (c *Config) resolveProviderTypes() map[string]addrs.Provider {
 
 	// fill in parent module calls too
 	if c.Parent != nil {
-		for _, mod := range c.Parent.Module.ModuleCalls {
+		for _, mod := range c.Parent.Module.ModuleCallsExpanded() {
 			for _, p := range mod.Providers {
 				if addr, known := providers[p.InChild.Name]; known {
 					p.InChild.providerType = addr

@@ -117,7 +117,7 @@ func buildChildModules(parent *Config, walker ModuleWalker) (map[string]*Config,
 	var diags hcl.Diagnostics
 	ret := map[string]*Config{}
 
-	calls := parent.Module.ModuleCalls
+	calls := parent.Module.ModuleCallsExpanded()
 
 	// We'll sort the calls by their local names so that they'll appear in a
 	// predictable order in any logging that's produced during the walk.

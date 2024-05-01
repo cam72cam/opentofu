@@ -286,8 +286,10 @@ func validateProviderConfigsForTests(cfg *Config) (diags hcl.Diagnostics) {
 func validateProviderConfigs(parentCall *ModuleCall, cfg *Config, noProviderConfigRange *hcl.Range) (diags hcl.Diagnostics) {
 	mod := cfg.Module
 
+	calls := mod.ModuleCallsExpanded()
+
 	for name, child := range cfg.Children {
-		mc := mod.ModuleCalls[name]
+		mc := calls[name]
 		childNoProviderConfigRange := noProviderConfigRange
 		// if the module call has any of count, for_each or depends_on,
 		// providers are prohibited from being configured in this module, or
@@ -472,7 +474,7 @@ func validateProviderConfigs(parentCall *ModuleCall, cfg *Config, noProviderConf
 	// those providers will have a configuration at runtime. This way we can
 	// direct users where to add the missing configuration, because the runtime
 	// error is only "missing provider X".
-	for _, modCall := range mod.ModuleCalls {
+	for _, modCall := range mod.ModuleCallsExpanded() {
 		for _, passed := range modCall.Providers {
 			// aliased providers are handled more strictly, and are never
 			// inherited, so they are validated within modules further down.
