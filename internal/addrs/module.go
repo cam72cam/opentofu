@@ -12,6 +12,7 @@ import (
 // the static module call tree in configuration and does not take into account
 // the potentially-multiple instances of a module that might be created by
 // "count" and "for_each" arguments within those calls.
+// TODO DEPRECATE AND REMOVE!
 //
 // This type should be used only in very specialized cases when working with
 // the static module call tree. Type ModuleInstance is appropriate in more cases.
@@ -140,12 +141,31 @@ func (m Module) Parent() Module {
 // ModuleCall and then returns a slice of the receiever that excludes that
 // last part. This is just a convenience for situations where a call address
 // is required, such as when dealing with *Reference and Referencable values.
+func (m Module) CallInstance() (Module, ModuleCall) {
+	if len(m) == 0 {
+		panic("cannot produce ModuleCall for root module")
+	}
+
+	caller, callName := m[:len(m)-1], m[len(m)-1]
+	//sp := strings.Split(callName, "[")
+	//TODO  This is a nasty hack
+	//callName = sp[0]
+
+	return caller, ModuleCall{
+		Name: callName,
+	}
+}
+
 func (m Module) Call() (Module, ModuleCall) {
 	if len(m) == 0 {
 		panic("cannot produce ModuleCall for root module")
 	}
 
 	caller, callName := m[:len(m)-1], m[len(m)-1]
+	sp := strings.Split(callName, "[")
+	//TODO  This is a nasty hack
+	callName = sp[0]
+
 	return caller, ModuleCall{
 		Name: callName,
 	}

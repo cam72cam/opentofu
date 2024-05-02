@@ -78,7 +78,7 @@ func (mc *ModuleCall) IncludeContext(ctx *StaticContext) hcl.Diagnostics {
 				}
 
 				mcInstance := &ModuleCall{
-					Name:       fmt.Sprintf(`%s["%s"]`, mc.Name, mk),
+					Name:       mc.Name,
 					Source:     mc.Source,
 					SourceSet:  mc.SourceSet,
 					Config:     mc.Config,
@@ -97,7 +97,7 @@ func (mc *ModuleCall) IncludeContext(ctx *StaticContext) hcl.Diagnostics {
 				diags = append(diags, iDiags...)
 
 				if !iDiags.HasErrors() {
-					mc.ForEachMap[mcInstance.Name] = mcInstance
+					mc.ForEachMap[mk] = mcInstance
 				}
 			}
 			return diags

@@ -113,9 +113,9 @@ func buildTestModules(root *Config, walker ModuleWalker) hcl.Diagnostics {
 	return diags
 }
 
-func buildChildModules(parent *Config, walker ModuleWalker) (map[string]*Config, hcl.Diagnostics) {
+func buildChildModules(parent *Config, walker ModuleWalker) (map[string]map[addrs.InstanceKey]*Config, hcl.Diagnostics) {
 	var diags hcl.Diagnostics
-	ret := map[string]*Config{}
+	ret := map[string]map[addrs.InstanceKey]*Config{}
 
 	calls := parent.Module.ModuleCallsExpanded()
 
@@ -128,30 +128,37 @@ func buildChildModules(parent *Config, walker ModuleWalker) (map[string]*Config,
 	sort.Strings(callNames)
 
 	for _, callName := range callNames {
-		call := calls[callName]
-		path := make([]string, len(parent.Path)+1)
-		copy(path, parent.Path)
-		path[len(path)-1] = call.Name
+		children := make(map[addrs.InstanceKey]*Config)
+		for key, call := range calls[callName] {
+			path := make([]string, len(parent.Path)+1)
+			copy(path, parent.Path)
+			name := call.Name
+			if key != nil {
+				name += key.String()
+			}
+			path[len(path)-1] = name
 
-		req := ModuleRequest{
-			Name:              call.Name,
-			Path:              path,
-			SourceAddr:        call.SourceAddr,
-			SourceAddrRange:   call.Source.Range(),
-			VersionConstraint: call.Version,
-			Parent:            parent,
-			CallRange:         call.DeclRange,
-			Variables:         call.Variables,
+			req := ModuleRequest{
+				Name:              call.Name,
+				Path:              path,
+				SourceAddr:        call.SourceAddr,
+				SourceAddrRange:   call.Source.Range(),
+				VersionConstraint: call.Version,
+				Parent:            parent,
+				CallRange:         call.DeclRange,
+				Variables:         call.Variables,
+			}
+			child, modDiags := loadModule(parent.Root, &req, walker)
+			diags = append(diags, modDiags...)
+			if child == nil {
+				println(diags.Error())
+				// This means an error occurred, there should be diagnostics within
+				// modDiags for this.
+				continue
+			}
+			children[key] = child
 		}
-		child, modDiags := loadModule(parent.Root, &req, walker)
-		diags = append(diags, modDiags...)
-		if child == nil {
-			// This means an error occurred, there should be diagnostics within
-			// modDiags for this.
-			continue
-		}
-
-		ret[call.Name] = child
+		ret[callName] = children
 	}
 
 	return ret, diags
@@ -217,8 +224,10 @@ func loadModule(root *Config, req *ModuleRequest, walker ModuleWalker) (*Config,
 // root of this module tree. It then recurses into all the child modules and
 // does the same for them.
 func rebaseChildModule(cfg *Config, root *Config) {
-	for _, child := range cfg.Children {
-		rebaseChildModule(child, root)
+	for _, instances := range cfg.Children {
+		for _, child := range instances {
+			rebaseChildModule(child, root)
+		}
 	}
 
 	cfg.Path = cfg.Path[len(root.Path):]

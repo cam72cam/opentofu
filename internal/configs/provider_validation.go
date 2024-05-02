@@ -288,26 +288,30 @@ func validateProviderConfigs(parentCall *ModuleCall, cfg *Config, noProviderConf
 
 	calls := mod.ModuleCallsExpanded()
 
-	for name, child := range cfg.Children {
-		mc := calls[name]
+	for name, instances := range cfg.Children {
+		mcm := calls[name]
 		childNoProviderConfigRange := noProviderConfigRange
-		// if the module call has any of count, for_each or depends_on,
-		// providers are prohibited from being configured in this module, or
-		// any module beneath this module.
-		switch {
-		case mc.Count != nil:
-			childNoProviderConfigRange = mc.Count.Range().Ptr()
-		case mc.ForEach != nil:
-			childNoProviderConfigRange = mc.ForEach.Range().Ptr()
-		case mc.DependsOn != nil:
-			if len(mc.DependsOn) > 0 {
-				childNoProviderConfigRange = mc.DependsOn[0].SourceRange().Ptr()
-			} else {
-				// Weird! We'll just use the call itself, then.
-				childNoProviderConfigRange = mc.DeclRange.Ptr()
+
+		for key, child := range instances {
+			mc := mcm[key]
+			// if the module call has any of count, for_each or depends_on,
+			// providers are prohibited from being configured in this module, or
+			// any module beneath this module.
+			switch {
+			case mc.Count != nil:
+				childNoProviderConfigRange = mc.Count.Range().Ptr()
+			case mc.ForEach != nil:
+				childNoProviderConfigRange = mc.ForEach.Range().Ptr()
+			case mc.DependsOn != nil:
+				if len(mc.DependsOn) > 0 {
+					childNoProviderConfigRange = mc.DependsOn[0].SourceRange().Ptr()
+				} else {
+					// Weird! We'll just use the call itself, then.
+					childNoProviderConfigRange = mc.DeclRange.Ptr()
+				}
 			}
+			diags = append(diags, validateProviderConfigs(mc, child, childNoProviderConfigRange)...)
 		}
-		diags = append(diags, validateProviderConfigs(mc, child, childNoProviderConfigRange)...)
 	}
 
 	// the set of provider configuration names passed into the module, with the
@@ -474,53 +478,55 @@ func validateProviderConfigs(parentCall *ModuleCall, cfg *Config, noProviderConf
 	// those providers will have a configuration at runtime. This way we can
 	// direct users where to add the missing configuration, because the runtime
 	// error is only "missing provider X".
-	for _, modCall := range mod.ModuleCallsExpanded() {
-		for _, passed := range modCall.Providers {
-			// aliased providers are handled more strictly, and are never
-			// inherited, so they are validated within modules further down.
-			// Skip these checks to prevent redundant diagnostics.
-			if passed.InParent.Alias != "" {
-				continue
-			}
+	for _, modCalls := range mod.ModuleCallsExpanded() {
+		for _, modCall := range modCalls {
+			for _, passed := range modCall.Providers {
+				// aliased providers are handled more strictly, and are never
+				// inherited, so they are validated within modules further down.
+				// Skip these checks to prevent redundant diagnostics.
+				if passed.InParent.Alias != "" {
+					continue
+				}
 
-			name := passed.InParent.String()
-			_, confOK := configured[name]
-			_, localOK := localNames[name]
-			_, passedOK := passedIn[name]
+				name := passed.InParent.String()
+				_, confOK := configured[name]
+				_, localOK := localNames[name]
+				_, passedOK := passedIn[name]
 
-			// This name was not declared somewhere within in the
-			// configuration. We ignore empty configs, because they will
-			// already produce a warning.
-			if !(confOK || localOK) {
-				defAddr := addrs.NewDefaultProvider(name)
-				diags = append(diags, &hcl.Diagnostic{
-					Severity: hcl.DiagWarning,
-					Summary:  "Reference to undefined provider",
-					Detail: fmt.Sprintf(
-						"There is no explicit declaration for local provider name %q in %s, so OpenTofu is assuming you mean to pass a configuration for provider %q.\n\nTo clarify your intent and silence this warning, add to %s a required_providers entry named %q with source = %q, or a different source address if appropriate.",
-						name, moduleText, defAddr.ForDisplay(),
-						parentModuleText, name, defAddr.ForDisplay(),
-					),
-					Subject: &passed.InParent.NameRange,
-				})
-				continue
-			}
+				// This name was not declared somewhere within in the
+				// configuration. We ignore empty configs, because they will
+				// already produce a warning.
+				if !(confOK || localOK) {
+					defAddr := addrs.NewDefaultProvider(name)
+					diags = append(diags, &hcl.Diagnostic{
+						Severity: hcl.DiagWarning,
+						Summary:  "Reference to undefined provider",
+						Detail: fmt.Sprintf(
+							"There is no explicit declaration for local provider name %q in %s, so OpenTofu is assuming you mean to pass a configuration for provider %q.\n\nTo clarify your intent and silence this warning, add to %s a required_providers entry named %q with source = %q, or a different source address if appropriate.",
+							name, moduleText, defAddr.ForDisplay(),
+							parentModuleText, name, defAddr.ForDisplay(),
+						),
+						Subject: &passed.InParent.NameRange,
+					})
+					continue
+				}
 
-			// Now we may have named this provider within the module, but
-			// there won't be a configuration available at runtime if the
-			// parent module did not pass one in.
-			if !cfg.Path.IsRoot() && !(confOK || passedOK) {
-				defAddr := addrs.NewDefaultProvider(name)
-				diags = append(diags, &hcl.Diagnostic{
-					Severity: hcl.DiagWarning,
-					Summary:  "Missing required provider configuration",
-					Detail: fmt.Sprintf(
-						"The configuration for %s expects to inherit a configuration for provider %s with local name %q, but %s doesn't pass a configuration under that name.\n\nTo satisfy this requirement, add an entry for %q to the \"providers\" argument in the module %q block.",
-						moduleText, defAddr.ForDisplay(), name, parentModuleText,
-						name, parentCall.Name,
-					),
-					Subject: parentCall.DeclRange.Ptr(),
-				})
+				// Now we may have named this provider within the module, but
+				// there won't be a configuration available at runtime if the
+				// parent module did not pass one in.
+				if !cfg.Path.IsRoot() && !(confOK || passedOK) {
+					defAddr := addrs.NewDefaultProvider(name)
+					diags = append(diags, &hcl.Diagnostic{
+						Severity: hcl.DiagWarning,
+						Summary:  "Missing required provider configuration",
+						Detail: fmt.Sprintf(
+							"The configuration for %s expects to inherit a configuration for provider %s with local name %q, but %s doesn't pass a configuration under that name.\n\nTo satisfy this requirement, add an entry for %q to the \"providers\" argument in the module %q block.",
+							moduleText, defAddr.ForDisplay(), name, parentModuleText,
+							name, parentCall.Name,
+						),
+						Subject: parentCall.DeclRange.Ptr(),
+					})
+				}
 			}
 		}
 	}

@@ -235,9 +235,11 @@ func loadProvisionerSchemas(schemas map[string]*configschema.Block, config *conf
 		}
 
 		// Must also visit our child modules, recursively.
-		for _, cc := range config.Children {
-			childDiags := loadProvisionerSchemas(schemas, cc, components)
-			diags = diags.Append(childDiags)
+		for _, instances := range config.Children {
+			for _, cc := range instances {
+				childDiags := loadProvisionerSchemas(schemas, cc, components)
+				diags = diags.Append(childDiags)
+			}
 		}
 	}
 

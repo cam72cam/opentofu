@@ -35,9 +35,11 @@ func (t *LocalTransformer) transformModule(g *Graph, c *configs.Config) error {
 	}
 
 	// Also populate locals for child modules
-	for _, cc := range c.Children {
-		if err := t.transformModule(g, cc); err != nil {
-			return err
+	for _, instances := range c.Children {
+		for _, cc := range instances {
+			if err := t.transformModule(g, cc); err != nil {
+				return err
+			}
 		}
 	}
 

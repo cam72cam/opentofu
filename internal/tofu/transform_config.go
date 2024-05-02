@@ -76,9 +76,11 @@ func (t *ConfigTransformer) transform(g *Graph, config *configs.Config, generate
 	}
 
 	// Transform all the children without generating config.
-	for _, c := range config.Children {
-		if err := t.transform(g, c, ""); err != nil {
-			return err
+	for _, instances := range config.Children {
+		for _, c := range instances {
+			if err := t.transform(g, c, ""); err != nil {
+				return err
+			}
 		}
 	}
 

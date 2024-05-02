@@ -31,19 +31,21 @@ type ModuleVariableTransformer struct {
 }
 
 func (t *ModuleVariableTransformer) Transform(g *Graph) error {
-	return t.transform(g, nil, t.Config)
+	return t.transform(g, nil, t.Config, addrs.NoKey)
 }
 
-func (t *ModuleVariableTransformer) transform(g *Graph, parent, c *configs.Config) error {
+func (t *ModuleVariableTransformer) transform(g *Graph, parent, c *configs.Config, key addrs.InstanceKey) error {
 	// We can have no variables if we have no configuration.
 	if c == nil {
 		return nil
 	}
 
 	// Transform all the children first.
-	for _, cc := range c.Children {
-		if err := t.transform(g, c, cc); err != nil {
-			return err
+	for _, instances := range c.Children {
+		for ck, cc := range instances {
+			if err := t.transform(g, c, cc, ck); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -53,7 +55,7 @@ func (t *ModuleVariableTransformer) transform(g *Graph, parent, c *configs.Confi
 	// If we have a parent, we can determine if a module variable is being
 	// used, so we transform this.
 	if parent != nil {
-		if err := t.transformSingle(g, parent, c); err != nil {
+		if err := t.transformSingle(g, parent, c, key); err != nil {
 			return err
 		}
 	}
@@ -61,12 +63,18 @@ func (t *ModuleVariableTransformer) transform(g *Graph, parent, c *configs.Confi
 	return nil
 }
 
-func (t *ModuleVariableTransformer) transformSingle(g *Graph, parent, c *configs.Config) error {
+func (t *ModuleVariableTransformer) transformSingle(g *Graph, parent, c *configs.Config, key addrs.InstanceKey) error {
 	_, call := c.Path.Call()
+
+	fmt.Printf("Lu: %s from %s  ->  %s . %s\n", c.Path, parent.Path, call.Name, key)
 
 	// Find the call in the parent module configuration, so we can get the
 	// expressions given for each input variable at the call site.
-	callConfig, exists := parent.Module.ModuleCallsExpanded()[call.Name]
+	for k := range parent.Module.ModuleCallsExpanded()[call.Name] {
+		fmt.Printf("%s : %s\n", call.Name, k)
+	}
+
+	callConfig, exists := parent.Module.ModuleCallsExpanded()[call.Name][key]
 	if !exists {
 		// This should never happen, since it indicates an improperly-constructed
 		// configuration tree.

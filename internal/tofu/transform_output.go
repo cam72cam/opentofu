@@ -45,9 +45,11 @@ func (t *OutputTransformer) transform(g *Graph, c *configs.Config) error {
 	// Transform all the children. We must do this first because
 	// we can reference module outputs and they must show up in the
 	// reference map.
-	for _, cc := range c.Children {
-		if err := t.transform(g, cc); err != nil {
-			return err
+	for _, instances := range c.Children {
+		for _, cc := range instances {
+			if err := t.transform(g, cc); err != nil {
+				return err
+			}
 		}
 	}
 

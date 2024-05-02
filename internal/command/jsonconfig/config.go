@@ -267,41 +267,42 @@ func marshalProviderConfigs(
 		m[key] = p
 	}
 
-	// Must also visit our child modules, recursively.
-	for name, mc := range c.Module.ModuleCalls {
-		// Keys in c.Children are guaranteed to match those in c.Module.ModuleCalls
-		cc := c.Children[name]
+	/*
+		// Must also visit our child modules, recursively.
+		for name, mc := range c.Module.ModuleCalls {
+			// Keys in c.Children are guaranteed to match those in c.Module.ModuleCalls
+			cc := c.Children[name]
 
-		// Add provider config map entries for passed provider configs,
-		// pointing at the passed configuration
-		for _, ppc := range mc.Providers {
-			// These provider names include aliases, if set
-			moduleProviderName := ppc.InChild.String()
-			parentProviderName := ppc.InParent.String()
+			// Add provider config map entries for passed provider configs,
+			// pointing at the passed configuration
+			for _, ppc := range mc.Providers {
+				// These provider names include aliases, if set
+				moduleProviderName := ppc.InChild.String()
+				parentProviderName := ppc.InParent.String()
 
-			// Look up the provider FQN from the module context, using the non-aliased local name
-			providerFqn := cc.ProviderForConfigAddr(addrs.LocalProviderConfig{LocalName: ppc.InChild.Name})
+				// Look up the provider FQN from the module context, using the non-aliased local name
+				providerFqn := cc.ProviderForConfigAddr(addrs.LocalProviderConfig{LocalName: ppc.InChild.Name})
 
-			// The presence of passed provider configs means that we cannot have
-			// any configuration expressions or version constraints here
-			p := providerConfig{
-				Name:          moduleProviderName,
-				FullName:      providerFqn.String(),
-				ModuleAddress: cc.Path.String(),
+				// The presence of passed provider configs means that we cannot have
+				// any configuration expressions or version constraints here
+				p := providerConfig{
+					Name:          moduleProviderName,
+					FullName:      providerFqn.String(),
+					ModuleAddress: cc.Path.String(),
+				}
+
+				key := opaqueProviderKey(moduleProviderName, cc.Path.String())
+				parentKey := opaqueProviderKey(parentProviderName, cc.Parent.Path.String())
+				p.parentKey = findSourceProviderKey(parentKey, p.FullName, m)
+
+				m[key] = p
 			}
 
-			key := opaqueProviderKey(moduleProviderName, cc.Path.String())
-			parentKey := opaqueProviderKey(parentProviderName, cc.Parent.Path.String())
-			p.parentKey = findSourceProviderKey(parentKey, p.FullName, m)
-
-			m[key] = p
-		}
-
-		// Finally, marshal any other provider configs within the called module.
-		// It is safe to do this last because it is invalid to configure a
-		// provider which has passed provider configs in the module call.
-		marshalProviderConfigs(cc, schemas, m)
-	}
+			// Finally, marshal any other provider configs within the called module.
+			// It is safe to do this last because it is invalid to configure a
+			// provider which has passed provider configs in the module call.
+			marshalProviderConfigs(cc, schemas, m)
+		}*/
 }
 
 func marshalModule(c *configs.Config, schemas *tofu.Schemas, addr string) (module, error) {
@@ -376,10 +377,11 @@ func marshalModule(c *configs.Config, schemas *tofu.Schemas, addr string) (modul
 func marshalModuleCalls(c *configs.Config, schemas *tofu.Schemas) map[string]moduleCall {
 	ret := make(map[string]moduleCall)
 
-	for name, mc := range c.Module.ModuleCalls {
-		mcConfig := c.Children[name]
-		ret[name] = marshalModuleCall(mcConfig, mc, schemas)
-	}
+	/*
+		for name, mc := range c.Module.ModuleCalls {
+			mcConfig := c.Children[name]
+			ret[name] = marshalModuleCall(mcConfig, mc, schemas)
+		}*/
 
 	return ret
 }

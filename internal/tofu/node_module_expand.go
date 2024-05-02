@@ -4,6 +4,7 @@
 package tofu
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/opentofu/opentofu/internal/addrs"
@@ -20,6 +21,7 @@ type ConcreteModuleNodeFunc func(n *nodeExpandModule) dag.Vertex
 // configured.
 type nodeExpandModule struct {
 	Addr       addrs.Module
+	Instance   addrs.InstanceKey
 	Config     *configs.Module
 	ModuleCall *configs.ModuleCall
 }
@@ -104,7 +106,9 @@ func (n *nodeExpandModule) ReferenceOutside() (selfPath, referencePath addrs.Mod
 // GraphNodeExecutable
 func (n *nodeExpandModule) Execute(ctx EvalContext, op walkOperation) (diags tfdiags.Diagnostics) {
 	expander := ctx.InstanceExpander()
-	_, call := n.Addr.Call()
+	_, call := n.Addr.CallInstance()
+
+	fmt.Printf("Expanding %s to %s", n.Addr.String(), n.Instance)
 
 	// nodeExpandModule itself does not have visibility into how its ancestors
 	// were expanded, so we use the expander here to provide all possible paths
@@ -165,7 +169,7 @@ func (n *nodeCloseModule) ReferenceOutside() (selfPath, referencePath addrs.Modu
 }
 
 func (n *nodeCloseModule) ReferenceableAddrs() []addrs.Referenceable {
-	_, call := n.Addr.Call()
+	_, call := n.Addr.CallInstance()
 	return []addrs.Referenceable{
 		call,
 	}
@@ -222,8 +226,10 @@ var _ GraphNodeExecutable = (*nodeValidateModule)(nil)
 
 // GraphNodeEvalable
 func (n *nodeValidateModule) Execute(ctx EvalContext, op walkOperation) (diags tfdiags.Diagnostics) {
-	_, call := n.Addr.Call()
+	_, call := n.Addr.CallInstance()
 	expander := ctx.InstanceExpander()
+
+	fmt.Printf("[validate] Expanding %s to %s\n", n.Addr.String(), n.Instance)
 
 	// Modules all evaluate to single instances during validation, only to
 	// create a proper context within which to evaluate. All parent modules
@@ -231,6 +237,8 @@ func (n *nodeValidateModule) Execute(ctx EvalContext, op walkOperation) (diags t
 	// manner anyway to ensure they've been registered correctly.
 	for _, module := range expander.ExpandModule(n.Addr.Parent()) {
 		ctx = ctx.WithPath(module)
+
+		fmt.Printf("[valudate] %s to %s\n", module.String(), call.String())
 
 		// Validate our for_each and count expressions at a basic level
 		// We skip validation on known, because there will be unknown values before

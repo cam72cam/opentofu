@@ -155,7 +155,7 @@ func (n *nodeExpandOutput) ReferenceableAddrs() []addrs.Referenceable {
 
 	// the output is referenced through the module call, and via the
 	// module itself.
-	_, call := n.Module.Call()
+	_, call := n.Module.CallInstance()
 	callOutput := addrs.ModuleCallOutput{
 		Call: call,
 		Name: n.Addr.Name,

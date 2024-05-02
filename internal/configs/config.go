@@ -48,7 +48,7 @@ type Config struct {
 	// ChildModules points to the Config for each of the direct child modules
 	// called from this module. The keys in this map match the keys in
 	// Module.ModuleCalls.
-	Children map[string]*Config
+	Children map[string]map[addrs.InstanceKey]*Config
 
 	// Module points to the object describing the configuration for the
 	// various elements (variables, resources, etc) defined by this module.
@@ -110,7 +110,7 @@ type TestFileModuleRequirements struct {
 func NewEmptyConfig() *Config {
 	ret := &Config{}
 	ret.Root = ret
-	ret.Children = make(map[string]*Config)
+	ret.Children = make(map[string]map[addrs.InstanceKey]*Config)
 	ret.Module = &Module{}
 	return ret
 }
@@ -141,7 +141,9 @@ func (c *Config) DeepEach(cb func(c *Config)) {
 	}
 
 	for _, name := range names {
-		c.Children[name].DeepEach(cb)
+		for _, inst := range c.Children[name] {
+			inst.DeepEach(cb)
+		}
 	}
 }
 
@@ -164,10 +166,16 @@ func (c *Config) AllModules() []*Config {
 //
 // An empty path will just return the receiver, and is therefore pointless.
 func (c *Config) Descendent(path addrs.Module) *Config {
+	println("Deprecated: Decendant")
 	current := c
 	for _, name := range path {
-		current = current.Children[name]
+		link := current.Children[name]
+		if link == nil {
+			return nil
+		}
+		current = link[addrs.NoKey]
 		if current == nil {
+			println("WARNING: Non-instanced!")
 			return nil
 		}
 	}
@@ -183,7 +191,16 @@ func (c *Config) Descendent(path addrs.Module) *Config {
 func (c *Config) DescendentForInstance(path addrs.ModuleInstance) *Config {
 	current := c
 	for _, step := range path {
-		current = current.Children[step.Name]
+		link := current.Children[step.Name]
+		if link == nil {
+			return nil
+		}
+
+		current = link[step.InstanceKey]
+		if current == nil {
+			// Try non-keyed
+			current = link[addrs.NoKey]
+		}
 		if current == nil {
 			return nil
 		}
@@ -329,11 +346,17 @@ func (c *Config) ProviderRequirementsByModule() (*ModuleRequirements, hcl.Diagno
 	diags := c.addProviderRequirements(reqs, false, false)
 
 	children := make(map[string]*ModuleRequirements)
-	for name, child := range c.Children {
-		childReqs, childDiags := child.ProviderRequirementsByModule()
-		childReqs.Name = name
-		children[name] = childReqs
-		diags = append(diags, childDiags...)
+	for name, link := range c.Children {
+		for ik, child := range link {
+			iname := name
+			if ik != nil {
+				iname += ik.String()
+			}
+			childReqs, childDiags := child.ProviderRequirementsByModule()
+			childReqs.Name = iname
+			children[iname] = childReqs
+			diags = append(diags, childDiags...)
+		}
 	}
 
 	tests := make(map[string]*TestFileModuleRequirements)
@@ -548,9 +571,11 @@ func (c *Config) addProviderRequirements(reqs getproviders.Requirements, recurse
 	}
 
 	if recurse {
-		for _, childConfig := range c.Children {
-			moreDiags := childConfig.addProviderRequirements(reqs, true, false)
-			diags = append(diags, moreDiags...)
+		for _, link := range c.Children {
+			for _, childConfig := range link {
+				moreDiags := childConfig.addProviderRequirements(reqs, true, false)
+				diags = append(diags, moreDiags...)
+			}
 		}
 	}
 
@@ -595,8 +620,10 @@ func (c *Config) addProviderRequirementsFromProviderBlock(reqs getproviders.Requ
 // the true types are assigned based on the provider requirements for the
 // module.
 func (c *Config) resolveProviderTypes() map[string]addrs.Provider {
-	for _, child := range c.Children {
-		child.resolveProviderTypes()
+	for _, instances := range c.Children {
+		for _, child := range instances {
+			child.resolveProviderTypes()
+		}
 	}
 
 	// collect the required_providers, and then add any missing default providers
@@ -618,20 +645,24 @@ func (c *Config) resolveProviderTypes() map[string]addrs.Provider {
 	}
 
 	// connect module call providers to the correct type
-	for _, mod := range c.Module.ModuleCallsExpanded() {
-		for _, p := range mod.Providers {
-			if addr, known := providers[p.InParent.Name]; known {
-				p.InParent.providerType = addr
+	for _, instances := range c.Module.ModuleCallsExpanded() {
+		for _, mod := range instances {
+			for _, p := range mod.Providers {
+				if addr, known := providers[p.InParent.Name]; known {
+					p.InParent.providerType = addr
+				}
 			}
 		}
 	}
 
 	// fill in parent module calls too
 	if c.Parent != nil {
-		for _, mod := range c.Parent.Module.ModuleCallsExpanded() {
-			for _, p := range mod.Providers {
-				if addr, known := providers[p.InChild.Name]; known {
-					p.InChild.providerType = addr
+		for _, instances := range c.Parent.Module.ModuleCallsExpanded() {
+			for _, mod := range instances {
+				for _, p := range mod.Providers {
+					if addr, known := providers[p.InChild.Name]; known {
+						p.InChild.providerType = addr
+					}
 				}
 			}
 		}
@@ -860,9 +891,11 @@ func (c *Config) CheckCoreVersionRequirements() hcl.Diagnostics {
 
 	diags = diags.Extend(c.Module.CheckCoreVersionRequirements(c.Path, c.SourceAddr))
 
-	for _, c := range c.Children {
-		childDiags := c.CheckCoreVersionRequirements()
-		diags = diags.Extend(childDiags)
+	for _, instances := range c.Children {
+		for _, c := range instances {
+			childDiags := c.CheckCoreVersionRequirements()
+			diags = diags.Extend(childDiags)
+		}
 	}
 
 	return diags

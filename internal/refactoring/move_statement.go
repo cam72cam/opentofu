@@ -55,8 +55,10 @@ func findMoveStatements(cfg *configs.Config, into []MoveStatement) []MoveStateme
 		})
 	}
 
-	for _, childCfg := range cfg.Children {
-		into = findMoveStatements(childCfg, into)
+	for _, instances := range cfg.Children {
+		for _, childCfg := range instances {
+			into = findMoveStatements(childCfg, into)
+		}
 	}
 
 	return into
@@ -151,8 +153,10 @@ func impliedMoveStatements(cfg *configs.Config, prevRunState *states.State, expl
 		}
 	}
 
-	for _, childCfg := range cfg.Children {
-		into = impliedMoveStatements(childCfg, prevRunState, explicitStmts, into)
+	for _, instances := range cfg.Children {
+		for _, childCfg := range instances {
+			into = impliedMoveStatements(childCfg, prevRunState, explicitStmts, into)
+		}
 	}
 
 	return into

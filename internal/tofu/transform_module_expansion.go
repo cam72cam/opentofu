@@ -34,10 +34,12 @@ func (t *ModuleExpansionTransformer) Transform(g *Graph) error {
 	// The root module is always a singleton and so does not need expansion
 	// processing, but any descendent modules do. We'll process them
 	// recursively using t.transform.
-	for _, cfg := range t.Config.Children {
-		err := t.transform(g, cfg, nil)
-		if err != nil {
-			return err
+	for _, instances := range t.Config.Children {
+		for key, cfg := range instances {
+			err := t.transform(g, cfg, nil, key)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -83,13 +85,21 @@ func (t *ModuleExpansionTransformer) Transform(g *Graph) error {
 	return nil
 }
 
-func (t *ModuleExpansionTransformer) transform(g *Graph, c *configs.Config, parentNode dag.Vertex) error {
+func (t *ModuleExpansionTransformer) transform(g *Graph, c *configs.Config, parentNode dag.Vertex, key addrs.InstanceKey) error {
+	err := t.transformSingle(g, c, key, parentNode)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+func (t *ModuleExpansionTransformer) transformSingle(g *Graph, c *configs.Config, instance addrs.InstanceKey, parentNode dag.Vertex) error {
 	_, call := c.Path.Call()
-	modCall := c.Parent.Module.ModuleCallsExpanded()[call.Name]
+	modCall := c.Parent.Module.ModuleCallsExpanded()[call.Name][instance]
 
 	n := &nodeExpandModule{
 		Addr:       c.Path,
 		Config:     c.Module,
+		Instance:   instance,
 		ModuleCall: modCall,
 	}
 	var expander dag.Vertex = n
@@ -139,9 +149,11 @@ func (t *ModuleExpansionTransformer) transform(g *Graph, c *configs.Config, pare
 	}
 
 	// Also visit child modules, recursively.
-	for _, cc := range c.Children {
-		if err := t.transform(g, cc, expander); err != nil {
-			return err
+	for _, instances := range c.Children {
+		for ik, cc := range instances {
+			if err := t.transform(g, cc, expander, ik); err != nil {
+				return err
+			}
 		}
 	}
 

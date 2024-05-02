@@ -104,9 +104,11 @@ func (t *checkTransformer) transform(g *Graph, cfg *configs.Config, allNodes []d
 		}
 	}
 
-	for _, child := range cfg.Children {
-		if err := t.transform(g, child, allNodes); err != nil {
-			return err
+	for _, instances := range cfg.Children {
+		for _, child := range instances {
+			if err := t.transform(g, child, allNodes); err != nil {
+				return err
+			}
 		}
 	}
 

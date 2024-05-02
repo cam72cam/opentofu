@@ -347,8 +347,10 @@ func (s *Scope) evalContext(refs []*addrs.Reference, selfAddr addrs.Referenceabl
 		case addrs.ResourceInstance:
 			rawSubj = addr.ContainingResource()
 		case addrs.ModuleCallInstance:
+			fmt.Printf("MCI: %s\n", addr)
 			rawSubj = addr.Call
 		case addrs.ModuleCallInstanceOutput:
+			fmt.Printf("MCIO: %s\n", addr)
 			rawSubj = addr.Call.Call
 		}
 

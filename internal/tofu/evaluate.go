@@ -221,7 +221,7 @@ func (d *evaluationStateData) GetInputVariable(addr addrs.InputVariable, rng tfd
 	if moduleConfig == nil {
 		// should never happen, since we can't be evaluating in a module
 		// that wasn't mentioned in configuration.
-		panic(fmt.Sprintf("input variable read from %s, which has no configuration", d.ModulePath))
+		panic(fmt.Sprintf("input variable read from %s, which has no configuration %s", d.ModulePath, d.ModulePath[len(d.ModulePath)-1]))
 	}
 
 	config := moduleConfig.Module.Variables[addr.Name]
@@ -357,6 +357,17 @@ func (d *evaluationStateData) GetModule(addr addrs.ModuleCall, rng tfdiags.Sourc
 	moduleAddr := d.ModulePath.Module().Child(addr.Name)
 
 	parentCfg := d.Evaluator.Config.DescendentForInstance(d.ModulePath)
+	instances, ok := parentCfg.Children[addr.Name]
+	if !ok {
+		diags = diags.Append(&hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  `Reference to undeclared module`,
+			Detail:   fmt.Sprintf(`The configuration contains no %s.`, moduleAddr),
+			Subject:  rng.ToHCL().Ptr(),
+		})
+		return cty.DynamicVal, diags
+	}
+
 	callConfig, ok := parentCfg.Module.ModuleCalls[addr.Name]
 	if !ok {
 		diags = diags.Append(&hcl.Diagnostic{
@@ -371,103 +382,76 @@ func (d *evaluationStateData) GetModule(addr addrs.ModuleCall, rng tfdiags.Sourc
 	// We'll consult the configuration to see what output names we are
 	// expecting, so we can ensure the resulting object is of the expected
 	// type even if our data is incomplete for some reason.
-	moduleConfig := d.Evaluator.Config.Descendent(moduleAddr)
-	var variants map[addrs.ModuleCall]addrs.InstanceKey
-	if moduleConfig == nil {
-		variants = make(map[addrs.ModuleCall]addrs.InstanceKey)
-		if callConfig.ForEachMap == nil {
-			panic(fmt.Sprintf("output value read from %s, which has no map configuration", moduleAddr))
-		}
-		for _, mc := range callConfig.ForEachMap {
-			var subAddr addrs.Module
-			for _, part := range moduleAddr {
-				subAddr = append(subAddr, part)
+	/*
+		moduleConfig := d.Evaluator.Config.Descendent(moduleAddr)
+		var variants map[addrs.ModuleCall]addrs.InstanceKey
+		if moduleConfig == nil {
+			variants = make(map[addrs.ModuleCall]addrs.InstanceKey)
+			if callConfig.ForEachMap == nil {
+				panic(fmt.Sprintf("output value read from %s, which has no map configuration", moduleAddr))
 			}
-			subAddr[len(subAddr)-1] = fmt.Sprintf("%s[\"%s\"]", subAddr[len(subAddr)-1], mc.IterValues.EachKey.AsString())
-			moduleConfig = d.Evaluator.Config.Descendent(subAddr)
+			for _, mc := range callConfig.ForEachMap {
+				var subAddr addrs.Module
+				for _, part := range moduleAddr {
+					subAddr = append(subAddr, part)
+				}
+				subAddr[len(subAddr)-1] = fmt.Sprintf("%s[\"%s\"]", subAddr[len(subAddr)-1], mc.IterValues.EachKey.AsString())
+				moduleConfig = d.Evaluator.Config.Descendent(subAddr)
 
-			key, err := addrs.ParseInstanceKey(mc.IterValues.EachKey)
-			if err != nil {
-				panic(err)
+				key, err := addrs.ParseInstanceKey(mc.IterValues.EachKey)
+				if err != nil {
+					panic(err)
+				}
+				variants[addrs.ModuleCall{Name: subAddr[len(subAddr)-1]}] = key
 			}
-			variants[addrs.ModuleCall{Name: subAddr[len(subAddr)-1]}] = key
 		}
+
+		var moduleConfig configs.Config
+		for _, v := r
+		if moduleConfig == nil {
+			// should never happen, since we have a valid module call above, this
+			// should be caught during static validation.
+			panic(fmt.Sprintf("output value read from %s, which has no configuration", moduleAddr))
+		}
+	*/
+
+	var outputConfigs map[string]*configs.Output
+	for _, moduleConfig := range instances {
+		outputConfigs = moduleConfig.Module.Outputs
 	}
-	if moduleConfig == nil {
-		// should never happen, since we have a valid module call above, this
-		// should be caught during static validation.
-		panic(fmt.Sprintf("output value read from %s, which has no configuration", moduleAddr))
-	}
-	outputConfigs := moduleConfig.Module.Outputs
 
 	// Collect all the relevant outputs that current exist in the state.
 	// We know the instance path up to this point, and the child module name,
 	// so we only need to store these by instance key.
 	stateMap := map[addrs.InstanceKey]map[string]cty.Value{}
-	if variants == nil {
-		for _, output := range d.Evaluator.State.ModuleOutputs(d.ModulePath, addr) {
-			val := output.Value
-			if output.Sensitive {
-				val = val.Mark(marks.Sensitive)
-			}
-
-			_, callInstance := output.Addr.Module.CallInstance()
-			instance, ok := stateMap[callInstance.Key]
-			if !ok {
-				instance = map[string]cty.Value{}
-				stateMap[callInstance.Key] = instance
-			}
-
-			instance[output.Addr.OutputValue.Name] = val
+	for _, output := range d.Evaluator.State.ModuleOutputs(d.ModulePath, addr) {
+		val := output.Value
+		if output.Sensitive {
+			val = val.Mark(marks.Sensitive)
 		}
-	} else {
-		for kaddr, ik := range variants {
-			for _, output := range d.Evaluator.State.ModuleOutputs(d.ModulePath, kaddr) {
-				val := output.Value
-				if output.Sensitive {
-					val = val.Mark(marks.Sensitive)
-				}
 
-				// This CallInstance does not work with the hacked instanced module calls
-				// Theoretically, a lot of this could be simplified if ModuleCall has an optional instance key
-				//_, callInstance := output.Addr.Module.CallInstance()
-				instance, ok := stateMap[ik]
-				if !ok {
-					instance = map[string]cty.Value{}
-					stateMap[ik] = instance
-				}
-
-				instance[output.Addr.OutputValue.Name] = val
-			}
+		_, callInstance := output.Addr.Module.CallInstance()
+		instance, ok := stateMap[callInstance.Key]
+		if !ok {
+			instance = map[string]cty.Value{}
+			stateMap[callInstance.Key] = instance
 		}
+
+		instance[output.Addr.OutputValue.Name] = val
 	}
 
 	// Get all changes that reside for this module call within our path.
 	// The change contains the full addr, so we can key these with strings.
 	changesMap := map[addrs.InstanceKey]map[string]*plans.OutputChangeSrc{}
-	if variants == nil {
-		for _, change := range d.Evaluator.Changes.GetOutputChanges(d.ModulePath, addr) {
-			_, callInstance := change.Addr.Module.CallInstance()
-			instance, ok := changesMap[callInstance.Key]
-			if !ok {
-				instance = map[string]*plans.OutputChangeSrc{}
-				changesMap[callInstance.Key] = instance
-			}
-
-			instance[change.Addr.OutputValue.Name] = change
+	for _, change := range d.Evaluator.Changes.GetOutputChanges(d.ModulePath, addr) {
+		_, callInstance := change.Addr.Module.CallInstance()
+		instance, ok := changesMap[callInstance.Key]
+		if !ok {
+			instance = map[string]*plans.OutputChangeSrc{}
+			changesMap[callInstance.Key] = instance
 		}
-	} else {
-		for kaddr, ik := range variants {
-			for _, change := range d.Evaluator.Changes.GetOutputChanges(d.ModulePath, kaddr) {
-				instance, ok := changesMap[ik]
-				if !ok {
-					instance = map[string]*plans.OutputChangeSrc{}
-					changesMap[ik] = instance
-				}
 
-				instance[change.Addr.OutputValue.Name] = change
-			}
-		}
+		instance[change.Addr.OutputValue.Name] = change
 	}
 
 	// Build up all the module objects, creating a map of values for each

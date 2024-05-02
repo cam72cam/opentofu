@@ -196,17 +196,20 @@ func NewModule(primaryFiles, overrideFiles []*File, params StaticModuleCall) (*M
 	return mod, diags
 }
 
-func (m *Module) ModuleCallsExpanded() map[string]*ModuleCall {
-	calls := make(map[string]*ModuleCall)
+func (m *Module) ModuleCallsExpanded() map[string]map[addrs.InstanceKey]*ModuleCall {
+	calls := make(map[string]map[addrs.InstanceKey]*ModuleCall)
 	for _, mc := range m.ModuleCalls {
+		instances := make(map[addrs.InstanceKey]*ModuleCall)
 		if mc.ForEachMap != nil {
 			// Apply dynamic expansion here if applicable, replacing the original module
-			for k, v := range mc.ForEachMap {
-				calls[k] = v
+			for _, v := range mc.ForEachMap {
+				key, _ := addrs.ParseInstanceKey(v.IterValues.EachKey)
+				instances[key] = v
 			}
 		} else {
-			calls[mc.Name] = mc
+			instances[addrs.NoKey] = mc
 		}
+		calls[mc.Name] = instances
 	}
 	return calls
 }

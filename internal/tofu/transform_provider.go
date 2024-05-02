@@ -498,7 +498,7 @@ func (t *ProviderConfigTransformer) Transform(g *Graph) error {
 	t.proxiable = make(map[string]bool)
 
 	// Start the transformation process
-	if err := t.transform(g, t.Config); err != nil {
+	if err := t.transform(g, t.Config, addrs.NoKey); err != nil {
 		return err
 	}
 
@@ -506,27 +506,29 @@ func (t *ProviderConfigTransformer) Transform(g *Graph) error {
 	return t.attachProviderConfigs(g)
 }
 
-func (t *ProviderConfigTransformer) transform(g *Graph, c *configs.Config) error {
+func (t *ProviderConfigTransformer) transform(g *Graph, c *configs.Config, key addrs.InstanceKey) error {
 	// If no config, do nothing
 	if c == nil {
 		return nil
 	}
 
 	// Add our resources
-	if err := t.transformSingle(g, c); err != nil {
+	if err := t.transformSingle(g, c, key); err != nil {
 		return err
 	}
 
 	// Transform all the children.
-	for _, cc := range c.Children {
-		if err := t.transform(g, cc); err != nil {
-			return err
+	for _, instances := range c.Children {
+		for ik, cc := range instances {
+			if err := t.transform(g, cc, ik); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
 }
 
-func (t *ProviderConfigTransformer) transformSingle(g *Graph, c *configs.Config) error {
+func (t *ProviderConfigTransformer) transformSingle(g *Graph, c *configs.Config, key addrs.InstanceKey) error {
 	// Get the module associated with this configuration tree node
 	mod := c.Module
 	path := c.Path
@@ -616,10 +618,10 @@ func (t *ProviderConfigTransformer) transformSingle(g *Graph, c *configs.Config)
 	// Now replace the provider nodes with proxy nodes if a provider was being
 	// passed in, and create implicit proxies if there was no config. Any extra
 	// proxies will be removed in the prune step.
-	return t.addProxyProviders(g, c)
+	return t.addProxyProviders(g, c, key)
 }
 
-func (t *ProviderConfigTransformer) addProxyProviders(g *Graph, c *configs.Config) error {
+func (t *ProviderConfigTransformer) addProxyProviders(g *Graph, c *configs.Config, key addrs.InstanceKey) error {
 	path := c.Path
 
 	// can't add proxies at the root
@@ -637,7 +639,7 @@ func (t *ProviderConfigTransformer) addProxyProviders(g *Graph, c *configs.Confi
 	var parentCfg *configs.ModuleCall
 	for name, mod := range parent.Module.ModuleCallsExpanded() {
 		if name == callName {
-			parentCfg = mod
+			parentCfg = mod[key]
 			break
 		}
 	}

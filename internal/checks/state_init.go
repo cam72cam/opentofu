@@ -85,8 +85,10 @@ func collectInitialStatuses(into addrs.Map[addrs.ConfigCheckable, *configCheckab
 	}
 
 	// Must also visit child modules to collect everything
-	for _, child := range cfg.Children {
-		collectInitialStatuses(into, child)
+	for _, instances := range cfg.Children {
+		for _, child := range instances {
+			collectInitialStatuses(into, child)
+		}
 	}
 }
 
