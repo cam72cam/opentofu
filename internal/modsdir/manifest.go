@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	version "github.com/hashicorp/go-version"
 
@@ -54,12 +53,14 @@ type Record struct {
 // it to reflect any changes to the installed modules.
 type Manifest map[string]Record
 
-func (m Manifest) ModuleKey(path addrs.Module) string {
-	if len(path) == 0 {
-		return ""
-	}
-	return strings.Join([]string(path), ".")
-
+func (m Manifest) ModuleKey(path addrs.ModuleInstance) string {
+	/*
+		if len(path) == 0 {
+			return ""
+		}
+		return strings.Join([]string(path), ".")
+	*/
+	return path.DotString()
 }
 
 // manifestSnapshotFile is an internal struct used only to assist in our JSON

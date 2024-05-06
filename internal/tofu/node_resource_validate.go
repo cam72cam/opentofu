@@ -40,7 +40,7 @@ var (
 func (n *NodeValidatableResource) Path() addrs.ModuleInstance {
 	// There is no expansion during validation, so we evaluate everything as
 	// single module instances.
-	return n.Addr.Module.UnkeyedInstanceShim()
+	return n.Addr.Module
 }
 
 // GraphNodeEvalable

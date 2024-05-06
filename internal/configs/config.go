@@ -43,7 +43,7 @@ type Config struct {
 	// have been resolved. In most cases, an addrs.ModuleInstance describing
 	// a node in the dynamic module tree is better, since it will then include
 	// any keys resulting from evaluating "count" and "for_each" arguments.
-	Path addrs.Module
+	Path addrs.ModuleInstance
 
 	// ChildModules points to the Config for each of the direct child modules
 	// called from this module. The keys in this map match the keys in
@@ -165,21 +165,24 @@ func (c *Config) AllModules() []*Config {
 // count and for_each arguments.
 //
 // An empty path will just return the receiver, and is therefore pointless.
-func (c *Config) Descendent(path addrs.Module) *Config {
-	println("Deprecated: Decendant")
-	current := c
-	for _, name := range path {
-		link := current.Children[name]
-		if link == nil {
-			return nil
+func (c *Config) Descendent(path addrs.ModuleInstance) *Config {
+	return c.DescendentForInstance(path)
+	/*
+		println("Deprecated: Decendant")
+		current := c
+		for _, name := range path {
+			link := current.Children[name]
+			if link == nil {
+				return nil
+			}
+			current = link[addrs.NoKey]
+			if current == nil {
+				println("WARNING: Non-instanced!")
+				return nil
+			}
 		}
-		current = link[addrs.NoKey]
-		if current == nil {
-			println("WARNING: Non-instanced!")
-			return nil
-		}
-	}
-	return current
+		return current
+	*/
 }
 
 // DescendentForInstance is like Descendent except that it accepts a path
@@ -843,7 +846,7 @@ func (c *Config) ProviderTypes() []addrs.Provider {
 // The module address to resolve local addresses in must be given in the second
 // argument, and must refer to a module that exists under the receiver or
 // else this method will panic.
-func (c *Config) ResolveAbsProviderAddr(addr addrs.ProviderConfig, inModule addrs.Module) addrs.AbsProviderConfig {
+func (c *Config) ResolveAbsProviderAddr(addr addrs.ProviderConfig, inModule addrs.ModuleInstance) addrs.AbsProviderConfig {
 	switch addr := addr.(type) {
 
 	case addrs.AbsProviderConfig:

@@ -65,12 +65,15 @@ func buildTestModules(root *Config, walker ModuleWalker) hcl.Diagnostics {
 			dir := path.Dir(name)
 			base := path.Base(name)
 
-			path := addrs.Module{}
-			path = append(path, "test")
+			path := addrs.ModuleInstance{}
+			path = path.Child("test", nil)
 			if dir != "." {
-				path = append(path, strings.Split(dir, "/")...)
+				for _, s := range strings.Split(dir, "/") {
+					path = path.Child(s, nil)
+				}
 			}
-			path = append(path, strings.TrimSuffix(base, ".tftest.hcl"), run.Name)
+			path = path.Child(strings.TrimSuffix(base, ".tftest.hcl"), nil)
+			path = path.Child(run.Name, nil)
 
 			req := ModuleRequest{
 				Name:              run.Name,
@@ -130,13 +133,7 @@ func buildChildModules(parent *Config, walker ModuleWalker) (map[string]map[addr
 	for _, callName := range callNames {
 		children := make(map[addrs.InstanceKey]*Config)
 		for key, call := range calls[callName] {
-			path := make([]string, len(parent.Path)+1)
-			copy(path, parent.Path)
-			name := call.Name
-			if key != nil {
-				name += key.String()
-			}
-			path[len(path)-1] = name
+			path := parent.Path.Child(call.Name, key)
 
 			req := ModuleRequest{
 				Name:              call.Name,
@@ -275,7 +272,7 @@ type ModuleRequest struct {
 	// this module. This can be used, for example, to form a lookup key for
 	// each distinct module call in a configuration, allowing for multiple
 	// calls with the same name at different points in the tree.
-	Path addrs.Module
+	Path addrs.ModuleInstance
 
 	// SourceAddr is the source address string provided by the user in
 	// configuration.

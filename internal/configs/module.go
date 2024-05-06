@@ -736,7 +736,7 @@ func (m *Module) ImpliedProviderForUnqualifiedType(pType string) addrs.Provider 
 	return addrs.ImpliedProviderForUnqualifiedType(pType)
 }
 
-func (m *Module) CheckCoreVersionRequirements(path addrs.Module, sourceAddr addrs.ModuleSource) hcl.Diagnostics {
+func (m *Module) CheckCoreVersionRequirements(path addrs.ModuleInstance, sourceAddr addrs.ModuleSource) hcl.Diagnostics {
 	var diags hcl.Diagnostics
 
 	for _, constraint := range m.CoreVersionConstraints {

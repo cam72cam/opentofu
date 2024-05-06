@@ -77,7 +77,7 @@ func (r Resource) Absolute(module ModuleInstance) AbsResource {
 
 // InModule returns a ConfigResource from the receiver and the given module
 // address.
-func (r Resource) InModule(module Module) ConfigResource {
+func (r Resource) InModule(module ModuleInstance) ConfigResource {
 	return ConfigResource{
 		Module:   module,
 		Resource: r,
@@ -154,7 +154,7 @@ type AbsResource struct {
 }
 
 // Resource returns the address of a particular resource within the receiver.
-func (m ModuleInstance) Resource(mode ResourceMode, typeName string, name string) AbsResource {
+func (m ModuleInstance) AbsResource(mode ResourceMode, typeName string, name string) AbsResource {
 	return AbsResource{
 		Module: m,
 		Resource: Resource{
@@ -177,7 +177,7 @@ func (r AbsResource) Instance(key InstanceKey) AbsResourceInstance {
 // Config returns the unexpanded ConfigResource for this AbsResource.
 func (r AbsResource) Config() ConfigResource {
 	return ConfigResource{
-		Module:   r.Module.Module(),
+		Module:   r.Module,
 		Resource: r.Resource,
 	}
 }
@@ -287,7 +287,7 @@ func (r AbsResourceInstance) ContainingResource() AbsResource {
 // this instance.
 func (r AbsResourceInstance) ConfigResource() ConfigResource {
 	return ConfigResource{
-		Module:   r.Module.Module(),
+		Module:   r.Module,
 		Resource: r.Resource.Resource,
 	}
 }
@@ -385,12 +385,12 @@ func (r AbsResourceInstance) absMoveableSigil() {
 // ConfigResource is an address for a resource within a configuration.
 type ConfigResource struct {
 	targetable
-	Module   Module
+	Module   ModuleInstance
 	Resource Resource
 }
 
 // Resource returns the address of a particular resource within the module.
-func (m Module) Resource(mode ResourceMode, typeName string, name string) ConfigResource {
+func (m ModuleInstance) ConfigResource(mode ResourceMode, typeName string, name string) ConfigResource {
 	return ConfigResource{
 		Module: m,
 		Resource: Resource{

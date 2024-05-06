@@ -52,13 +52,13 @@ func NewExpander() *Expander {
 
 // SetModuleSingle records that the given module call inside the given parent
 // module does not use any repetition arguments and is therefore a singleton.
-func (e *Expander) SetModuleSingle(parentAddr addrs.ModuleInstance, callAddr addrs.ModuleCall) {
+func (e *Expander) SetModuleSingle(parentAddr addrs.ModuleInstance, callAddr addrs.ModuleCallInstance) {
 	e.setModuleExpansion(parentAddr, callAddr, expansionSingleVal)
 }
 
 // SetModuleCount records that the given module call inside the given parent
 // module instance uses the "count" repetition argument, with the given value.
-func (e *Expander) SetModuleCount(parentAddr addrs.ModuleInstance, callAddr addrs.ModuleCall, count int) {
+func (e *Expander) SetModuleCount(parentAddr addrs.ModuleInstance, callAddr addrs.ModuleCallInstance, count int) {
 	e.setModuleExpansion(parentAddr, callAddr, expansionCount(count))
 }
 
@@ -69,7 +69,7 @@ func (e *Expander) SetModuleCount(parentAddr addrs.ModuleInstance, callAddr addr
 // In the configuration language the for_each argument can also accept a set.
 // It's the caller's responsibility to convert that into an identity map before
 // calling this method.
-func (e *Expander) SetModuleForEach(parentAddr addrs.ModuleInstance, callAddr addrs.ModuleCall, mapping map[string]cty.Value) {
+func (e *Expander) SetModuleForEach(parentAddr addrs.ModuleInstance, callAddr addrs.ModuleCallInstance, mapping map[string]cty.Value) {
 	e.setModuleExpansion(parentAddr, callAddr, expansionForEach(mapping))
 }
 
@@ -101,14 +101,14 @@ func (e *Expander) SetResourceForEach(moduleAddr addrs.ModuleInstance, resourceA
 // All of the modules on the path to the identified module must already have
 // had their expansion registered using one of the SetModule* methods before
 // calling, or this method will panic.
-func (e *Expander) ExpandModule(addr addrs.Module) []addrs.ModuleInstance {
+func (e *Expander) ExpandModule(addr addrs.ModuleInstance) []addrs.ModuleInstance {
 	return e.expandModule(addr, false)
 }
 
 // expandModule allows skipping unexpanded module addresses by setting skipUnknown to true.
 // This is used by instances.Set, which is only concerned with the expanded
 // instances, and should not panic when looking up unknown addresses.
-func (e *Expander) expandModule(addr addrs.Module, skipUnknown bool) []addrs.ModuleInstance {
+func (e *Expander) expandModule(addr addrs.ModuleInstance, skipUnknown bool) []addrs.ModuleInstance {
 	if len(addr) == 0 {
 		// Root module is always a singleton.
 		return singletonRootModule
@@ -144,12 +144,13 @@ func (e *Expander) GetDeepestExistingModuleInstance(given addrs.ModuleInstance) 
 	exps := e.exps // start with the root module expansions
 	for i := 0; i < len(given); i++ {
 		step := given[i]
-		callName := step.Name
-		if _, ok := exps.moduleCalls[addrs.ModuleCall{Name: callName}]; !ok {
+		//callName := step.Name
+		_, callName := given[:i].CallInstance()
+		if _, ok := exps.moduleCalls[callName]; !ok {
 			// This is a bug in the caller, because it should always register
 			// expansions for an object and all of its ancestors before requesting
 			// expansion of it.
-			panic(fmt.Sprintf("no expansion has been registered for %s", given[:i].Child(callName, addrs.NoKey)))
+			panic(fmt.Sprintf("no expansion has been registered for %s", given[:i].Child(callName.Call.Name, callName.Key)))
 		}
 
 		var ok bool
@@ -171,7 +172,7 @@ func (e *Expander) GetDeepestExistingModuleInstance(given addrs.ModuleInstance) 
 // All of the modules on the path to the identified resource and the resource
 // itself must already have had their expansion registered using one of the
 // SetModule*/SetResource* methods before calling, or this method will panic.
-func (e *Expander) ExpandModuleResource(moduleAddr addrs.Module, resourceAddr addrs.Resource) []addrs.AbsResourceInstance {
+func (e *Expander) ExpandModuleResource(moduleAddr addrs.ModuleInstance, resourceAddr addrs.Resource) []addrs.AbsResourceInstance {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
@@ -228,9 +229,14 @@ func (e *Expander) GetModuleInstanceRepetitionData(addr addrs.ModuleInstance) Re
 
 	parentMod := e.findModule(addr[:len(addr)-1])
 	lastStep := addr[len(addr)-1]
-	exp, ok := parentMod.moduleCalls[addrs.ModuleCall{Name: lastStep.Name}]
+	//_, call := addr[:len(addr)-1].CallInstance()
+	exp, ok := parentMod.moduleCalls[addrs.ModuleCallInstance{Call: addrs.ModuleCall{Name: lastStep.Name}, Key: lastStep.InstanceKey}]
 	if !ok {
-		panic(fmt.Sprintf("no expansion has been registered for %s", addr))
+		var found []addrs.ModuleCallInstance
+		for k := range parentMod.moduleCalls {
+			found = append(found, k)
+		}
+		panic(fmt.Sprintf("no expansion has been registered for addr: %s, parentMod: %s, call: %s", addr, found, lastStep))
 	}
 	return exp.repetitionData(lastStep.InstanceKey)
 }
@@ -269,28 +275,38 @@ func (e *Expander) findModule(moduleInstAddr addrs.ModuleInstance) *expanderModu
 	for i, step := range moduleInstAddr {
 		next, ok := mod.childInstances[step]
 		if !ok {
+			var found []addrs.ModuleInstanceStep
+			for k := range mod.childInstances {
+				found = append(found, k)
+			}
 			// Top-down ordering of registration is part of the contract of
 			// Expander, so this is always indicative of a bug in the caller.
-			panic(fmt.Sprintf("no expansion has been registered for ancestor module %s", moduleInstAddr[:i+1]))
+			panic(fmt.Sprintf("no expansion has been registered for ancestor module %s: %v", moduleInstAddr[:i+1], found))
 		}
 		mod = next
 	}
 	return mod
 }
 
-func (e *Expander) setModuleExpansion(parentAddr addrs.ModuleInstance, callAddr addrs.ModuleCall, exp expansion) {
+func (e *Expander) setModuleExpansion(parentAddr addrs.ModuleInstance, callAddr addrs.ModuleCallInstance, exp expansion) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
 	mod := e.findModule(parentAddr)
 	if _, exists := mod.moduleCalls[callAddr]; exists {
-		panic(fmt.Sprintf("expansion already registered for %s", parentAddr.Child(callAddr.Name, addrs.NoKey)))
+		panic(fmt.Sprintf("expansion already registered for %s", parentAddr.Child(callAddr.Call.Name, addrs.NoKey)))
 	}
-	// We'll also pre-register the child instances so that later calls can
-	// populate them as the caller traverses the configuration tree.
-	for _, key := range exp.instanceKeys() {
-		step := addrs.ModuleInstanceStep{Name: callAddr.Name, InstanceKey: key}
+
+	if callAddr.Key != addrs.NoKey {
+		step := addrs.ModuleInstanceStep{Name: callAddr.Call.Name, InstanceKey: callAddr.Key}
 		mod.childInstances[step] = newExpanderModule()
+	} else {
+		// We'll also pre-register the child instances so that later calls can
+		// populate them as the caller traverses the configuration tree.
+		for _, key := range exp.instanceKeys() {
+			step := addrs.ModuleInstanceStep{Name: callAddr.Call.Name, InstanceKey: key}
+			mod.childInstances[step] = newExpanderModule()
+		}
 	}
 	mod.moduleCalls[callAddr] = exp
 }
@@ -298,6 +314,8 @@ func (e *Expander) setModuleExpansion(parentAddr addrs.ModuleInstance, callAddr 
 func (e *Expander) setResourceExpansion(parentAddr addrs.ModuleInstance, resourceAddr addrs.Resource, exp expansion) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+
+	fmt.Printf("~~~~~~~~~~~~~~~~ ADDING EXPANSION FOR RESOURCE %s -> %s\n", parentAddr, resourceAddr)
 
 	mod := e.findModule(parentAddr)
 	if _, exists := mod.resources[resourceAddr]; exists {
@@ -339,14 +357,14 @@ func (e *Expander) knowsResource(want addrs.AbsResource) bool {
 }
 
 type expanderModule struct {
-	moduleCalls    map[addrs.ModuleCall]expansion
+	moduleCalls    map[addrs.ModuleCallInstance]expansion
 	resources      map[addrs.Resource]expansion
 	childInstances map[addrs.ModuleInstanceStep]*expanderModule
 }
 
 func newExpanderModule() *expanderModule {
 	return &expanderModule{
-		moduleCalls:    make(map[addrs.ModuleCall]expansion),
+		moduleCalls:    make(map[addrs.ModuleCallInstance]expansion),
 		resources:      make(map[addrs.Resource]expansion),
 		childInstances: make(map[addrs.ModuleInstanceStep]*expanderModule),
 	}
@@ -357,17 +375,23 @@ var singletonRootModule = []addrs.ModuleInstance{addrs.RootModuleInstance}
 // if moduleInstances is being used to lookup known instances after all
 // expansions have been done, set skipUnknown to true which allows addrs which
 // may not have been seen to return with no instances rather than panicking.
-func (m *expanderModule) moduleInstances(addr addrs.Module, parentAddr addrs.ModuleInstance, skipUnknown bool) []addrs.ModuleInstance {
+func (m *expanderModule) moduleInstances(addr addrs.ModuleInstance, parentAddr addrs.ModuleInstance, skipUnknown bool) []addrs.ModuleInstance {
 	callName := addr[0]
-	exp, ok := m.moduleCalls[addrs.ModuleCall{Name: callName}]
+	fmt.Printf("> exp.moduleInstances(%s, %s)\n", addr, parentAddr)
+	exp, ok := m.moduleCalls[addrs.ModuleCallInstance{Call: addrs.ModuleCall{Name: callName.Name}, Key: callName.InstanceKey}]
 	if !ok {
 		if skipUnknown {
 			return nil
 		}
+
+		var found []addrs.ModuleCallInstance
+		for k := range m.moduleCalls {
+			found = append(found, k)
+		}
 		// This is a bug in the caller, because it should always register
 		// expansions for an object and all of its ancestors before requesting
 		// expansion of it.
-		panic(fmt.Sprintf("no expansion has been registered for %s", parentAddr.Child(callName, addrs.NoKey)))
+		panic(fmt.Sprintf("no expansion has been registered for %s: call: %s, found : %v", parentAddr.Child(callName.Name, addrs.NoKey), callName, found))
 	}
 
 	var ret []addrs.ModuleInstance
@@ -375,12 +399,21 @@ func (m *expanderModule) moduleInstances(addr addrs.Module, parentAddr addrs.Mod
 	// If there's more than one step remaining then we need to traverse deeper.
 	if len(addr) > 1 {
 		for step, inst := range m.childInstances {
-			if step.Name != callName {
+			if step.Name != callName.Name || step.InstanceKey != callName.InstanceKey {
 				continue
 			}
 			instAddr := append(parentAddr, step)
 			ret = append(ret, inst.moduleInstances(addr[1:], instAddr, skipUnknown)...)
 		}
+		return ret
+	}
+
+	if callName.InstanceKey != addrs.NoKey {
+		// Pre-expanded!
+		full := make(addrs.ModuleInstance, 0, len(parentAddr)+1)
+		full = append(full, parentAddr...)
+		full = full.Child(callName.Name, callName.InstanceKey)
+		ret = append(ret, full)
 		return ret
 	}
 
@@ -392,28 +425,28 @@ func (m *expanderModule) moduleInstances(addr addrs.Module, parentAddr addrs.Mod
 		// immutable slice to return.
 		full := make(addrs.ModuleInstance, 0, len(parentAddr)+1)
 		full = append(full, parentAddr...)
-		full = full.Child(callName, k)
+		full = full.Child(callName.Name, k)
 		ret = append(ret, full)
 	}
 	return ret
 }
 
-func (m *expanderModule) moduleResourceInstances(moduleAddr addrs.Module, resourceAddr addrs.Resource, parentAddr addrs.ModuleInstance) []addrs.AbsResourceInstance {
+func (m *expanderModule) moduleResourceInstances(moduleAddr addrs.ModuleInstance, resourceAddr addrs.Resource, parentAddr addrs.ModuleInstance) []addrs.AbsResourceInstance {
 	if len(moduleAddr) > 0 {
 		var ret []addrs.AbsResourceInstance
 		// We need to traverse through the module levels first, so we can
 		// then iterate resource expansions in the context of each module
 		// path leading to them.
 		callName := moduleAddr[0]
-		if _, ok := m.moduleCalls[addrs.ModuleCall{Name: callName}]; !ok {
+		if _, ok := m.moduleCalls[addrs.ModuleCallInstance{Call: addrs.ModuleCall{Name: callName.Name}, Key: callName.InstanceKey}]; !ok {
 			// This is a bug in the caller, because it should always register
 			// expansions for an object and all of its ancestors before requesting
 			// expansion of it.
-			panic(fmt.Sprintf("no expansion has been registered for %s", parentAddr.Child(callName, addrs.NoKey)))
+			panic(fmt.Sprintf("no expansion has been registered for %s", parentAddr.Child(callName.Name, addrs.NoKey)))
 		}
 
 		for step, inst := range m.childInstances {
-			if step.Name != callName {
+			if step.Name != callName.Name || step.InstanceKey != callName.InstanceKey {
 				continue
 			}
 			moduleInstAddr := append(parentAddr, step)
@@ -432,7 +465,7 @@ func (m *expanderModule) resourceInstances(moduleAddr addrs.ModuleInstance, reso
 		// yet be expanded in all module instances.
 		step := moduleAddr[0]
 		callName := step.Name
-		if _, ok := m.moduleCalls[addrs.ModuleCall{Name: callName}]; !ok {
+		if _, ok := m.moduleCalls[addrs.ModuleCallInstance{Call: addrs.ModuleCall{Name: callName}, Key: step.InstanceKey}]; !ok {
 			// This is a bug in the caller, because it should always register
 			// expansions for an object and all of its ancestors before requesting
 			// expansion of it.
@@ -499,7 +532,9 @@ func (m *expanderModule) knowsModuleCall(want addrs.AbsModuleCall) bool {
 	if modInst == nil {
 		return false
 	}
-	_, ret := modInst.moduleCalls[want.Call]
+	// TODO BORK
+	println("BORK")
+	_, ret := modInst.moduleCalls[addrs.ModuleCallInstance{Call: want.Call}]
 	return ret
 }
 

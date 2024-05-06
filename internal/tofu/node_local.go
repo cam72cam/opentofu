@@ -21,7 +21,7 @@ import (
 // which has not yet been expanded.
 type nodeExpandLocal struct {
 	Addr   addrs.LocalValue
-	Module addrs.Module
+	Module addrs.ModuleInstance
 	Config *configs.Local
 }
 
@@ -51,7 +51,7 @@ func (n *nodeExpandLocal) Name() string {
 }
 
 // GraphNodeModulePath
-func (n *nodeExpandLocal) ModulePath() addrs.Module {
+func (n *nodeExpandLocal) ModulePath() addrs.ModuleInstance {
 	return n.Module
 }
 
@@ -114,8 +114,8 @@ func (n *NodeLocal) Path() addrs.ModuleInstance {
 }
 
 // GraphNodeModulePath
-func (n *NodeLocal) ModulePath() addrs.Module {
-	return n.Addr.Module.Module()
+func (n *NodeLocal) ModulePath() addrs.ModuleInstance {
+	return n.Addr.Module
 }
 
 // GraphNodeReferenceable

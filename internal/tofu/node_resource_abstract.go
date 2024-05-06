@@ -129,7 +129,7 @@ func (n *NodeAbstractResource) Name() string {
 }
 
 // GraphNodeModulePath
-func (n *NodeAbstractResource) ModulePath() addrs.Module {
+func (n *NodeAbstractResource) ModulePath() addrs.ModuleInstance {
 	return n.Addr.Module
 }
 
@@ -538,8 +538,9 @@ func graphNodesAreResourceInstancesInDifferentInstancesOfSameModule(a, b dag.Ver
 	}
 	aModInst := aRI.ResourceInstanceAddr().Module
 	bModInst := bRI.ResourceInstanceAddr().Module
-	aMod := aModInst.Module()
-	bMod := bModInst.Module()
+	// TODO THIS IS BROKEN!!!
+	aMod := aModInst
+	bMod := bModInst
 	if !aMod.Equal(bMod) {
 		return false
 	}

@@ -52,7 +52,7 @@ type MoveEndpointInModule struct {
 	// a moved block in a module affects all instances of that module.
 	// Unlike MoveEndpoint, relSubject in this case can be any of the
 	// address types that implement AbsMoveable.
-	module     Module
+	module     ModuleInstance
 	relSubject AbsMoveable
 }
 
@@ -94,7 +94,7 @@ func (e *MoveEndpointInModule) String() string {
 	var buf strings.Builder
 	for _, name := range e.module {
 		buf.WriteString("module.")
-		buf.WriteString(name)
+		buf.WriteString(name.Name)
 		buf.WriteString("[*].")
 	}
 	buf.WriteString(e.relSubject.String())
@@ -131,7 +131,7 @@ func (e *MoveEndpointInModule) Equal(other *MoveEndpointInModule) bool {
 
 // Module returns the address of the module where the receiving address was
 // declared.
-func (e *MoveEndpointInModule) Module() Module {
+func (e *MoveEndpointInModule) Module() ModuleInstance {
 	return e.module
 }
 
@@ -184,7 +184,7 @@ func (e *MoveEndpointInModule) InModuleInstance(modInst ModuleInstance) AbsMovea
 //
 // This is a rather special-purpose function here mainly to support our
 // validation rule that a module can only traverse down into child modules.
-func (e *MoveEndpointInModule) ModuleCallTraversals() (Module, []ModuleCall) {
+func (e *MoveEndpointInModule) ModuleCallTraversals() (ModuleInstance, []ModuleCall) {
 	// We're returning []ModuleCall rather than Module here to make it clearer
 	// that this is a relative sequence of calls rather than an absolute
 	// module path.
@@ -223,7 +223,8 @@ func (e *MoveEndpointInModule) synthModuleInstance() ModuleInstance {
 	var inst ModuleInstance
 
 	for _, mod := range e.module {
-		inst = append(inst, ModuleInstanceStep{Name: mod, InstanceKey: anyKey})
+		// TODO this is probably broken...
+		inst = append(inst, ModuleInstanceStep{Name: mod.Name, InstanceKey: anyKey})
 	}
 
 	switch sub := e.relSubject.(type) {
@@ -452,7 +453,8 @@ func (e *MoveEndpointInModule) matchModuleInstancePrefix(instAddr ModuleInstance
 		return nil, nil, false // to short to possibly match
 	}
 	for i := range e.module {
-		if e.module[i] != instAddr[i].Name {
+		// TODO Probably broken
+		if e.module[i].Name != instAddr[i].Name {
 			return nil, nil, false
 		}
 	}
@@ -724,18 +726,18 @@ func (from *MoveEndpointInModule) IsModuleReIndex(to *MoveEndpointInModule) bool
 			// Generate a synthetic module to represent the full address of
 			// the module call. We're not actually comparing indexes, so the
 			// instance doesn't matter.
-			callAddr := f.Instance(NoKey).Module()
-			return callAddr.Equal(t.Module())
+			callAddr := f.Instance(NoKey)
+			return callAddr.Equal(t)
 		}
 
 	case ModuleInstance:
 		switch t := to.relSubject.(type) {
 		case AbsModuleCall:
-			callAddr := t.Instance(NoKey).Module()
-			return callAddr.Equal(f.Module())
+			callAddr := t.Instance(NoKey)
+			return callAddr.Equal(f)
 
 		case ModuleInstance:
-			return t.Module().Equal(f.Module())
+			return t.Equal(f)
 		}
 	}
 

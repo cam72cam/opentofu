@@ -130,7 +130,7 @@ func (t *ModuleExpansionTransformer) transformSingle(g *Graph, c *configs.Config
 			continue
 		}
 
-		var path addrs.Module
+		var path addrs.ModuleInstance
 		switch t := childV.(type) {
 		case GraphNodeDestroyer:
 			// skip destroyers, as they can only depend on other resources.

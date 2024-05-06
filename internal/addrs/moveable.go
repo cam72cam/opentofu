@@ -56,5 +56,5 @@ type ConfigMoveable interface {
 // The following are all of the possible ConfigMovable address types:
 var (
 	_ ConfigMoveable = ConfigResource{}
-	_ ConfigMoveable = Module(nil)
+	_ ConfigMoveable = ModuleInstance(nil)
 )

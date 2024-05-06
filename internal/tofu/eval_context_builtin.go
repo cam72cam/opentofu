@@ -184,7 +184,7 @@ func (ctx *BuiltinEvalContext) CloseProvider(addr addrs.AbsProviderConfig) error
 
 func (ctx *BuiltinEvalContext) ConfigureProvider(addr addrs.AbsProviderConfig, cfg cty.Value) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
-	if !addr.Module.Equal(ctx.Path().Module()) {
+	if !addr.Module.Equal(ctx.Path()) {
 		// This indicates incorrect use of ConfigureProvider: it should be used
 		// only from the module that the provider configuration belongs to.
 		panic(fmt.Sprintf("%s configured by wrong module %s", addr, ctx.Path()))
@@ -209,7 +209,7 @@ func (ctx *BuiltinEvalContext) ProviderInput(pc addrs.AbsProviderConfig) map[str
 	ctx.ProviderLock.Lock()
 	defer ctx.ProviderLock.Unlock()
 
-	if !pc.Module.Equal(ctx.Path().Module()) {
+	if !pc.Module.Equal(ctx.Path()) {
 		// This indicates incorrect use of InitProvider: it should be used
 		// only from the module that the provider configuration belongs to.
 		panic(fmt.Sprintf("%s initialized by wrong module %s", pc, ctx.Path()))
@@ -318,7 +318,7 @@ func (ctx *BuiltinEvalContext) EvaluateReplaceTriggeredBy(expr hcl.Expression, r
 	}
 
 	// Do some validation to make sure we are expecting a change at all
-	cfg := ctx.Evaluator.Config.Descendent(ctx.Path().Module())
+	cfg := ctx.Evaluator.Config.Descendent(ctx.Path())
 	resCfg := cfg.Module.ResourceByAddr(resourceAddr)
 	if resCfg == nil {
 		diags = diags.Append(&hcl.Diagnostic{

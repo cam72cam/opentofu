@@ -99,7 +99,7 @@ type graphNodeAttachDataResourceDependsOn interface {
 type GraphNodeReferenceOutside interface {
 	// ReferenceOutside returns a path in which any references from this node
 	// are resolved.
-	ReferenceOutside() (selfPath, referencePath addrs.Module)
+	ReferenceOutside() (selfPath, referencePath addrs.ModuleInstance)
 }
 
 // ReferenceTransformer is a GraphTransformer that connects all the
@@ -460,7 +460,7 @@ func (m ReferenceMap) parentModuleDependsOn(g *Graph, depender graphNodeDependsO
 	return res, fromModule
 }
 
-func (m *ReferenceMap) mapKey(path addrs.Module, addr addrs.Referenceable) string {
+func (m *ReferenceMap) mapKey(path addrs.ModuleInstance, addr addrs.Referenceable) string {
 	return fmt.Sprintf("%s|%s", path.String(), addr.String())
 }
 
@@ -470,7 +470,7 @@ func (m *ReferenceMap) mapKey(path addrs.Module, addr addrs.Referenceable) strin
 //
 // Only GraphNodeModulePath implementations can be referenced, so this method will
 // panic if the given vertex does not implement that interface.
-func vertexReferenceablePath(v dag.Vertex) addrs.Module {
+func vertexReferenceablePath(v dag.Vertex) addrs.ModuleInstance {
 	sp, ok := v.(GraphNodeModulePath)
 	if !ok {
 		// Only nodes with paths can participate in a reference map.
@@ -493,7 +493,7 @@ func vertexReferenceablePath(v dag.Vertex) addrs.Module {
 //
 // Only GraphNodeModulePath implementations can have references, so this method
 // will panic if the given vertex does not implement that interface.
-func vertexReferencePath(v dag.Vertex) addrs.Module {
+func vertexReferencePath(v dag.Vertex) addrs.ModuleInstance {
 	sp, ok := v.(GraphNodeModulePath)
 	if !ok {
 		// Only nodes with paths can participate in a reference map.

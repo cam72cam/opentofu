@@ -409,7 +409,7 @@ func (n *graphNodeCloseProvider) Name() string {
 }
 
 // GraphNodeModulePath
-func (n *graphNodeCloseProvider) ModulePath() addrs.Module {
+func (n *graphNodeCloseProvider) ModulePath() addrs.ModuleInstance {
 	return n.Addr.Module
 }
 
@@ -455,7 +455,7 @@ func (n *graphNodeProxyProvider) ProviderAddr() addrs.AbsProviderConfig {
 	return n.addr
 }
 
-func (n *graphNodeProxyProvider) ModulePath() addrs.Module {
+func (n *graphNodeProxyProvider) ModulePath() addrs.ModuleInstance {
 	return n.addr.Module
 }
 

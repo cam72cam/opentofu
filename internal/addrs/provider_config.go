@@ -90,7 +90,7 @@ func (pc LocalProviderConfig) StringCompact() string {
 // AbsProviderConfig is the absolute address of a provider configuration
 // within a particular module instance.
 type AbsProviderConfig struct {
-	Module   Module
+	Module   ModuleInstance
 	Provider Provider
 	Alias    string
 }
@@ -127,7 +127,7 @@ func ParseAbsProviderConfig(traversal hcl.Traversal) (AbsProviderConfig, tfdiags
 			return ret, diags
 		}
 	}
-	ret.Module = modInst.Module()
+	ret.Module = modInst
 
 	if len(remain) < 2 || remain.RootName() != "provider" {
 		diags = diags.Append(&hcl.Diagnostic{
@@ -266,7 +266,7 @@ func ParseLegacyAbsProviderConfig(traversal hcl.Traversal) (AbsProviderConfig, t
 			return ret, diags
 		}
 	}
-	ret.Module = modInst.Module()
+	ret.Module = modInst
 
 	if len(remain) < 2 || remain.RootName() != "provider" {
 		diags = diags.Append(&hcl.Diagnostic{
@@ -326,7 +326,7 @@ func ParseLegacyAbsProviderConfig(traversal hcl.Traversal) (AbsProviderConfig, t
 // the given type inside the recieving module instance.
 func (m ModuleInstance) ProviderConfigDefault(provider Provider) AbsProviderConfig {
 	return AbsProviderConfig{
-		Module:   m.Module(),
+		Module:   m,
 		Provider: provider,
 	}
 }
@@ -335,7 +335,7 @@ func (m ModuleInstance) ProviderConfigDefault(provider Provider) AbsProviderConf
 // the given type and alias inside the recieving module instance.
 func (m ModuleInstance) ProviderConfigAliased(provider Provider, alias string) AbsProviderConfig {
 	return AbsProviderConfig{
-		Module:   m.Module(),
+		Module:   m,
 		Provider: provider,
 		Alias:    alias,
 	}

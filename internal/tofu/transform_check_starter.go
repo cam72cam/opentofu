@@ -73,7 +73,7 @@ func (s *checkStartTransformer) Transform(graph *Graph) error {
 
 			config := s.Config
 			if !addr.Module.IsRoot() {
-				config = s.Config.Descendent(addr.Module.Module())
+				config = s.Config.Descendent(addr.Module)
 			}
 			if config == nil {
 				// might have been deleted, so it won't be subject to any checks

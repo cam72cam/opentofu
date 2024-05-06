@@ -19,7 +19,7 @@ var (
 )
 
 // GraphNodeModulePath
-func (n *nodeExternalReference) ModulePath() addrs.Module {
+func (n *nodeExternalReference) ModulePath() addrs.ModuleInstance {
 	// The external references are always made from test files, which currently
 	// execute as if they are in the root module.
 	return addrs.RootModule

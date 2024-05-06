@@ -89,10 +89,11 @@ func (s *State) Module(addr addrs.ModuleInstance) *Module {
 }
 
 // ModuleInstances returns the set of Module states that matches the given path.
-func (s *State) ModuleInstances(addr addrs.Module) []*Module {
+func (s *State) ModuleInstances(addr addrs.ModuleInstance) []*Module {
 	var ms []*Module
 	for _, m := range s.Modules {
-		if m.Addr.Module().Equal(addr) {
+		// TODO bork?
+		if m.Addr.Equal(addr) {
 			ms = append(ms, m)
 		}
 	}

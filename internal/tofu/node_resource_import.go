@@ -64,8 +64,8 @@ func (n *graphNodeImportState) Path() addrs.ModuleInstance {
 }
 
 // GraphNodeModulePath
-func (n *graphNodeImportState) ModulePath() addrs.Module {
-	return n.Addr.Module.Module()
+func (n *graphNodeImportState) ModulePath() addrs.ModuleInstance {
+	return n.Addr.Module
 }
 
 // GraphNodeExecutable impl.

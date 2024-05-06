@@ -354,11 +354,13 @@ func (t *Target) ModuleAddr() ModuleInstance {
 	switch addr := t.Subject.(type) {
 	case ModuleInstance:
 		return addr
-	case Module:
-		// We assume that a module address is really
-		// referring to a module path containing only
-		// single-instance modules.
-		return addr.UnkeyedInstanceShim()
+		/*
+			case Module:
+				// We assume that a module address is really
+				// referring to a module path containing only
+				// single-instance modules.
+				return addr.UnkeyedInstanceShim()
+		*/
 	case AbsResourceInstance:
 		return addr.Module
 	case AbsResource:

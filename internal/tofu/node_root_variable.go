@@ -41,7 +41,7 @@ func (n *NodeRootVariable) Path() addrs.ModuleInstance {
 	return addrs.RootModuleInstance
 }
 
-func (n *NodeRootVariable) ModulePath() addrs.Module {
+func (n *NodeRootVariable) ModulePath() addrs.ModuleInstance {
 	return addrs.RootModule
 }
 

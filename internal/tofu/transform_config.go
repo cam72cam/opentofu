@@ -104,7 +104,7 @@ func (t *ConfigTransformer) transformSingle(g *Graph, config *configs.Config, ge
 	// Only include import targets that are targeting the current module.
 	var importTargets []*ImportTarget
 	for _, target := range t.importTargets {
-		if targetModule := target.Addr.Module.Module(); targetModule.Equal(config.Path) {
+		if targetModule := target.Addr.Module; targetModule.Equal(config.Path) {
 			importTargets = append(importTargets, target)
 		}
 	}

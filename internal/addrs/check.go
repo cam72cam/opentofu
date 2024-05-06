@@ -20,7 +20,7 @@ func (c Check) String() string {
 
 // InModule returns a ConfigCheck from the receiver and the given module
 // address.
-func (c Check) InModule(modAddr Module) ConfigCheck {
+func (c Check) InModule(modAddr ModuleInstance) ConfigCheck {
 	return ConfigCheck{
 		Module: modAddr,
 		Check:  c,
@@ -51,7 +51,7 @@ func (c Check) uniqueKeySigil() {}
 // This contains a Check address and a Module address, meaning this describes
 // a check block within the entire configuration.
 type ConfigCheck struct {
-	Module Module
+	Module ModuleInstance
 	Check  Check
 }
 
@@ -109,7 +109,7 @@ func (c AbsCheck) CheckRule(typ CheckRuleType, i int) CheckRule {
 // ConfigCheckable returns the ConfigCheck address for this absolute reference.
 func (c AbsCheck) ConfigCheckable() ConfigCheckable {
 	return ConfigCheck{
-		Module: c.Module.Module(),
+		Module: c.Module,
 		Check:  c.Check,
 	}
 }

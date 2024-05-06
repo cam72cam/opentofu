@@ -32,7 +32,7 @@ func (v InputVariable) Absolute(m ModuleInstance) AbsInputVariableInstance {
 	}
 }
 
-func (v InputVariable) InModule(module Module) ConfigInputVariable {
+func (v InputVariable) InModule(module ModuleInstance) ConfigInputVariable {
 	return ConfigInputVariable{
 		Module:   module,
 		Variable: v,
@@ -83,7 +83,7 @@ func (v AbsInputVariableInstance) CheckRule(typ CheckRuleType, i int) CheckRule 
 
 func (v AbsInputVariableInstance) ConfigCheckable() ConfigCheckable {
 	return ConfigInputVariable{
-		Module:   v.Module.Module(),
+		Module:   v.Module,
 		Variable: v.Variable,
 	}
 }
@@ -93,7 +93,7 @@ func (v AbsInputVariableInstance) CheckableKind() CheckableKind {
 }
 
 type ConfigInputVariable struct {
-	Module   Module
+	Module   ModuleInstance
 	Variable InputVariable
 }
 

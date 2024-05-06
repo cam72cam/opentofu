@@ -20,7 +20,7 @@ type ConcreteModuleNodeFunc func(n *nodeExpandModule) dag.Vertex
 // might expand into multiple module instances depending on how it is
 // configured.
 type nodeExpandModule struct {
-	Addr       addrs.Module
+	Addr       addrs.ModuleInstance
 	Instance   addrs.InstanceKey
 	Config     *configs.Module
 	ModuleCall *configs.ModuleCall
@@ -40,7 +40,7 @@ func (n *nodeExpandModule) Name() string {
 }
 
 // GraphNodeModulePath implementation
-func (n *nodeExpandModule) ModulePath() addrs.Module {
+func (n *nodeExpandModule) ModulePath() addrs.ModuleInstance {
 	return n.Addr
 }
 
@@ -99,7 +99,7 @@ func (n *nodeExpandModule) DependsOn() []*addrs.Reference {
 }
 
 // GraphNodeReferenceOutside
-func (n *nodeExpandModule) ReferenceOutside() (selfPath, referencePath addrs.Module) {
+func (n *nodeExpandModule) ReferenceOutside() (selfPath, referencePath addrs.ModuleInstance) {
 	return n.Addr, n.Addr.Parent()
 }
 
@@ -151,7 +151,7 @@ func (n *nodeExpandModule) Execute(ctx EvalContext, op walkOperation) (diags tfd
 // The root module instance also closes any remaining provisioner plugins which
 // do not have a lifecycle controlled by individual graph nodes.
 type nodeCloseModule struct {
-	Addr addrs.Module
+	Addr addrs.ModuleInstance
 }
 
 var (
@@ -160,11 +160,11 @@ var (
 	_ GraphNodeExecutable       = (*nodeCloseModule)(nil)
 )
 
-func (n *nodeCloseModule) ModulePath() addrs.Module {
+func (n *nodeCloseModule) ModulePath() addrs.ModuleInstance {
 	return n.Addr
 }
 
-func (n *nodeCloseModule) ReferenceOutside() (selfPath, referencePath addrs.Module) {
+func (n *nodeCloseModule) ReferenceOutside() (selfPath, referencePath addrs.ModuleInstance) {
 	return n.Addr.Parent(), n.Addr
 }
 

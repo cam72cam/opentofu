@@ -49,7 +49,7 @@ func (v OutputValue) Absolute(m ModuleInstance) AbsOutputValue {
 
 // InModule converts the receiver into a config address within the given
 // module.
-func (v OutputValue) InModule(m Module) ConfigOutputValue {
+func (v OutputValue) InModule(m ModuleInstance) ConfigOutputValue {
 	return ConfigOutputValue{
 		Module:      m,
 		OutputValue: v,
@@ -98,7 +98,7 @@ func (v AbsOutputValue) Equal(o AbsOutputValue) bool {
 
 func (v AbsOutputValue) ConfigOutputValue() ConfigOutputValue {
 	return ConfigOutputValue{
-		Module:      v.Module.Module(),
+		Module:      v.Module,
 		OutputValue: v.OutputValue,
 	}
 }
@@ -210,7 +210,7 @@ func (v AbsOutputValue) ModuleCallOutput() (ModuleInstance, ModuleCallInstanceOu
 // with it at runtime if it belongs to a module that was called using
 // "count" or "for_each".
 type ConfigOutputValue struct {
-	Module      Module
+	Module      ModuleInstance
 	OutputValue OutputValue
 }
 

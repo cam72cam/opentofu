@@ -3,10 +3,7 @@
 
 package addrs
 
-import (
-	"strings"
-)
-
+/*
 // Module is an address for a module call within configuration. This is
 // the static counterpart of ModuleInstance, representing a traversal through
 // the static module call tree in configuration and does not take into account
@@ -188,3 +185,4 @@ func (m Module) Ancestors() []Module {
 func (m Module) configMoveableSigil() {
 	// ModuleInstance is moveable
 }
+*/

@@ -29,6 +29,13 @@ var (
 	_ Targetable = ModuleInstance(nil)
 )
 
+// RootModule is the module address representing the root of the static module
+// call tree, which is also the zero value of Module.
+//
+// Note that this is not the root of the dynamic module tree, which is instead
+// represented by RootModuleInstance.
+var RootModule ModuleInstance
+
 func ParseModuleInstance(traversal hcl.Traversal) (ModuleInstance, tfdiags.Diagnostics) {
 	mi, remain, diags := parseModuleInstancePrefix(traversal)
 	if len(remain) != 0 {
@@ -204,13 +211,14 @@ LOOP:
 // in order to construct the graph. At a later time when "count" and "for_each"
 // support is added for modules, all callers of this method will need to be
 // reworked to allow for keyed module instances.
+/*
 func (m Module) UnkeyedInstanceShim() ModuleInstance {
 	path := make(ModuleInstance, len(m))
 	for i, name := range m {
 		path[i] = ModuleInstanceStep{Name: name}
 	}
 	return path
-}
+}*/
 
 // ModuleInstanceStep is a single traversal step through the dynamic module
 // tree. It is used only as part of ModuleInstance.
@@ -285,6 +293,13 @@ func (m ModuleInstance) String() string {
 		sep = "."
 	}
 	return buf.String()
+}
+func (m ModuleInstance) DotString() string {
+	parts := make([]string, len(m))
+	for i, p := range m {
+		parts[i] = p.String()
+	}
+	return strings.Join(parts, ".")
 }
 
 type moduleInstanceKey string
@@ -423,30 +438,30 @@ func (m ModuleInstance) CallInstance() (ModuleInstance, ModuleCallInstance) {
 // is contained within the reciever.
 func (m ModuleInstance) TargetContains(other Targetable) bool {
 	switch to := other.(type) {
-	case Module:
-		if len(to) < len(m) {
-			// Can't be contained if the path is shorter
+	/*case Module:
+	if len(to) < len(m) {
+		// Can't be contained if the path is shorter
+		return false
+	}
+	// Other is contained if its steps match for the length of our own path.
+	for i, ourStep := range m {
+		otherStep := to[i]
+
+		// We can't contain an entire module if we have a specific instance
+		// key. The case of NoKey is OK because this address is either
+		// meant to address an unexpanded module, or a single instance of
+		// that module, and both of those are a covered in-full by the
+		// Module address.
+		if ourStep.InstanceKey != NoKey {
 			return false
 		}
-		// Other is contained if its steps match for the length of our own path.
-		for i, ourStep := range m {
-			otherStep := to[i]
 
-			// We can't contain an entire module if we have a specific instance
-			// key. The case of NoKey is OK because this address is either
-			// meant to address an unexpanded module, or a single instance of
-			// that module, and both of those are a covered in-full by the
-			// Module address.
-			if ourStep.InstanceKey != NoKey {
-				return false
-			}
-
-			if ourStep.Name != otherStep {
-				return false
-			}
+		if ourStep.Name != otherStep {
+			return false
 		}
-		// If we fall out here then the prefixed matched, so it's contained.
-		return true
+	}
+	// If we fall out here then the prefixed matched, so it's contained.
+	return true*/
 
 	case ModuleInstance:
 		if len(to) < len(m) {
@@ -493,7 +508,7 @@ func (m ModuleInstance) TargetContains(other Targetable) bool {
 
 // Module returns the address of the module that this instance is an instance
 // of.
-func (m ModuleInstance) Module() Module {
+/*func (m ModuleInstance) Module() Module {
 	if len(m) == 0 {
 		return nil
 	}
@@ -502,7 +517,7 @@ func (m ModuleInstance) Module() Module {
 		ret[i] = step.Name
 	}
 	return ret
-}
+}*/
 
 func (m ModuleInstance) AddrType() TargetableAddrType {
 	return ModuleInstanceAddrType
@@ -543,4 +558,8 @@ func (s ModuleInstanceStep) String() string {
 		return s.Name + s.InstanceKey.String()
 	}
 	return s.Name
+}
+
+func (m ModuleInstance) configMoveableSigil() {
+	// ModuleInstance is moveable
 }

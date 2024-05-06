@@ -145,7 +145,7 @@ func (c ModuleCallInstance) Output(name string) ModuleCallInstanceOutput {
 // ModuleCall, which may expand into multiple module instances
 type ModuleCallOutput struct {
 	referenceable
-	Call ModuleCall
+	Call ModuleCallInstance
 	Name string
 }
 
@@ -171,7 +171,7 @@ type ModuleCallInstanceOutput struct {
 // particular instance.
 func (co ModuleCallInstanceOutput) ModuleCallOutput() ModuleCallOutput {
 	return ModuleCallOutput{
-		Call: co.Call.Call,
+		Call: co.Call,
 		Name: co.Name,
 	}
 }

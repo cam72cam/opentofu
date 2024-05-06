@@ -123,7 +123,7 @@ func (r *ResourceAddress) WholeModuleAddress() *ResourceAddress {
 // Since resource configuration blocks represent all of the instances of
 // a multi-instance resource, the index of the address (if any) is not
 // considered.
-func (r *ResourceAddress) MatchesResourceConfig(path addrs.Module, rc *configs.Resource) bool {
+func (r *ResourceAddress) MatchesResourceConfig(path addrs.ModuleInstance, rc *configs.Resource) bool {
 	if r.HasResourceSpec() {
 		// FIXME: Some ugliness while we are between worlds. Functionality
 		// in "addrs" should eventually replace this ResourceAddress idea
@@ -153,8 +153,9 @@ func (r *ResourceAddress) MatchesResourceConfig(path addrs.Module, rc *configs.R
 	if len(path) == 0 {
 		path = nil
 	}
-	rawPath := []string(path)
-	return reflect.DeepEqual(addrPath, rawPath)
+	panic("TODO")
+	//rawPath := []string(path)
+	//return reflect.DeepEqual(addrPath, rawPath)
 }
 
 // stateId returns the ID that this resource should be entered with

@@ -34,7 +34,7 @@ type nodeReportCheck struct {
 	addr addrs.ConfigCheck
 }
 
-func (n *nodeReportCheck) ModulePath() addrs.Module {
+func (n *nodeReportCheck) ModulePath() addrs.ModuleInstance {
 	return n.addr.Module
 }
 
@@ -75,7 +75,7 @@ type nodeExpandCheck struct {
 	makeInstance func(addrs.AbsCheck, *configs.Check) dag.Vertex
 }
 
-func (n *nodeExpandCheck) ModulePath() addrs.Module {
+func (n *nodeExpandCheck) ModulePath() addrs.ModuleInstance {
 	return n.addr.Module
 }
 
@@ -140,8 +140,8 @@ type nodeCheckAssert struct {
 	executeChecks bool
 }
 
-func (n *nodeCheckAssert) ModulePath() addrs.Module {
-	return n.Path().Module()
+func (n *nodeCheckAssert) ModulePath() addrs.ModuleInstance {
+	return n.Path()
 }
 
 func (n *nodeCheckAssert) Path() addrs.ModuleInstance {

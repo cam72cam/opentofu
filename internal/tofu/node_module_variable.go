@@ -22,7 +22,7 @@ import (
 // its module path expanded.
 type nodeExpandModuleVariable struct {
 	Addr       addrs.InputVariable
-	Module     addrs.Module
+	Module     addrs.ModuleInstance
 	Config     *configs.Variable
 	Expr       hcl.Expression
 	IterValues *instances.RepetitionData
@@ -56,7 +56,9 @@ func (n *nodeExpandModuleVariable) DynamicExpand(ctx EvalContext) (*Graph, error
 	}
 
 	expander := ctx.InstanceExpander()
+	fmt.Printf("!!! EXPANDING %s\n", n.Module)
 	for _, module := range expander.ExpandModule(n.Module) {
+		fmt.Printf("!!! EXPANDED INTO %s\n", module)
 		addr := n.Addr.Absolute(module)
 		if checkableAddrs != nil {
 			checkableAddrs.Add(addr)
@@ -85,7 +87,7 @@ func (n *nodeExpandModuleVariable) Name() string {
 }
 
 // GraphNodeModulePath
-func (n *nodeExpandModuleVariable) ModulePath() addrs.Module {
+func (n *nodeExpandModuleVariable) ModulePath() addrs.ModuleInstance {
 	return n.Module
 }
 
@@ -118,7 +120,7 @@ func (n *nodeExpandModuleVariable) References() []*addrs.Reference {
 }
 
 // GraphNodeReferenceOutside implementation
-func (n *nodeExpandModuleVariable) ReferenceOutside() (selfPath, referencePath addrs.Module) {
+func (n *nodeExpandModuleVariable) ReferenceOutside() (selfPath, referencePath addrs.ModuleInstance) {
 	return n.Module, n.Module.Parent()
 }
 
@@ -164,8 +166,8 @@ func (n *nodeModuleVariable) Path() addrs.ModuleInstance {
 }
 
 // GraphNodeModulePath
-func (n *nodeModuleVariable) ModulePath() addrs.Module {
-	return n.Addr.Module.Module()
+func (n *nodeModuleVariable) ModulePath() addrs.ModuleInstance {
+	return n.Addr.Module
 }
 
 // GraphNodeExecutable
@@ -177,6 +179,7 @@ func (n *nodeModuleVariable) Execute(ctx EvalContext, op walkOperation) (diags t
 
 	switch op {
 	case walkValidate:
+		fmt.Printf("!!!! Paths %s : %s\n", n.Path().String(), n.ModulePath())
 		val, err = n.evalModuleVariable(ctx, true)
 		diags = diags.Append(err)
 	default:

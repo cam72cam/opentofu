@@ -91,9 +91,10 @@ func (e *MoveEndpoint) MightUnifyWith(other *MoveEndpoint) bool {
 // The result is useful for finding the target object in the configuration,
 // but it's not sufficient for fully interpreting a move statement because
 // it lacks the specific module and resource instance keys.
-func (e *MoveEndpoint) ConfigMoveable(baseModule Module) ConfigMoveable {
+func (e *MoveEndpoint) ConfigMoveable(baseModule ModuleInstance) ConfigMoveable {
 	addr := e.relSubject
 	switch addr := addr.(type) {
+	/* TODO
 	case ModuleInstance:
 		ret := make(Module, 0, len(baseModule)+len(addr))
 		ret = append(ret, baseModule...)
@@ -107,6 +108,7 @@ func (e *MoveEndpoint) ConfigMoveable(baseModule Module) ConfigMoveable {
 			Module:   moduleAddr,
 			Resource: addr.Resource.Resource,
 		}
+	*/
 	default:
 		// The above should be exhaustive for all of the types
 		// that ParseMoveEndpoint produces as our intermediate
@@ -169,7 +171,7 @@ func ParseMoveEndpoint(traversal hcl.Traversal) (*MoveEndpoint, tfdiags.Diagnost
 // given addresses are incompatible then UnifyMoveEndpoints returns (nil, nil),
 // in which case the caller should typically report an error to the user
 // stating the unification constraints.
-func UnifyMoveEndpoints(moduleAddr Module, relFrom, relTo *MoveEndpoint) (modFrom, modTo *MoveEndpointInModule) {
+func UnifyMoveEndpoints(moduleAddr ModuleInstance, relFrom, relTo *MoveEndpoint) (modFrom, modTo *MoveEndpointInModule) {
 
 	// First we'll make a decision about which address type we're
 	// ultimately trying to unify to. For our internal purposes
@@ -213,7 +215,7 @@ func UnifyMoveEndpoints(moduleAddr Module, relFrom, relTo *MoveEndpoint) (modFro
 	return modFrom, modTo
 }
 
-func (e *MoveEndpoint) prepareMoveEndpointInModule(moduleAddr Module, wantType TargetableAddrType) *MoveEndpointInModule {
+func (e *MoveEndpoint) prepareMoveEndpointInModule(moduleAddr ModuleInstance, wantType TargetableAddrType) *MoveEndpointInModule {
 	// relAddr can only be either AbsResourceInstance or ModuleInstance, the
 	// internal intermediate representation produced by ParseMoveEndpoint.
 	relAddr := e.relSubject

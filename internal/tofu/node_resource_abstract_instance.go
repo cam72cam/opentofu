@@ -1779,7 +1779,7 @@ func (n *NodeAbstractResourceInstance) nestedInCheckBlock() (*configs.Check, boo
 // source where possible, and instead defer the read until the apply step.
 func (n *NodeAbstractResourceInstance) dependenciesHavePendingChanges(ctx EvalContext) bool {
 	nModInst := n.Addr.Module
-	nMod := nModInst.Module()
+	nMod := nModInst
 
 	// Check and see if any depends_on dependencies have
 	// changes, since they won't show up as changes in the
@@ -1809,7 +1809,7 @@ func (n *NodeAbstractResourceInstance) dependenciesHavePendingChanges(ctx EvalCo
 
 		for _, change := range changes.GetChangesForConfigResource(d) {
 			changeModInst := change.Addr.Module
-			changeMod := changeModInst.Module()
+			changeMod := changeModInst
 
 			if changeMod.Equal(nMod) && !changeModInst.Equal(nModInst) {
 				// Dependencies are tracked by configuration address, which

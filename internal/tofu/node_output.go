@@ -24,7 +24,7 @@ import (
 // not yet had its module path expanded.
 type nodeExpandOutput struct {
 	Addr        addrs.OutputValue
-	Module      addrs.Module
+	Module      addrs.ModuleInstance
 	Config      *configs.Output
 	Destroying  bool
 	RefreshOnly bool
@@ -142,7 +142,7 @@ func (n *nodeExpandOutput) Name() string {
 }
 
 // GraphNodeModulePath
-func (n *nodeExpandOutput) ModulePath() addrs.Module {
+func (n *nodeExpandOutput) ModulePath() addrs.ModuleInstance {
 	return n.Module
 }
 
@@ -167,7 +167,7 @@ func (n *nodeExpandOutput) ReferenceableAddrs() []addrs.Referenceable {
 }
 
 // GraphNodeReferenceOutside implementation
-func (n *nodeExpandOutput) ReferenceOutside() (selfPath, referencePath addrs.Module) {
+func (n *nodeExpandOutput) ReferenceOutside() (selfPath, referencePath addrs.ModuleInstance) {
 	// Output values have their expressions resolved in the context of the
 	// module where they are defined.
 	referencePath = n.Module
@@ -232,23 +232,23 @@ func (n *NodeApplyableOutput) Path() addrs.ModuleInstance {
 }
 
 // GraphNodeModulePath
-func (n *NodeApplyableOutput) ModulePath() addrs.Module {
-	return n.Addr.Module.Module()
+func (n *NodeApplyableOutput) ModulePath() addrs.ModuleInstance {
+	return n.Addr.Module
 }
 
-func referenceOutsideForOutput(addr addrs.AbsOutputValue) (selfPath, referencePath addrs.Module) {
+func referenceOutsideForOutput(addr addrs.AbsOutputValue) (selfPath, referencePath addrs.ModuleInstance) {
 	// Output values have their expressions resolved in the context of the
 	// module where they are defined.
-	referencePath = addr.Module.Module()
+	referencePath = addr.Module
 
 	// ...but they are referenced in the context of their calling module.
-	selfPath = addr.Module.Parent().Module()
+	selfPath = addr.Module.Parent()
 
 	return // uses named return values
 }
 
 // GraphNodeReferenceOutside implementation
-func (n *NodeApplyableOutput) ReferenceOutside() (selfPath, referencePath addrs.Module) {
+func (n *NodeApplyableOutput) ReferenceOutside() (selfPath, referencePath addrs.ModuleInstance) {
 	return referenceOutsideForOutput(n.Addr)
 }
 
@@ -439,8 +439,8 @@ func (n *NodeDestroyableOutput) Name() string {
 }
 
 // GraphNodeModulePath
-func (n *NodeDestroyableOutput) ModulePath() addrs.Module {
-	return n.Addr.Module.Module()
+func (n *NodeDestroyableOutput) ModulePath() addrs.ModuleInstance {
+	return n.Addr.Module
 }
 
 func (n *NodeDestroyableOutput) temporaryValue() bool {

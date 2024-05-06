@@ -101,6 +101,11 @@ func (n *nodeExpandPlannableResource) DynamicExpand(ctx EvalContext) (*Graph, er
 	expander := ctx.InstanceExpander()
 	moduleInstances := expander.ExpandModule(n.Addr.Module)
 
+	println("INSTANCES: " + n.Addr.String() + ":::" + n.Addr.Module.String())
+	for _, module := range moduleInstances {
+		println(module.String())
+	}
+
 	// Lock the state while we inspect it
 	state := ctx.State().Lock()
 

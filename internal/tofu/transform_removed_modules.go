@@ -24,14 +24,14 @@ func (t *RemovedModuleTransformer) Transform(g *Graph) error {
 		return nil
 	}
 
-	removed := map[string]addrs.Module{}
+	removed := map[string]addrs.ModuleInstance{}
 
 	for _, m := range t.State.Modules {
 		cc := t.Config.DescendentForInstance(m.Addr)
 		if cc != nil {
 			continue
 		}
-		removed[m.Addr.Module().String()] = m.Addr.Module()
+		removed[m.Addr.String()] = m.Addr
 		log.Printf("[DEBUG] %s is no longer in configuration\n", m.Addr)
 	}
 

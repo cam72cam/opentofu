@@ -795,8 +795,8 @@ func (i *ModuleInstaller) installGoGetterModule(ctx context.Context, req *config
 	return mod, diags
 }
 
-func (i *ModuleInstaller) packageInstallPath(modulePath addrs.Module) string {
-	return filepath.Join(i.modsDir, strings.Join(modulePath, "."))
+func (i *ModuleInstaller) packageInstallPath(modulePath addrs.ModuleInstance) string {
+	return filepath.Join(i.modsDir, modulePath.DotString())
 }
 
 // maybeImproveLocalInstallError is a helper function which can recognize
@@ -834,7 +834,7 @@ func maybeImproveLocalInstallError(req *configs.ModuleRequest, diags hcl.Diagnos
 	// ancestor that defined that package, and then we can work forwards
 	// to see if any of the local paths "escaped" the package.
 	type Step struct {
-		Path       addrs.Module
+		Path       addrs.ModuleInstance
 		SourceAddr addrs.ModuleSource
 	}
 	var packageDefiner Step

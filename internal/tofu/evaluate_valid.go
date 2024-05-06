@@ -320,7 +320,7 @@ func (d *evaluationStateData) staticValidateModuleCallReference(modCfg *configs.
 // root module is possible. Specifically, it returns "the root module" if the
 // root module instance is given, or a string representation of the module
 // address otherwise.
-func moduleConfigDisplayAddr(addr addrs.Module) string {
+func moduleConfigDisplayAddr(addr addrs.ModuleInstance) string {
 	switch {
 	case addr.IsRoot():
 		return "the root module"

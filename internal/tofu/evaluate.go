@@ -354,7 +354,7 @@ func (d *evaluationStateData) GetModule(addr addrs.ModuleCall, rng tfdiags.Sourc
 
 	// Output results live in the module that declares them, which is one of
 	// the child module instances of our current module path.
-	moduleAddr := d.ModulePath.Module().Child(addr.Name)
+	moduleAddr := d.ModulePath.Child(addr.Name, nil)
 
 	parentCfg := d.Evaluator.Config.DescendentForInstance(d.ModulePath)
 	instances, ok := parentCfg.Children[addr.Name]
