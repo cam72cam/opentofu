@@ -184,7 +184,8 @@ func NewModule(primaryFiles, overrideFiles []*File, params StaticModuleCall) (*M
 	}
 
 	for _, mc := range mod.ModuleCalls {
-		mc.IncludeContext(ctx)
+		mDiags := mc.IncludeContext(ctx)
+		diags = append(diags, mDiags...)
 	}
 
 	diags = append(diags, checkModuleExperiments(mod)...)
