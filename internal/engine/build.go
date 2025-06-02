@@ -21,12 +21,16 @@ func AttachState(root *ModuleCall, state *states.State) {
 				call = NewModuleCall(traverse.Addr.Child(step.Name), nil, nil, nil)
 				traverse.Module.Calls[step.Name] = call
 			}
-			instance, ok = call.Instances.Get(traverseAddr, step.InstanceKey)
+			instances, ok := call.InstancesByPath[traverseAddr.String()]
+			if !ok {
+				instances = ModuleCallInstances{}
+			}
+			instance, ok = instances[step.InstanceKey]
 			if !ok {
 				instance = &ModuleCallInstance{
 					ModuleInstance: NewModuleInstance(traverseAddr, call.Module),
 				}
-				call.Instances.Set(traverseAddr, step.InstanceKey, instance)
+				instances[step.InstanceKey] = instance
 			}
 
 			traverse = call
@@ -37,15 +41,15 @@ func AttachState(root *ModuleCall, state *states.State) {
 			ident := stateResource.Addr.Resource.String()
 			resources, ok := instance.ModuleInstance.Resources[ident]
 			if !ok {
-				resources = NewResourceInstances(nil)
+				resources = ResourceInstances{}
 				instance.ModuleInstance.Resources[ident] = resources
 			}
 
 			for resKey, stateInstance := range stateResource.Instances {
-				resInst, ok := resources.Instances[resKey]
+				resInst, ok := resources[resKey]
 				if !ok {
 					resInst = &ResourceInstance{}
-					resources.Instances[resKey] = resInst
+					resources[resKey] = resInst
 				}
 				resInst.PreviousState = stateInstance
 			}

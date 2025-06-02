@@ -2,24 +2,17 @@ package engine
 
 import (
 	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/instances"
 	"github.com/opentofu/opentofu/internal/states"
 )
 
 type Resource struct{}
 
-type ResourceInstances struct {
-	Resource  *Resource
-	Instances map[addrs.InstanceKey]*ResourceInstance
-	// TODO for_each
-}
-
-func NewResourceInstances(Resource *Resource) *ResourceInstances {
-	return &ResourceInstances{
-		Instances: map[addrs.InstanceKey]*ResourceInstance{},
-	}
-}
+type ResourceInstances map[addrs.InstanceKey]*ResourceInstance
 
 type ResourceInstance struct {
-	Resource      *ResourceInstances
-	PreviousState *states.ResourceInstance
+	Addr           addrs.AbsResourceInstance
+	Resource       *Resource
+	RepetitionData instances.RepetitionData
+	PreviousState  *states.ResourceInstance
 }

@@ -3,6 +3,7 @@ package engine
 import (
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs"
+	"github.com/opentofu/opentofu/internal/instances"
 )
 
 /*
@@ -24,8 +25,9 @@ type ModuleCall struct {
 
 	Module *Module
 
-	Instances InstanceMap[*ModuleCallInstance]
+	InstancesByPath ModuleCallInstancesByPath
 }
+
 type Module struct {
 	Addr   addrs.Module
 	Call   *ModuleCall
@@ -42,21 +44,24 @@ type ModuleInstance struct {
 	Module *Module
 
 	Variables       map[string]*VariableInstance
-	Calls           map[string]*ModuleCallInstance
-	Resources       map[string]*ResourceInstances
+	Resources       map[string]ResourceInstances
 	OutputInstances map[string]*OutputInstance
 }
+
+type ModuleCallInstancesByPath map[string]ModuleCallInstances
+type ModuleCallInstances map[addrs.InstanceKey]*ModuleCallInstance
+
 type ModuleCallInstance struct {
 	ModuleInstance *ModuleInstance
-	// TODO Known Keys
+	RepetitionData instances.RepetitionData
 }
 
 func NewModuleCall(addr addrs.Module, call *configs.ModuleCall, parent *Module, config *configs.Config) *ModuleCall {
 	mc := &ModuleCall{
-		Addr:      addr,
-		Config:    call,
-		Parent:    parent,
-		Instances: NewInstanceMap[*ModuleCallInstance](),
+		Addr:            addr,
+		Config:          call,
+		Parent:          parent,
+		InstancesByPath: make(ModuleCallInstancesByPath),
 	}
 	mc.Module = NewModule(addr, mc, config)
 	return mc
@@ -91,8 +96,7 @@ func NewModuleInstance(addr addrs.ModuleInstance, module *Module) *ModuleInstanc
 		Module: module,
 
 		Variables:       map[string]*VariableInstance{},
-		Calls:           map[string]*ModuleCallInstance{},
-		Resources:       map[string]*ResourceInstances{},
+		Resources:       map[string]ResourceInstances{},
 		OutputInstances: map[string]*OutputInstance{},
 	}
 }
