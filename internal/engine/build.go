@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"fmt"
+
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/states"
@@ -11,6 +13,7 @@ func Build(config *configs.Config) *ModuleCall {
 }
 
 func AttachState(root *ModuleCall, state *states.State) {
+	println("Attaching state")
 	for _, module := range state.Modules {
 		traverse := root
 		var traverseAddr addrs.ModuleInstance
@@ -24,20 +27,25 @@ func AttachState(root *ModuleCall, state *states.State) {
 			instances, ok := call.InstancesByPath[traverseAddr.String()]
 			if !ok {
 				instances = ModuleCallInstances{}
+				call.InstancesByPath[traverseAddr.String()] = instances
 			}
+
+			traverseAddr = append(traverseAddr, step)
+
 			instance, ok = instances[step.InstanceKey]
 			if !ok {
 				instance = &ModuleCallInstance{
 					ModuleInstance: NewModuleInstance(traverseAddr, call.Module),
+					// TODO RepetitionData?
 				}
 				instances[step.InstanceKey] = instance
 			}
 
 			traverse = call
-			traverseAddr = append(traverseAddr, step)
 		}
 
-		for _, stateResource := range module.Resources {
+		for path, stateResource := range module.Resources {
+			fmt.Printf("Attaching resource: %s\n", path)
 			ident := stateResource.Addr.Resource.String()
 			resources, ok := instance.ModuleInstance.Resources[ident]
 			if !ok {
@@ -46,14 +54,16 @@ func AttachState(root *ModuleCall, state *states.State) {
 			}
 
 			for resKey, stateInstance := range stateResource.Instances {
+				fmt.Printf("Attaching Resource Instance: %s\n", stateResource.Addr)
 				resInst, ok := resources[resKey]
 				if !ok {
-					resInst = &ResourceInstance{}
+					resInst = &ResourceInstance{
+						Addr: stateResource.Addr.Instance(resKey),
+					}
 					resources[resKey] = resInst
 				}
 				resInst.PreviousState = stateInstance
 			}
-
 		}
 	}
 }

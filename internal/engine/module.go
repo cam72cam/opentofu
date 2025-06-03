@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"fmt"
+
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/instances"
@@ -18,12 +20,23 @@ Information Needed?
 
 */
 
+type Status int
+
+const (
+	StatusUnknown   = 0
+	StatusPending   = 1
+	StatusAvailable = 2
+)
+
 type ModuleCall struct {
 	Addr   addrs.Module
 	Config *configs.ModuleCall
 	Parent *Module
 
 	Module *Module
+
+	Status     Status
+	Dependents []struct{}
 
 	InstancesByPath ModuleCallInstancesByPath
 }
@@ -39,6 +52,16 @@ type Module struct {
 	Outputs   map[string]*Output
 }
 
+type ModuleCallInstancesByPath map[string]ModuleCallInstances
+
+// TODO struct
+type ModuleCallInstances map[addrs.InstanceKey]*ModuleCallInstance
+
+type ModuleCallInstance struct {
+	ModuleInstance *ModuleInstance
+	RepetitionData instances.RepetitionData
+}
+
 type ModuleInstance struct {
 	Addr   addrs.ModuleInstance
 	Module *Module
@@ -48,15 +71,8 @@ type ModuleInstance struct {
 	OutputInstances map[string]*OutputInstance
 }
 
-type ModuleCallInstancesByPath map[string]ModuleCallInstances
-type ModuleCallInstances map[addrs.InstanceKey]*ModuleCallInstance
-
-type ModuleCallInstance struct {
-	ModuleInstance *ModuleInstance
-	RepetitionData instances.RepetitionData
-}
-
 func NewModuleCall(addr addrs.Module, call *configs.ModuleCall, parent *Module, config *configs.Config) *ModuleCall {
+	fmt.Printf("Creating module call %s\n", addr)
 	mc := &ModuleCall{
 		Addr:            addr,
 		Config:          call,
@@ -68,6 +84,7 @@ func NewModuleCall(addr addrs.Module, call *configs.ModuleCall, parent *Module, 
 }
 
 func NewModule(addr addrs.Module, call *ModuleCall, config *configs.Config) *Module {
+	fmt.Printf("Creating module %s\n", addr)
 	m := &Module{
 		Addr:   addr,
 		Call:   call,
@@ -91,6 +108,7 @@ func NewModule(addr addrs.Module, call *ModuleCall, config *configs.Config) *Mod
 }
 
 func NewModuleInstance(addr addrs.ModuleInstance, module *Module) *ModuleInstance {
+	fmt.Printf("Creating module instance %s\n", addr)
 	return &ModuleInstance{
 		Addr:   addr,
 		Module: module,
