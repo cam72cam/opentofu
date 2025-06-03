@@ -8,40 +8,50 @@ import (
 	"github.com/opentofu/opentofu/internal/states"
 )
 
-func Build(config *configs.Config) *ModuleCall {
-	return NewModuleCall(addrs.RootModule, nil, nil, config)
+func NewRoot(config *configs.Config) *Root {
+	unexpanded := NewModuleCall(addrs.RootModule, nil, config)
+	expanded := NewModuleCallInstance(NewModuleInstance(addrs.RootModuleInstance, unexpanded.Module))
+	// TODO var inputs
+
+	return &Root{
+		ModuleCall:         unexpanded,
+		ModuleCallInstance: expanded,
+	}
 }
 
-func AttachState(root *ModuleCall, state *states.State) {
+func (root *Root) AttachState(state *states.State) {
 	println("Attaching state")
 	for _, module := range state.Modules {
-		traverse := root
 		var traverseAddr addrs.ModuleInstance
 		var instance *ModuleCallInstance
+
+		unexpanded := root.ModuleCall
+		expanded := root.ModuleCallInstance
 		for _, step := range module.Addr {
-			call, ok := traverse.Module.Calls[step.Name]
+			// Ensure unexpanded tree has the required module
+			call, ok := unexpanded.Module.Calls[step.Name]
 			if !ok {
-				call = NewModuleCall(traverse.Addr.Child(step.Name), nil, nil, nil)
-				traverse.Module.Calls[step.Name] = call
-			}
-			instances, ok := call.InstancesByPath[traverseAddr.String()]
-			if !ok {
-				instances = ModuleCallInstances{}
-				call.InstancesByPath[traverseAddr.String()] = instances
+				call = NewModuleCall(unexpanded.Addr.Child(step.Name), nil, nil)
+				unexpanded.Module.Calls[step.Name] = call
 			}
 
+			// Ensure expanded tree has the required module
 			traverseAddr = append(traverseAddr, step)
 
-			instance, ok = instances[step.InstanceKey]
+			calls, ok := expanded.ModuleInstance.Calls[step.Name]
 			if !ok {
-				instance = &ModuleCallInstance{
-					ModuleInstance: NewModuleInstance(traverseAddr, call.Module),
-					// TODO RepetitionData?
-				}
-				instances[step.InstanceKey] = instance
+				calls = NewModuleCallInstances(expanded.ModuleInstance.Addr, call)
+				expanded.ModuleInstance.Calls[step.Name] = calls
 			}
 
-			traverse = call
+			instance, ok = calls.Instances[step.InstanceKey]
+			if !ok {
+				instance = NewModuleCallInstance(NewModuleInstance(expanded.ModuleInstance.Addr.Child(step.Name, step.InstanceKey), call.Module))
+				calls.Instances[step.InstanceKey] = instance
+			}
+
+			unexpanded = call
+			expanded = instance
 		}
 
 		for path, stateResource := range module.Resources {

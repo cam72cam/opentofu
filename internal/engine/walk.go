@@ -5,14 +5,18 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/instances"
+	"github.com/opentofu/opentofu/internal/lang/evalchecks"
 	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/zclconf/go-cty/cty"
 )
 
 type Executor struct {
 	cancel context.CancelFunc
 	ctx    context.Context
-	root   *ModuleCall
+	root   *Root
 
 	diags chan tfdiags.Diagnostics
 	jobs  sync.WaitGroup
@@ -57,15 +61,20 @@ func (e *Executor) Wait() tfdiags.Diagnostics {
 	}
 }
 
-func (c *ModuleCall) Walk() tfdiags.Diagnostics {
+func (r *Root) Walk() tfdiags.Diagnostics {
 	ctx, cancel := context.WithCancel(context.TODO())
 
 	exec := &Executor{
 		cancel: cancel,
 		ctx:    ctx,
-		root:   c,
+		root:   r,
 	}
-	c.visit(exec)
+
+	// Start unexpanded walk
+	r.ModuleCall.visit(exec)
+	// Start expansion walk
+	r.ModuleCallInstance.visit(exec)
+
 	return exec.Wait()
 }
 
@@ -76,30 +85,6 @@ func (c *ModuleCall) visit(exec *Executor) {
 	c.Dependents = nil
 
 	c.Module.visit(exec)
-
-	if c.Parent == nil {
-		// Begin Expansion from Root Module
-		exec.Start(func() tfdiags.Diagnostics {
-			// Expansion Path
-			instances, ok := c.InstancesByPath[""]
-			if !ok {
-				instances = ModuleCallInstances{}
-				c.InstancesByPath[""] = instances
-			}
-			callInstance, ok := instances[addrs.NoKey]
-			if !ok {
-				callInstance = &ModuleCallInstance{
-					ModuleInstance: &ModuleInstance{},
-					//RepetitionData instances.RepetitionData
-				}
-				instances[addrs.NoKey] = callInstance
-			}
-
-			callInstance.visit(exec)
-
-			return nil
-		})
-	}
 }
 
 func (m *Module) visit(exec *Executor) {
@@ -114,35 +99,101 @@ func (m *Module) visit(exec *Executor) {
 }
 
 func (r *Resource) visit(exec *Executor) {
-	// Expansion Path
-	// Expansion Self
-	// Iterate Self
+	// Setup State
 }
 
 func (c *ModuleCallInstances) visit(exec *Executor) {
-	// TODO Expand Expr
-	// visitinstances
-	for _, child := range *c {
-		child.visit(exec)
-	}
+	exec.Start(func() tfdiags.Diagnostics {
+		var diags tfdiags.Diagnostics
+		// Perform Expansion
+		if c.countDiags.Config != nil {
+			ensureInstance := func(key addrs.InstanceKey, data instances.RepetitionData) {
+				// Ensure singleton
+				_, ok := c.Instances[key]
+				if !ok {
+					mod := NewModuleInstance(c.ParentAddr.Child(c.countDiags.Config.Name, key), c.countDiags.Module)
+
+					instance := NewModuleCallInstance(mod)
+					instance.RepetitionData = data
+
+					c.Instances[key] = instance
+				}
+			}
+
+			switch {
+			case c.countDiags.Config.Count != nil:
+				count, countDiags := evalchecks.EvaluateCountExpression(
+					c.countDiags.Config.Count,
+					func(expr hcl.Expression) (cty.Value, tfdiags.Diagnostics) {
+						// TODO Eval Context / refs
+						val, diags := expr.Value(nil)
+						return val, tfdiags.Diagnostics(nil).Append(diags)
+					}, nil)
+
+				diags = diags.Append(countDiags)
+
+				for index := range count {
+					ensureInstance(addrs.IntKey(index), instances.RepetitionData{
+						CountIndex: cty.NumberIntVal(int64(index)),
+					})
+				}
+			case c.countDiags.Config.ForEach != nil:
+				forEachVals, forEachDiags := evalchecks.EvaluateForEachExpression(
+					c.countDiags.Config.ForEach,
+					func(refs []*addrs.Reference) (*hcl.EvalContext, tfdiags.Diagnostics) {
+						// TODO Eval Context / refs
+						return &hcl.EvalContext{}, nil
+					}, nil)
+
+				diags = diags.Append(forEachDiags)
+
+				for key, val := range forEachVals {
+					ensureInstance(addrs.StringKey(key), instances.RepetitionData{
+						EachKey:   cty.StringVal(key),
+						EachValue: val,
+					})
+				}
+			default:
+				ensureInstance(addrs.NoKey, instances.RepetitionData{})
+			}
+		}
+
+		// Visit all instances
+		for _, child := range c.Instances {
+			child.visit(exec)
+		}
+
+		return diags
+	})
 }
 
 func (c *ModuleCallInstance) visit(exec *Executor) {
+	// TODO resolve variable values
 	c.ModuleInstance.visit(exec)
 }
 
 func (m *ModuleInstance) visit(exec *Executor) {
-	modulePathKey := m.Addr.String()
-	for _, call := range m.Module.Calls {
-		instances, ok := call.InstancesByPath[modulePathKey]
-		if !ok {
-			instances = ModuleCallInstances{}
-			call.InstancesByPath[modulePathKey] = instances
+	// Ensure all the calls exist
+	for name, call := range m.Module.Calls {
+		if _, ok := m.Calls[name]; !ok {
+			m.Calls[name] = NewModuleCallInstances(m.Addr, call)
 		}
+	}
+
+	// Seperate loop to enclude orphans
+	for _, instances := range m.Calls {
 		instances.visit(exec)
 	}
 
-	for _, resources := range m.Module.Resources {
+	// Ensure all of the resources exist
+	for name, _ := range m.Module.Resources {
+		if _, ok := m.Resources[name]; !ok {
+			m.Resources[name] = ResourceInstances{}
+		}
+	}
+
+	// Seperate loop to include orphans
+	for _, resources := range m.Resources {
 		resources.visit(exec)
 	}
 }
