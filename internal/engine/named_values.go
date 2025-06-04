@@ -7,14 +7,12 @@ type Variable struct {
 	Config *configs.Variable
 }
 
-type Output struct{}
-
-type VariableInstance struct {
-	Variable *Variable
+type Output struct {
+	Module *Module
+	Config *configs.Output
 }
 
-type OutputInstance struct {
-}
-
-type LocalInstance struct {
+type Local struct {
+	Module *Module
+	Config *configs.Local
 }

@@ -8,18 +8,6 @@ import (
 	"github.com/opentofu/opentofu/internal/instances"
 )
 
-/*
-
-Tree of ModuleCall -> Module -*> ModuleCall -> Module etc...
-With each ModuleCall serving as the expander tracker
-
-Information Needed?
-* AllKeys => AllInstances
-* ActiveKeys => InstanceData
-
-
-*/
-
 type Status int
 
 const (
@@ -29,101 +17,46 @@ const (
 )
 
 type Root struct {
-	ModuleCall     *ModuleCall
-	ModuleInstance *ModuleInstance
+	Module *Module
 }
 
-type ModuleCall struct {
-	Addr   addrs.Module
-	Config *configs.ModuleCall
-	Module *Module
-
-	Status     Status
-	Dependents []struct{}
+type ModuleCalls struct {
+	Caller    *Module
+	Config    *configs.ModuleCall
+	Instances map[addrs.InstanceKey]*Module
 }
 
 type Module struct {
-	Addr   addrs.Module
-	Call   *ModuleCall
-	Config *configs.Config
+	Addr           addrs.ModuleInstance
+	Call           *ModuleCalls
+	RepetitionData *instances.RepetitionData
+	Config         *configs.Module
 
-	Variables map[addrs.InputVariable]*Variable
-	Calls     map[addrs.ModuleCall]*ModuleCall
-	Resources map[addrs.Resource]*Resource
-	Outputs   map[addrs.OutputValue]*Output
+	Variables   map[addrs.InputVariable]*Variable
+	Locals      map[addrs.LocalValue]*Local
+	ModuleCalls map[addrs.ModuleCall]*ModuleCalls
+	Resources   map[addrs.Resource]*Resources
+	Outputs     map[addrs.OutputValue]*Output
 }
 
-type ModuleCallInstances struct {
-	Caller     *ModuleInstance
-	ModuleCall *ModuleCall
-	Instances  map[addrs.InstanceKey]*ModuleInstance
-}
-
-type ModuleInstance struct {
-	Addr   addrs.ModuleInstance
-	Module *Module
-
-	Call           *ModuleCallInstances
-	RepetitionData instances.RepetitionData
-
-	Variables       map[addrs.InputVariable]*VariableInstance
-	Calls           map[addrs.ModuleCall]*ModuleCallInstances
-	Resources       map[addrs.Resource]ResourceInstances
-	OutputInstances map[addrs.OutputValue]*OutputInstance
-}
-
-func NewModuleCall(addr addrs.Module, call *configs.ModuleCall, config *configs.Config) *ModuleCall {
-	fmt.Printf("Creating module call %s\n", addr)
-	mc := &ModuleCall{
-		Addr:   addr,
-		Config: call,
-	}
-	mc.Module = NewModule(addr, mc, config)
-	return mc
-}
-
-func NewModule(addr addrs.Module, call *ModuleCall, config *configs.Config) *Module {
-	fmt.Printf("Creating module %s\n", addr)
-	m := &Module{
-		Addr:   addr,
-		Call:   call,
-		Config: config,
-
-		Variables: map[addrs.InputVariable]*Variable{},
-		Resources: map[addrs.Resource]*Resource{},
-		Calls:     map[addrs.ModuleCall]*ModuleCall{},
-		Outputs:   map[addrs.OutputValue]*Output{},
-	}
-
-	if config == nil {
-		return m
-	}
-
-	for name, call := range config.Module.ModuleCalls {
-		m.Calls[addrs.ModuleCall{Name: name}] = NewModuleCall(addr.Child(name), call, config.Children[name])
-	}
-
-	return m
-}
-
-func NewModuleCallInstances(caller *ModuleInstance, call *ModuleCall) *ModuleCallInstances {
-	return &ModuleCallInstances{
-		Caller:     caller,
-		ModuleCall: call,
-		Instances:  map[addrs.InstanceKey]*ModuleInstance{},
+func NewModuleCalls(caller *Module, config *configs.ModuleCall) *ModuleCalls {
+	return &ModuleCalls{
+		Caller:    caller,
+		Config:    config,
+		Instances: map[addrs.InstanceKey]*Module{},
 	}
 }
 
-func NewModuleInstance(addr addrs.ModuleInstance, module *Module, call *ModuleCallInstances) *ModuleInstance {
+func NewModule(addr addrs.ModuleInstance, call *ModuleCalls) *Module {
 	fmt.Printf("Creating module instance %s\n", addr)
-	return &ModuleInstance{
-		Addr:   addr,
-		Module: module,
-		Call:   call,
+	return &Module{
+		Addr: addr,
+		Call: call,
 
-		Variables:       map[addrs.InputVariable]*VariableInstance{},
-		Resources:       map[addrs.Resource]ResourceInstances{},
-		Calls:           map[addrs.ModuleCall]*ModuleCallInstances{},
-		OutputInstances: map[addrs.OutputValue]*OutputInstance{},
+		Variables:   map[addrs.InputVariable]*Variable{},
+		Locals:      map[addrs.LocalValue]*Local{},
+		Resources:   map[addrs.Resource]*Resources{},
+		ModuleCalls: map[addrs.ModuleCall]*ModuleCalls{},
+		Outputs:     map[addrs.OutputValue]*Output{},
 	}
 }

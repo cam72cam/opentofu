@@ -9,13 +9,11 @@ import (
 )
 
 func NewRoot(config *configs.Config) *Root {
-	unexpanded := NewModuleCall(addrs.RootModule, nil, config)
-	expanded := NewModuleInstance(addrs.RootModuleInstance, unexpanded.Module, nil)
+	expanded := NewModule(addrs.RootModuleInstance, nil)
 	// TODO var inputs
 
 	return &Root{
-		ModuleCall:     unexpanded,
-		ModuleInstance: expanded,
+		Module: expanded,
 	}
 }
 
@@ -23,35 +21,26 @@ func (root *Root) AttachState(state *states.State) {
 	println("Attaching state")
 	for _, module := range state.Modules {
 		var traverseAddr addrs.ModuleInstance
-		var instance *ModuleInstance
+		var instance *Module
 
-		unexpanded := root.ModuleCall
-		expanded := root.ModuleInstance
+		target := root.Module
 		for _, step := range module.Addr {
-			// Ensure unexpanded tree has the required module
-			call, ok := unexpanded.Module.Calls[addrs.ModuleCall{Name: step.Name}]
-			if !ok {
-				call = NewModuleCall(unexpanded.Addr.Child(step.Name), nil, nil)
-				unexpanded.Module.Calls[addrs.ModuleCall{Name: step.Name}] = call
-			}
-
 			// Ensure expanded tree has the required module
 			traverseAddr = append(traverseAddr, step)
 
-			calls, ok := expanded.Calls[addrs.ModuleCall{Name: step.Name}]
+			calls, ok := target.ModuleCalls[addrs.ModuleCall{Name: step.Name}]
 			if !ok {
-				calls = NewModuleCallInstances(expanded, call)
-				expanded.Calls[addrs.ModuleCall{Name: step.Name}] = calls
+				calls = NewModuleCalls(target, nil)
+				target.ModuleCalls[addrs.ModuleCall{Name: step.Name}] = calls
 			}
 
 			instance, ok = calls.Instances[step.InstanceKey]
 			if !ok {
-				instance = NewModuleInstance(expanded.Addr.Child(step.Name, step.InstanceKey), call.Module, calls)
+				instance = NewModule(target.Addr.Child(step.Name, step.InstanceKey), calls)
 				calls.Instances[step.InstanceKey] = instance
 			}
 
-			unexpanded = call
-			expanded = instance
+			target = instance
 		}
 
 		for path, stateResource := range module.Resources {
@@ -59,20 +48,20 @@ func (root *Root) AttachState(state *states.State) {
 			ident := stateResource.Addr.Resource
 			resources, ok := instance.Resources[ident]
 			if !ok {
-				resources = ResourceInstances{}
+				resources = NewResources(instance, nil)
 				instance.Resources[ident] = resources
 			}
 
-			for resKey, stateInstance := range stateResource.Instances {
+			for resKey, state := range stateResource.Instances {
 				fmt.Printf("Attaching Resource Instance: %s\n", stateResource.Addr)
-				resInst, ok := resources[resKey]
+				resInst, ok := resources.Instances[resKey]
 				if !ok {
-					resInst = &ResourceInstance{
+					resInst = &Resource{
 						Addr: stateResource.Addr.Instance(resKey),
 					}
-					resources[resKey] = resInst
+					resources.Instances[resKey] = resInst
 				}
-				resInst.PreviousState = stateInstance
+				resInst.PreviousState = state
 			}
 		}
 	}
