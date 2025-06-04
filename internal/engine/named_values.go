@@ -12,6 +12,9 @@ type Output struct{}
 type VariableInstance struct {
 	Variable *Variable
 }
+
 type OutputInstance struct {
-	Output *Output
+}
+
+type LocalInstance struct {
 }

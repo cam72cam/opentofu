@@ -10,12 +10,12 @@ import (
 
 func NewRoot(config *configs.Config) *Root {
 	unexpanded := NewModuleCall(addrs.RootModule, nil, config)
-	expanded := NewModuleCallInstance(NewModuleInstance(addrs.RootModuleInstance, unexpanded.Module))
+	expanded := NewModuleInstance(addrs.RootModuleInstance, unexpanded.Module, nil)
 	// TODO var inputs
 
 	return &Root{
-		ModuleCall:         unexpanded,
-		ModuleCallInstance: expanded,
+		ModuleCall:     unexpanded,
+		ModuleInstance: expanded,
 	}
 }
 
@@ -23,30 +23,30 @@ func (root *Root) AttachState(state *states.State) {
 	println("Attaching state")
 	for _, module := range state.Modules {
 		var traverseAddr addrs.ModuleInstance
-		var instance *ModuleCallInstance
+		var instance *ModuleInstance
 
 		unexpanded := root.ModuleCall
-		expanded := root.ModuleCallInstance
+		expanded := root.ModuleInstance
 		for _, step := range module.Addr {
 			// Ensure unexpanded tree has the required module
-			call, ok := unexpanded.Module.Calls[step.Name]
+			call, ok := unexpanded.Module.Calls[addrs.ModuleCall{Name: step.Name}]
 			if !ok {
 				call = NewModuleCall(unexpanded.Addr.Child(step.Name), nil, nil)
-				unexpanded.Module.Calls[step.Name] = call
+				unexpanded.Module.Calls[addrs.ModuleCall{Name: step.Name}] = call
 			}
 
 			// Ensure expanded tree has the required module
 			traverseAddr = append(traverseAddr, step)
 
-			calls, ok := expanded.ModuleInstance.Calls[step.Name]
+			calls, ok := expanded.Calls[addrs.ModuleCall{Name: step.Name}]
 			if !ok {
-				calls = NewModuleCallInstances(expanded.ModuleInstance.Addr, call)
-				expanded.ModuleInstance.Calls[step.Name] = calls
+				calls = NewModuleCallInstances(expanded, call)
+				expanded.Calls[addrs.ModuleCall{Name: step.Name}] = calls
 			}
 
 			instance, ok = calls.Instances[step.InstanceKey]
 			if !ok {
-				instance = NewModuleCallInstance(NewModuleInstance(expanded.ModuleInstance.Addr.Child(step.Name, step.InstanceKey), call.Module))
+				instance = NewModuleInstance(expanded.Addr.Child(step.Name, step.InstanceKey), call.Module, calls)
 				calls.Instances[step.InstanceKey] = instance
 			}
 
@@ -56,11 +56,11 @@ func (root *Root) AttachState(state *states.State) {
 
 		for path, stateResource := range module.Resources {
 			fmt.Printf("Attaching resource: %s\n", path)
-			ident := stateResource.Addr.Resource.String()
-			resources, ok := instance.ModuleInstance.Resources[ident]
+			ident := stateResource.Addr.Resource
+			resources, ok := instance.Resources[ident]
 			if !ok {
 				resources = ResourceInstances{}
-				instance.ModuleInstance.Resources[ident] = resources
+				instance.Resources[ident] = resources
 			}
 
 			for resKey, stateInstance := range stateResource.Instances {

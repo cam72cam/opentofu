@@ -29,8 +29,8 @@ const (
 )
 
 type Root struct {
-	ModuleCall         *ModuleCall
-	ModuleCallInstance *ModuleCallInstance
+	ModuleCall     *ModuleCall
+	ModuleInstance *ModuleInstance
 }
 
 type ModuleCall struct {
@@ -47,32 +47,29 @@ type Module struct {
 	Call   *ModuleCall
 	Config *configs.Config
 
-	Variables map[string]*Variable
-	Calls     map[string]*ModuleCall
-	Resources map[string]*Resource
-	Outputs   map[string]*Output
+	Variables map[addrs.InputVariable]*Variable
+	Calls     map[addrs.ModuleCall]*ModuleCall
+	Resources map[addrs.Resource]*Resource
+	Outputs   map[addrs.OutputValue]*Output
 }
 
 type ModuleCallInstances struct {
-	ParentAddr addrs.ModuleInstance
-	countDiags *ModuleCall
-	Instances  map[addrs.InstanceKey]*ModuleCallInstance
-}
-
-type ModuleCallInstance struct {
-	ModuleInstance *ModuleInstance
-	RepetitionData instances.RepetitionData
-	// TODO var values
+	Caller     *ModuleInstance
+	ModuleCall *ModuleCall
+	Instances  map[addrs.InstanceKey]*ModuleInstance
 }
 
 type ModuleInstance struct {
 	Addr   addrs.ModuleInstance
 	Module *Module
 
-	Variables       map[string]*VariableInstance
-	Calls           map[string]*ModuleCallInstances
-	Resources       map[string]ResourceInstances
-	OutputInstances map[string]*OutputInstance
+	Call           *ModuleCallInstances
+	RepetitionData instances.RepetitionData
+
+	Variables       map[addrs.InputVariable]*VariableInstance
+	Calls           map[addrs.ModuleCall]*ModuleCallInstances
+	Resources       map[addrs.Resource]ResourceInstances
+	OutputInstances map[addrs.OutputValue]*OutputInstance
 }
 
 func NewModuleCall(addr addrs.Module, call *configs.ModuleCall, config *configs.Config) *ModuleCall {
@@ -92,10 +89,10 @@ func NewModule(addr addrs.Module, call *ModuleCall, config *configs.Config) *Mod
 		Call:   call,
 		Config: config,
 
-		Variables: map[string]*Variable{},
-		Calls:     map[string]*ModuleCall{},
-		Resources: map[string]*Resource{},
-		Outputs:   map[string]*Output{},
+		Variables: map[addrs.InputVariable]*Variable{},
+		Resources: map[addrs.Resource]*Resource{},
+		Calls:     map[addrs.ModuleCall]*ModuleCall{},
+		Outputs:   map[addrs.OutputValue]*Output{},
 	}
 
 	if config == nil {
@@ -103,36 +100,30 @@ func NewModule(addr addrs.Module, call *ModuleCall, config *configs.Config) *Mod
 	}
 
 	for name, call := range config.Module.ModuleCalls {
-		m.Calls[name] = NewModuleCall(addr.Child(name), call, config.Children[name])
+		m.Calls[addrs.ModuleCall{Name: name}] = NewModuleCall(addr.Child(name), call, config.Children[name])
 	}
 
 	return m
 }
 
-func NewModuleCallInstances(parent addrs.ModuleInstance, call *ModuleCall) *ModuleCallInstances {
+func NewModuleCallInstances(caller *ModuleInstance, call *ModuleCall) *ModuleCallInstances {
 	return &ModuleCallInstances{
-		ParentAddr: parent,
-		countDiags: call,
-		Instances:  map[addrs.InstanceKey]*ModuleCallInstance{},
+		Caller:     caller,
+		ModuleCall: call,
+		Instances:  map[addrs.InstanceKey]*ModuleInstance{},
 	}
 }
 
-func NewModuleInstance(addr addrs.ModuleInstance, module *Module) *ModuleInstance {
+func NewModuleInstance(addr addrs.ModuleInstance, module *Module, call *ModuleCallInstances) *ModuleInstance {
 	fmt.Printf("Creating module instance %s\n", addr)
 	return &ModuleInstance{
 		Addr:   addr,
 		Module: module,
+		Call:   call,
 
-		Variables:       map[string]*VariableInstance{},
-		Resources:       map[string]ResourceInstances{},
-		Calls:           map[string]*ModuleCallInstances{},
-		OutputInstances: map[string]*OutputInstance{},
+		Variables:       map[addrs.InputVariable]*VariableInstance{},
+		Resources:       map[addrs.Resource]ResourceInstances{},
+		Calls:           map[addrs.ModuleCall]*ModuleCallInstances{},
+		OutputInstances: map[addrs.OutputValue]*OutputInstance{},
 	}
-}
-
-func NewModuleCallInstance(module *ModuleInstance) *ModuleCallInstance {
-	return &ModuleCallInstance{
-		ModuleInstance: module,
-	}
-	// TODO RepetitionData instances.RepetitionData
 }

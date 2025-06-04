@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/instances"
+	"github.com/opentofu/opentofu/internal/lang"
 	"github.com/opentofu/opentofu/internal/lang/evalchecks"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 	"github.com/zclconf/go-cty/cty"
@@ -70,50 +71,22 @@ func (r *Root) Walk() tfdiags.Diagnostics {
 		root:   r,
 	}
 
-	// Start unexpanded walk
-	r.ModuleCall.visit(exec)
 	// Start expansion walk
-	r.ModuleCallInstance.visit(exec)
+	r.ModuleInstance.visit(exec)
 
 	return exec.Wait()
-}
-
-func (c *ModuleCall) visit(exec *Executor) {
-	fmt.Printf("Starting Call Visit %s\n", c.Addr)
-
-	c.Status = StatusPending
-	c.Dependents = nil
-
-	c.Module.visit(exec)
-}
-
-func (m *Module) visit(exec *Executor) {
-	// Visit Children
-	for _, call := range m.Calls {
-		call.visit(exec)
-	}
-
-	for _, resource := range m.Resources {
-		resource.visit(exec)
-	}
-}
-
-func (r *Resource) visit(exec *Executor) {
-	// Setup State
 }
 
 func (c *ModuleCallInstances) visit(exec *Executor) {
 	exec.Start(func() tfdiags.Diagnostics {
 		var diags tfdiags.Diagnostics
 		// Perform Expansion
-		if c.countDiags.Config != nil {
+		if c.ModuleCall.Config != nil {
 			ensureInstance := func(key addrs.InstanceKey, data instances.RepetitionData) {
 				// Ensure singleton
 				_, ok := c.Instances[key]
 				if !ok {
-					mod := NewModuleInstance(c.ParentAddr.Child(c.countDiags.Config.Name, key), c.countDiags.Module)
-
-					instance := NewModuleCallInstance(mod)
+					instance := NewModuleInstance(c.Caller.Addr.Child(c.ModuleCall.Config.Name, key), c.ModuleCall.Module, c)
 					instance.RepetitionData = data
 
 					c.Instances[key] = instance
@@ -121,13 +94,21 @@ func (c *ModuleCallInstances) visit(exec *Executor) {
 			}
 
 			switch {
-			case c.countDiags.Config.Count != nil:
+			case c.ModuleCall.Config.Count != nil:
 				count, countDiags := evalchecks.EvaluateCountExpression(
-					c.countDiags.Config.Count,
+					c.ModuleCall.Config.Count,
 					func(expr hcl.Expression) (cty.Value, tfdiags.Diagnostics) {
-						// TODO Eval Context / refs
-						val, diags := expr.Value(nil)
-						return val, tfdiags.Diagnostics(nil).Append(diags)
+						refs, diags := lang.ReferencesInExpr(addrs.ParseRef, c.ModuleCall.Config.Count)
+						if diags.HasErrors() {
+							return cty.NilVal, diags
+						}
+						scope, scopeDiags := c.Caller.ScopeForReferences(refs, c)
+						diags = diags.Append(scopeDiags)
+						if diags.HasErrors() {
+							return cty.NilVal, diags
+						}
+
+						return scope.EvalExpr(expr, cty.Number)
 					}, nil)
 
 				diags = diags.Append(countDiags)
@@ -137,9 +118,9 @@ func (c *ModuleCallInstances) visit(exec *Executor) {
 						CountIndex: cty.NumberIntVal(int64(index)),
 					})
 				}
-			case c.countDiags.Config.ForEach != nil:
+			case c.ModuleCall.Config.ForEach != nil:
 				forEachVals, forEachDiags := evalchecks.EvaluateForEachExpression(
-					c.countDiags.Config.ForEach,
+					c.ModuleCall.Config.ForEach,
 					func(refs []*addrs.Reference) (*hcl.EvalContext, tfdiags.Diagnostics) {
 						// TODO Eval Context / refs
 						return &hcl.EvalContext{}, nil
@@ -167,16 +148,11 @@ func (c *ModuleCallInstances) visit(exec *Executor) {
 	})
 }
 
-func (c *ModuleCallInstance) visit(exec *Executor) {
-	// TODO resolve variable values
-	c.ModuleInstance.visit(exec)
-}
-
 func (m *ModuleInstance) visit(exec *Executor) {
 	// Ensure all the calls exist
 	for name, call := range m.Module.Calls {
 		if _, ok := m.Calls[name]; !ok {
-			m.Calls[name] = NewModuleCallInstances(m.Addr, call)
+			m.Calls[name] = NewModuleCallInstances(m, call)
 		}
 	}
 
@@ -196,6 +172,73 @@ func (m *ModuleInstance) visit(exec *Executor) {
 	for _, resources := range m.Resources {
 		resources.visit(exec)
 	}
+}
+
+func (m *ModuleInstance) ScopeForReferences(refs []*addrs.Reference, requester any) (*lang.Scope, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+
+	data := NewEvalData()
+
+	for _, ref := range refs {
+		rawSubj := ref.Subject
+		rng := ref.SourceRange
+
+		// This type switch must cover all of the "Referenceable" implementations
+		// in package addrs, however we are removing the possibility of
+		// Instances beforehand.
+		// TODO we can be *much* smarter about this
+		switch addr := rawSubj.(type) {
+		case addrs.ResourceInstance:
+			rawSubj = addr.ContainingResource()
+		case addrs.ModuleCallInstance:
+			rawSubj = addr.Call
+		case addrs.ModuleCallInstanceOutput:
+			rawSubj = addr.Call.Call
+		}
+
+		switch subj := rawSubj.(type) {
+		case addrs.Resource:
+			resource := m.Resources[subj]
+			data.Resources[subj] = resource.Value
+
+		case addrs.ModuleCall:
+			calls := m.Calls[subj]
+			data.Modules[subj] = calls.Value
+
+		case addrs.InputVariable:
+			variable := m.Variables[subj]
+			data.InputVariables[subj] = variable.Value
+
+		case addrs.LocalValue:
+			local := m.Locals[subj]
+			data.LocalValues[sobj] = local.Value
+
+		/* TODO
+		case addrs.PathAttr:
+			b.pathAttrs[subj.Name], normDiags = normalizeRefValue(b.s.Data.GetPathAttr(subj, rng))
+
+		case addrs.TerraformAttr:
+			b.terraformAttrs[subj.Name], normDiags = normalizeRefValue(b.s.Data.GetTerraformAttr(subj, rng))
+		*/
+		case addrs.CountAttr:
+			b.countAttrs[subj.Name], normDiags = normalizeRefValue(b.s.Data.GetCountAttr(subj, rng))
+
+		case addrs.ForEachAttr:
+			b.forEachAttrs[subj.Name], normDiags = normalizeRefValue(b.s.Data.GetForEachAttr(subj, rng))
+
+		case addrs.OutputValue:
+			b.outputValues[subj.Name], normDiags = normalizeRefValue(b.s.Data.GetOutput(subj, rng))
+
+		case addrs.Check:
+			b.outputValues[subj.Name], normDiags = normalizeRefValue(b.s.Data.GetCheckBlock(subj, rng))
+
+		default:
+			// Should never happen
+			panic(fmt.Errorf("Scope.buildEvalContext cannot handle address type %T", rawSubj))
+		}
+	}
+
+	return nil, diags
 }
 
 func (r *ResourceInstances) visit(exec *Executor) {
@@ -224,7 +267,16 @@ func (r *ResourceInstance) visit() tfdiags.Diagnostics {
 	fmt.Printf("Visit resource instance: %s\n", r.Addr)
 	return diags
 }
+*/
 
-func (r *ResourceInstance) value(walker *Walker) (cty.Value, tfdiags.Diagnostics) {
-	//
-}*/
+func (v *VariableInstance) Value() (cty.Value, tfdiags.Diagnostics) {
+	return cty.NilVal, nil
+}
+
+func (m *ModuleCallInstances) Value() (cty.Value, tfdiags.Diagnostics) {
+	return cty.NilVal, nil
+}
+
+func (r *ResourceInstances) Value() (cty.Value, tfdiags.Diagnostics) {
+	return cty.NilVal, nil
+}
