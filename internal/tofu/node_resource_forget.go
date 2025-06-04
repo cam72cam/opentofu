@@ -45,7 +45,7 @@ func (n *NodeForgetResourceInstance) Name() string {
 }
 
 // GraphNodeExecutable
-func (n *NodeForgetResourceInstance) Execute(ctx context.Context, evalCtx EvalContext, op walkOperation) (diags tfdiags.Diagnostics) {
+func (n *NodeForgetResourceInstance) Execute(ctx context.Context, evalCtx EvalContext, op WalkOperation) (diags tfdiags.Diagnostics) {
 	addr := n.ResourceInstanceAddr()
 
 	// Get our state

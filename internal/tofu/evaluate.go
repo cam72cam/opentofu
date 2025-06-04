@@ -34,7 +34,7 @@ import (
 type Evaluator struct {
 	// Operation defines what type of operation this evaluator is being used
 	// for.
-	Operation walkOperation
+	Operation WalkOperation
 
 	// Meta is contextual metadata about the current operation.
 	Meta *ContextMeta
@@ -108,7 +108,7 @@ type evaluationStateData struct {
 
 	// Operation records the type of walk the evaluationStateData is being used
 	// for.
-	Operation walkOperation
+	Operation WalkOperation
 }
 
 // InstanceKeyEvalData is the old name for instances.RepetitionData, aliased

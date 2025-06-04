@@ -87,7 +87,7 @@ var (
 )
 
 // GraphNodeEvalable
-func (n *NodePlannableResourceInstance) Execute(ctx context.Context, evalCtx EvalContext, op walkOperation) tfdiags.Diagnostics {
+func (n *NodePlannableResourceInstance) Execute(ctx context.Context, evalCtx EvalContext, op WalkOperation) tfdiags.Diagnostics {
 	addr := n.ResourceInstanceAddr()
 
 	ctx, span := tracing.Tracer().Start(

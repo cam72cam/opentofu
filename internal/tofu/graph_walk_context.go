@@ -40,7 +40,7 @@ type ContextGraphWalker struct {
 	InstanceExpander        *instances.Expander     // Tracks our gradual expansion of module and resource instances
 	ImportResolver          *ImportResolver         // Tracks import targets as they are being resolved
 	MoveResults             refactoring.MoveResults // Read-only record of earlier processing of move statements
-	Operation               walkOperation
+	Operation               WalkOperation
 	StopContext             context.Context
 	RootVariableValues      InputValues
 	Config                  *configs.Config

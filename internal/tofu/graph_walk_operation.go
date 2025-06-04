@@ -7,11 +7,11 @@ package tofu
 
 //go:generate go run golang.org/x/tools/cmd/stringer -type=walkOperation graph_walk_operation.go
 
-// walkOperation is an enum which tells the walkContext what to do.
-type walkOperation byte
+// WalkOperation is an enum which tells the walkContext what to do.
+type WalkOperation byte
 
 const (
-	walkInvalid walkOperation = iota
+	walkInvalid WalkOperation = iota
 	walkApply
 	walkPlan
 	walkPlanDestroy

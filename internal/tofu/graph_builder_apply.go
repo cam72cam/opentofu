@@ -62,7 +62,7 @@ type ApplyGraphBuilder struct {
 	ForceReplace []addrs.AbsResourceInstance
 
 	// Plan Operation this graph will be used for.
-	Operation walkOperation
+	Operation WalkOperation
 
 	// ExternalReferences allows the external caller to pass in references to
 	// nodes that should not be pruned even if they are not referenced within

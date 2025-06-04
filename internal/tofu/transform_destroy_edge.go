@@ -56,7 +56,7 @@ type DestroyEdgeTransformer struct {
 	// FIXME: Operation will not be needed here one we can better track
 	// inter-provider dependencies and remove the cycle checks in
 	// tryInterProviderDestroyEdge.
-	Operation walkOperation
+	Operation WalkOperation
 }
 
 // tryInterProviderDestroyEdge checks if we're inserting a destroy edge

@@ -57,7 +57,7 @@ var (
 )
 
 // GraphNodeExecutable
-func (n *NodeApplyableProvider) Execute(ctx context.Context, evalCtx EvalContext, op walkOperation) tfdiags.Diagnostics {
+func (n *NodeApplyableProvider) Execute(ctx context.Context, evalCtx EvalContext, op WalkOperation) tfdiags.Diagnostics {
 	instances, diags := n.initInstances(ctx, evalCtx, op)
 
 	for key, provider := range instances {
@@ -66,7 +66,7 @@ func (n *NodeApplyableProvider) Execute(ctx context.Context, evalCtx EvalContext
 
 	return diags
 }
-func (n *NodeApplyableProvider) initInstances(ctx context.Context, evalCtx EvalContext, op walkOperation) (map[addrs.InstanceKey]providers.Interface, tfdiags.Diagnostics) {
+func (n *NodeApplyableProvider) initInstances(ctx context.Context, evalCtx EvalContext, op WalkOperation) (map[addrs.InstanceKey]providers.Interface, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	var initKeys []addrs.InstanceKey
@@ -109,7 +109,7 @@ func (n *NodeApplyableProvider) initInstances(ctx context.Context, evalCtx EvalC
 
 	return instances, diags
 }
-func (n *NodeApplyableProvider) executeInstance(ctx context.Context, evalCtx EvalContext, op walkOperation, providerKey addrs.InstanceKey, provider providers.Interface) tfdiags.Diagnostics {
+func (n *NodeApplyableProvider) executeInstance(ctx context.Context, evalCtx EvalContext, op WalkOperation, providerKey addrs.InstanceKey, provider providers.Interface) tfdiags.Diagnostics {
 	switch op {
 	case walkValidate:
 		log.Printf("[TRACE] NodeApplyableProvider: validating configuration for %s", n.Addr)

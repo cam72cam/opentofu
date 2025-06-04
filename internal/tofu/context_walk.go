@@ -49,7 +49,7 @@ type graphWalkOpts struct {
 	ProviderFunctionTracker ProviderFunctionMapping
 }
 
-func (c *Context) walk(ctx context.Context, graph *Graph, operation walkOperation, opts *graphWalkOpts) (*ContextGraphWalker, tfdiags.Diagnostics) {
+func (c *Context) walk(ctx context.Context, graph *Graph, operation WalkOperation, opts *graphWalkOpts) (*ContextGraphWalker, tfdiags.Diagnostics) {
 	log.Printf("[DEBUG] Starting graph walk: %s", operation.String())
 
 	walker := c.graphWalker(operation, opts)
@@ -67,7 +67,7 @@ func (c *Context) walk(ctx context.Context, graph *Graph, operation walkOperatio
 	return walker, diags
 }
 
-func (c *Context) graphWalker(operation walkOperation, opts *graphWalkOpts) *ContextGraphWalker {
+func (c *Context) graphWalker(operation WalkOperation, opts *graphWalkOpts) *ContextGraphWalker {
 	var state *states.SyncState
 	var refreshState *states.SyncState
 	var prevRunState *states.SyncState
