@@ -4,59 +4,71 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/zclconf/go-cty/cty"
+	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
-type Result struct {
-	value cty.Value
-	err   error
-}
-
-type Promise struct {
+type Promise[T any] struct {
 	target  any
-	resolve func() (cty.Value, error)
+	resolve func() (T, tfdiags.Diagnostics)
 
 	lock     sync.Mutex
 	started  bool
-	resolved *Result
+	resolved *Result[T]
 
-	visitChan chan *Promise
-	blockChan chan Blocked
+	visitChan chan promise
+	blockChan chan Blocked[T]
 }
 
-type Blocked struct {
-	resultChan chan Result
-	promise    *Promise
+type promise interface {
+	internalTarget() any
+	addVisit(promise)
 }
 
-func NewPromise(target any, resolve func() (cty.Value, error)) *Promise {
-	p := &Promise{
+type Result[T any] struct {
+	value T
+	diags tfdiags.Diagnostics
+}
+
+type Blocked[T any] struct {
+	resultChan chan Result[T]
+	promise    promise
+}
+
+func NewPromise[T any](target any, resolve func() (T, tfdiags.Diagnostics)) *Promise[T] {
+	p := &Promise[T]{
 		target:  target,
 		resolve: resolve,
 		// TODO tune chan size
-		visitChan: make(chan *Promise, 100),
-		blockChan: make(chan Blocked, 100),
+		visitChan: make(chan promise, 100),
+		blockChan: make(chan Blocked[T], 100),
 	}
 
 	return p
 }
 
-func (p *Promise) manager() {
-	resultChan := make(chan Result, 1)
+func (p *Promise[T]) internalTarget() any {
+	return p.target
+}
+func (p *Promise[T]) addVisit(visit promise) {
+	p.visitChan <- visit
+}
+
+func (p *Promise[T]) manager() {
+	resultChan := make(chan Result[T], 1)
 	go func() {
 		value, err := p.resolve()
-		resultChan <- Result{value, err}
+		resultChan <- Result[T]{value, err}
 	}()
 
-	visits := map[any]*Promise{p.target: p}
-	blocking := map[any]Blocked{}
-	var waiters []Blocked
+	visits := map[any]promise{p.target: p}
+	blocking := map[any]Blocked[T]{}
+	var waiters []Blocked[T]
 
 	debug := func(s string, args ...any) {
 		//fmt.Printf("%v: %s\n", p.target, fmt.Sprintf(s, args...))
 	}
 
-	writeResolved := func(result Result) {
+	writeResolved := func(result Result[T]) {
 		debug("resolved")
 		p.lock.Lock()
 		p.resolved = &result
@@ -92,41 +104,41 @@ func (p *Promise) manager() {
 				waiters = append(waiters, blocked)
 				continue
 			}
-			debug(">blocking %v", blocked.promise.target)
-			blocking[blocked.promise.target] = blocked
+			debug(">blocking %v", blocked.promise.internalTarget())
+			blocking[blocked.promise.internalTarget()] = blocked
 
 			// Cycle Check
-			if _, ok := visits[blocked.promise.target]; ok {
+			if _, ok := visits[blocked.promise.internalTarget()]; ok {
 				debug("cycle block")
 				// If we have visited the thing that we are now blocking
-				writeResolved(Result{
-					err: fmt.Errorf("Cyclic dependency between %v and %v", p.target, blocked.promise.target),
+				writeResolved(Result[T]{
+					diags: tfdiags.Diagnostics{}.Append(fmt.Errorf("Cyclic dependency between %v and %v", p.target, blocked.promise.internalTarget())),
 				})
 				return
 			}
 
 			// Back-propogate visits to new blocked
 			for _, visit := range visits {
-				blocked.promise.visitChan <- visit
+				blocked.promise.addVisit(visit)
 			}
 			debug("<blocking")
 		case visit := <-p.visitChan:
 			debug(">visit")
-			visits[visit.target] = visit
+			visits[visit.internalTarget()] = visit
 
 			// Cycle Check
-			if blocked, ok := blocking[visit.target]; ok {
+			if blocked, ok := blocking[visit.internalTarget()]; ok {
 				debug("cycle visit")
 				// If we have visited something that we are blocking
-				writeResolved(Result{
-					err: fmt.Errorf("Cyclic dependency between %v and %v", p.target, blocked.promise.target),
+				writeResolved(Result[T]{
+					diags: tfdiags.Diagnostics{}.Append(fmt.Errorf("Cyclic dependency between %v and %v", p.target, blocked.promise.internalTarget())),
 				})
 				return
 			}
 
 			// Back-propogate new visit to all blocked
 			for _, blocked := range blocking {
-				blocked.promise.visitChan <- visit
+				blocked.promise.addVisit(visit)
 			}
 			debug("<visit")
 		}
@@ -134,12 +146,12 @@ func (p *Promise) manager() {
 
 }
 
-func (p *Promise) Value(caller *Promise) (cty.Value, error) {
+func (p *Promise[T]) Value(caller promise) (T, tfdiags.Diagnostics) {
 	p.lock.Lock()
 	if p.resolved != nil {
 		fmt.Printf("Early %v\n", p.target)
 		p.lock.Unlock()
-		return p.resolved.value, p.resolved.err
+		return p.resolved.value, p.resolved.diags
 	}
 
 	if !p.started {
@@ -147,13 +159,13 @@ func (p *Promise) Value(caller *Promise) (cty.Value, error) {
 		p.started = true
 	}
 
-	resultChan := make(chan Result, 1)
-	p.blockChan <- Blocked{
+	resultChan := make(chan Result[T], 1)
+	p.blockChan <- Blocked[T]{
 		resultChan: resultChan,
 		promise:    caller,
 	}
 	p.lock.Unlock()
 
 	result := <-resultChan
-	return result.value, result.err
+	return result.value, result.diags
 }

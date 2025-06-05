@@ -14,6 +14,7 @@ import (
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/backend"
 	"github.com/opentofu/opentofu/internal/command/arguments"
+	"github.com/opentofu/opentofu/internal/engine"
 	"github.com/opentofu/opentofu/internal/repl"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 	"github.com/opentofu/opentofu/internal/tofu"
@@ -118,6 +119,16 @@ func (c *ConsoleCommand) Run(args []string) int {
 	diags = diags.Append(ctxDiags)
 	if ctxDiags.HasErrors() {
 		c.showDiagnostics(diags)
+		return 1
+	}
+
+	//Config *configs.Config
+	if 1 == 1 {
+		root := engine.Build(lr.Config)
+		engine.AttachState(root, lr.InputState)
+		//spew.Dump(root)
+		c.showDiagnostics(root.Walk())
+
 		return 1
 	}
 

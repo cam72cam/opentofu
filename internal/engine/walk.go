@@ -2,86 +2,489 @@ package engine
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/checks"
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/instances"
 	"github.com/opentofu/opentofu/internal/lang"
 	"github.com/opentofu/opentofu/internal/lang/evalchecks"
+	"github.com/opentofu/opentofu/internal/plans"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 	"github.com/opentofu/opentofu/internal/tofu"
 	"github.com/zclconf/go-cty/cty"
 )
 
-type Executor struct {
-	cancel context.CancelFunc
-	ctx    context.Context
-	root   *Root
+// This is wired together a bit odd.  Instead of promising diagnostics as the "everything is done" value, it should instead return changes + state for each item
+type WalkData struct {
+	Context context.Context
+	Cancel  context.CancelFunc
+	Op      WalkOperation
 
-	diags chan tfdiags.Diagnostics
-	jobs  sync.WaitGroup
+	Config       *configs.Config
+	InputState   *states.SyncState
+	InputChanges *plans.ChangesSync
+	InputVars    map[addrs.InputVariable]*Promise[cty.Value]
 }
 
-func (e *Executor) Start(fn func() tfdiags.Diagnostics) {
-	if e.ctx.Err() != nil {
-		return
+func Walk(data *WalkData) (*plans.Changes, *states.State, tfdiags.Diagnostics) {
+	root, diags := Module(data, addrs.RootModuleInstance, data.Config, instances.RepetitionData{}, nil)
+
+	//checks := checks.NewState(data.Config)
+	change := plans.NewChanges()
+	state := states.NewState()
+	// Flatten results to "standard" format
+	root.Recorder(change.SyncWrapper(), state.SyncWrapper())
+
+	return change, state, diags
+}
+
+type Recorder func(*plans.ChangesSync, *states.SyncState) tfdiags.Diagnostics
+
+type ModuleCallValue struct {
+	Expanded *Promise[cty.Value]
+	Recorder Recorder
+}
+
+type VariableInput struct {
+	expr           hcl.Expression
+	evalContextFor func(caller promise) tofu.EvalContext
+}
+
+func ModuleCall(data *WalkData, addr addrs.AbsModuleCall, config *configs.ModuleCall, moduleConfig *configs.Config, evalCtx tofu.EvalContext) (ModuleCallValue, tfdiags.Diagnostics) {
+	// Lifted from transform_module_variable
+	// We need to construct a schema for the expected call arguments based on
+	// the configured variables in our config, which we can then use to
+	// decode the content of the call block.
+	schema := &hcl.BodySchema{}
+	for _, v := range moduleConfig.Module.Variables {
+		schema.Attributes = append(schema.Attributes, hcl.AttributeSchema{
+			Name:     v.Name,
+			Required: v.Default == cty.NilVal,
+		})
 	}
 
-	e.jobs.Add(1)
-	go func() {
-		e.diags <- fn()
-		e.jobs.Done()
-	}()
-}
+	content, contentDiags := config.Config.Content(schema)
+	diags := tfdiags.Diagnostics{}.Append(contentDiags)
+	if diags.HasErrors() {
+		// Validation code elsewhere should deal with any errors before we
+		// get in here, but we'll report them out here just in case, to
+		// avoid crashes.
+		return ModuleCallValue{}, diags
+	}
 
-func (e *Executor) Wait() tfdiags.Diagnostics {
-	jobWait := make(chan struct{}, 1)
-	go func() {
-		e.jobs.Wait()
-		jobWait <- struct{}{}
-	}()
+	childInstances := map[addrs.InstanceKey]ModuleValue{}
 
-	var diags tfdiags.Diagnostics
-	for {
-		select {
-		case <-e.ctx.Done():
-			// Cancelled
-			return diags.Append(e.ctx.Err())
-		case <-jobWait:
-			// All work completed
-			return diags
-		case newDiags := <-e.diags:
-			// New work result
-			diags = diags.Append(newDiags)
-			if newDiags.HasErrors() {
-				e.cancel()
+	ensure := func(key addrs.InstanceKey, repetitionData instances.RepetitionData) {
+		input := map[addrs.InputVariable]VariableInput{}
+
+		for _, v := range moduleConfig.Module.Variables {
+			var expr hcl.Expression
+			if attr := content.Attributes[v.Name]; attr != nil {
+				expr = attr.Expr
+			}
+			input[addrs.InputVariable{Name: v.Name}] = VariableInput{
+				expr: expr,
+				evalContextFor: func(caller promise) tofu.EvalContext {
+					// TODO inject instance values / pass caller
+					return evalCtx //.for(caller)
+				},
+			}
+		}
+
+		childInstance, childDiags := Module(data, addr.Instance(key), moduleConfig, repetitionData, input)
+		childInstances[key] = childInstance
+		diags = diags.Append(childDiags)
+	}
+
+	switch {
+	case config.Count != nil:
+		count, countDiags := evalchecks.EvaluateCountExpression(
+			config.Count,
+			func(expr hcl.Expression) (cty.Value, tfdiags.Diagnostics) {
+				return evalCtx.EvaluateExpr(expr, cty.Number, nil)
+			},
+			nil,
+		)
+
+		diags = diags.Append(countDiags)
+
+		for index := range count {
+			ensure(addrs.IntKey(index), instances.RepetitionData{
+				CountIndex: cty.NumberIntVal(int64(index)),
+			})
+		}
+	case config.ForEach != nil:
+		forEachVals, forEachDiags := evalchecks.EvaluateForEachExpression(
+			config.ForEach,
+			func(refs []*addrs.Reference) (*hcl.EvalContext, tfdiags.Diagnostics) {
+				scope := evalCtx.EvaluationScope(nil, nil, tofu.InstanceKeyEvalData{})
+				return scope.EvalContext(refs)
+			}, nil)
+
+		diags = diags.Append(forEachDiags)
+
+		for key, val := range forEachVals {
+			ensure(addrs.StringKey(key), instances.RepetitionData{
+				EachKey:   cty.StringVal(key),
+				EachValue: val,
+			})
+		}
+	default:
+		ensure(addrs.NoKey, instances.RepetitionData{})
+	}
+
+	type Hack struct{ addrs.AbsModuleCall }
+	key := Hack{addr}
+
+	var expanded *Promise[cty.Value]
+	expanded = NewPromise[cty.Value](key, func() (cty.Value, tfdiags.Diagnostics) {
+		moduleInstances := make(map[addrs.InstanceKey]cty.Value)
+		for key, mod := range childInstances {
+			var modDiags tfdiags.Diagnostics
+			moduleInstances[key], modDiags = mod.Outputs.Value(expanded)
+			diags = diags.Append(modDiags)
+		}
+		if diags.HasErrors() {
+			return cty.NilVal, diags
+		}
+
+		// Lifted from tofu/evaluate.go
+
+		switch {
+		case config.Count != nil:
+			length := -1
+			for key := range moduleInstances {
+				intKey, ok := key.(addrs.IntKey)
+				if !ok {
+					// old key from state which is being dropped
+					continue
+				}
+				if int(intKey) >= length {
+					length = int(intKey) + 1
+				}
 			}
 
+			if length <= 0 {
+				return cty.EmptyTupleVal, diags
+			}
+			vals := make([]cty.Value, length)
+			for key, instance := range moduleInstances {
+				intKey, ok := key.(addrs.IntKey)
+				if !ok {
+					// old key from state which is being dropped
+					continue
+				}
+
+				vals[int(intKey)] = instance
+			}
+
+			// Insert unknown values where there are any missing instances
+			for i, v := range vals {
+				if v.IsNull() {
+					vals[i] = cty.DynamicVal
+					continue
+				}
+			}
+			return cty.TupleVal(vals), diags
+
+		case config.ForEach != nil:
+			instanceMap := make(map[string]cty.Value)
+			for key, mod := range moduleInstances {
+				sk := key.(addrs.StringKey)
+				instanceMap[string(sk)] = mod
+			}
+			return cty.ObjectVal(instanceMap), diags
+		default:
+			return moduleInstances[addrs.NoKey], diags
+		}
+	})
+
+	record := func(change *plans.ChangesSync, state *states.SyncState) tfdiags.Diagnostics {
+		var diags tfdiags.Diagnostics
+		var diagLock sync.Mutex
+		var wg sync.WaitGroup
+
+		for _, inst := range childInstances {
+			inst := inst
+
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				instDiags := inst.Recorder(change, state)
+				diagLock.Lock()
+				diags = diags.Append(instDiags)
+				diagLock.Unlock()
+			}()
+		}
+
+		return diags
+	}
+
+	return ModuleCallValue{
+		Expanded: expanded,
+		Recorder: record,
+	}, nil
+}
+
+type ModuleValue struct {
+	Outputs  *Promise[cty.Value]
+	Recorder Recorder
+}
+
+func Module(data *WalkData, addr addrs.ModuleInstance, config *configs.Config, repetitionData instances.RepetitionData, input map[addrs.InputVariable]VariableInput) (ModuleValue, tfdiags.Diagnostics) {
+	variables := map[addrs.InputVariable]*Promise[cty.Value]{}
+	locals := map[addrs.LocalValue]*Promise[cty.Value]{}
+	resources := map[addrs.Resource]*Promise[cty.Value]{}
+	calls := map[addrs.ModuleCall]*Promise[ModuleCallValue]{}
+	outputs := map[addrs.OutputValue]*Promise[OutputValue]{}
+
+	if config != nil {
+		scopeForCaller := func(caller promise) *lang.Scope {
+			return &lang.Scope{
+				Data: &evalData{
+					caller:    caller,
+					instance:  repetitionData,
+					variables: variables,
+					locals:    locals,
+					resources: resources,
+					calls:     calls,
+					outputs:   outputs,
+				},
+				ParseRef: addrs.ParseRef,
+				//SelfAddr:          self,
+				//SourceAddr:        source,
+				PureOnly: data.Op != walkApply && data.Op != walkDestroy && data.Op != walkEval,
+				BaseDir:  ".", // Always current working directory for now.
+				//PlanTimestamp:     e.PlanTimestamp,
+				//ProviderFunctions: functions,
+			}
+		}
+		evalContextFor := func(caller promise) tofu.EvalContext {
+			return &tofu.MockEvalContext{
+				PathPath:          addr,
+				ChangesChanges:    plans.NewChanges().SyncWrapper(),
+				StateState:        states.NewState().SyncWrapper(),
+				RefreshStateState: states.NewState().SyncWrapper(),
+				ChecksState:       checks.NewState(nil),
+				EvaluateExprResultFunc: func(
+					expr hcl.Expression,
+					wantType cty.Type,
+					self addrs.Referenceable,
+				) (cty.Value, tfdiags.Diagnostics) {
+					return scopeForCaller(caller).EvalExpr(expr, wantType)
+				},
+			}
+		}
+
+		for _, variable := range config.Module.Variables {
+			variable := variable
+
+			varAddr := addrs.InputVariable{Name: variable.Name}
+			varAddrAbs := varAddr.Absolute(addr)
+
+			variables[varAddr] = NewPromise[cty.Value](varAddrAbs, func() (cty.Value, tfdiags.Diagnostics) {
+				var expr hcl.Expression
+				var parentEvalCtx tofu.EvalContext
+
+				if in, ok := input[varAddr]; ok {
+					expr = in.expr
+					parentEvalCtx = in.evalContextFor(variables[varAddr])
+				}
+
+				return Variable(data, varAddrAbs, variable, evalContextFor(variables[varAddr]), expr, parentEvalCtx)
+			})
+		}
+		for _, local := range config.Module.Locals {
+			local := local
+
+			localAddr := addrs.LocalValue{Name: local.Name}
+			localAddrAbs := localAddr.Absolute(addr)
+
+			// TODO Local Values in the state (for tofu console)
+			locals[localAddr] = NewPromise[cty.Value](localAddrAbs, func() (cty.Value, tfdiags.Diagnostics) {
+				return Local(data, localAddrAbs, local, evalContextFor(locals[localAddr]))
+			})
+		}
+		for _, resource := range config.Module.ManagedResources {
+			resAddr := addrs.Resource{Name: resource.Name, Type: resource.Type, Mode: addrs.ManagedResourceMode}
+			resources[resAddr] = nil // TODO
+		}
+		// TODO DataResources
+		for _, call := range config.Module.ModuleCalls {
+			call := call
+			callAddr := addrs.ModuleCall{Name: call.Name}
+			callAddrAbs := callAddr.Absolute(addr)
+
+			calls[callAddr] = NewPromise[ModuleCallValue](callAddrAbs, func() (ModuleCallValue, tfdiags.Diagnostics) {
+				return ModuleCall(data, callAddrAbs, call, config.Children[call.Name], evalContextFor(calls[callAddr]))
+			})
+		}
+		for _, output := range config.Module.Outputs {
+			output := output
+
+			outputAddr := addrs.OutputValue{Name: output.Name}
+			outputAddrAbs := outputAddr.Absolute(addr)
+
+			outputs[outputAddr] = NewPromise[OutputValue](outputAddrAbs, func() (OutputValue, tfdiags.Diagnostics) {
+				return Output(
+					data, outputAddrAbs, output,
+					data.InputChanges.GetOutputChange(outputAddrAbs),
+					evalContextFor(outputs[outputAddr]),
+				)
+			})
 		}
 	}
-}
+	//TODO  data.InputState / data.InputChanges
 
-func (r *Root) Walk() tfdiags.Diagnostics {
-	ctx, cancel := context.WithCancel(context.TODO())
+	// We have fully built all things we are responsible for and can now return:
+	// - Outputs that can be queried at will
+	// - Translation to the legacy change and state formats
 
-	exec := &Executor{
-		cancel: cancel,
-		ctx:    ctx,
-		root:   r,
+	var outputValue *Promise[cty.Value]
+	outputValue = NewPromise(addr, func() (cty.Value, tfdiags.Diagnostics) {
+		obj := map[string]cty.Value{}
+		var diags tfdiags.Diagnostics
+		for name := range config.Module.Outputs {
+			outVal, outDiags := outputs[addrs.OutputValue{Name: name}].Value(outputValue)
+			obj[name] = outVal.state.Value
+			diags = diags.Append(outDiags)
+		}
+		return cty.ObjectVal(obj), diags
+	})
+
+	record := func(change *plans.ChangesSync, state *states.SyncState) tfdiags.Diagnostics {
+		var diags tfdiags.Diagnostics
+
+		var wg sync.WaitGroup
+		var diagLock sync.Mutex
+
+		for outAddr, output := range outputs {
+			outAddr := outAddr
+			output := output
+			wg.Add(1)
+
+			go func() {
+				defer wg.Done()
+				out, outDiags := output.Value(nil)
+
+				diagLock.Lock()
+				diags = diags.Append(outDiags)
+				diagLock.Unlock()
+
+				if outDiags.HasErrors() {
+					return
+				}
+				if out.state != nil {
+					state.SetOutputValue(outAddr.Absolute(addr), out.state.Value, out.state.Sensitive, out.state.Deprecated)
+				}
+				if out.change != nil {
+					change.AppendOutputChange(out.change)
+				}
+			}()
+		}
+
+		for _, call := range calls {
+			call := call
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+
+				cv, cdiags := call.Value(nil)
+				diagLock.Lock()
+				diags = diags.Append(cdiags)
+				diags = diags.Append(cv.Recorder(change, state))
+				diagLock.Unlock()
+			}()
+		}
+
+		wg.Wait()
+
+		return diags
 	}
 
-	// Start expansion walk
-	r.Module.visit(exec)
-
-	return exec.Wait()
+	return ModuleValue{outputValue, record}, nil
 }
 
-func (c *ModuleCalls) visit(exec *Executor) {
-	exec.Start(func() tfdiags.Diagnostics {
+func Variable(data *WalkData, addr addrs.AbsInputVariableInstance, config *configs.Variable, evalCtx tofu.EvalContext, expr hcl.Expression, parentEvalCtx tofu.EvalContext) (cty.Value, tfdiags.Diagnostics) {
+	// It is evaluated in the "parent" module
+	input := &tofu.NodeModuleVariable{
+		Addr:           addr,
+		Config:         config,
+		Expr:           expr,
+		ModuleInstance: addr.Module,
+	}
+	diags := input.Execute(data.Context, parentEvalCtx, tofu.WalkOperation(data.Op))
+	if diags.HasErrors() {
+		return cty.NilVal, diags
+	}
+
+	// HACK: Shift value from parent to child context
+	// TODO WithPath or Mock this is BROKEN
+	_, call := addr.Module.CallInstance()
+	evalCtx.SetModuleCallArgument(
+		call, addr.Variable,
+		parentEvalCtx.GetVariableValue(addr),
+	)
+
+	// It is evaluated in the "child" module
+	ref := &tofu.NodeVariableReferenceInstance{
+		Addr:   addr,
+		Config: config,
+		Expr:   expr,
+
+		// TODO VariableFromRemoteModule: c.IsModuleCallFromRemoteModule(callConfig.Name),
+	}
+	execDiags := ref.Execute(data.Context, evalCtx, tofu.WalkOperation(data.Op))
+	diags = diags.Append(execDiags)
+	return parentEvalCtx.GetVariableValue(addr), diags
+}
+
+func Local(data *WalkData, addr addrs.AbsLocalValue, config *configs.Local, evalCtx tofu.EvalContext) (cty.Value, tfdiags.Diagnostics) {
+	node := &tofu.NodeLocal{
+		Addr:   addr,
+		Config: config,
+	}
+	diags := node.Execute(data.Context, evalCtx, tofu.WalkOperation(data.Op))
+	return evalCtx.State().LocalValue(addr), diags
+}
+
+type OutputValue struct {
+	state  *states.OutputValue
+	change *plans.OutputChangeSrc
+}
+
+func Output(data *WalkData, addr addrs.AbsOutputValue, config *configs.Output, change *plans.OutputChangeSrc, evalCtx tofu.EvalContext) (OutputValue, tfdiags.Diagnostics) {
+	// TODO NodeDestroyableOutput
+	node := &tofu.NodeApplyableOutput{
+		Addr:   addr,
+		Config: config,
+		Change: change,
+		//TODO RefreshOnly:  o.RefreshOnly,
+		DestroyApply: data.Op == walkDestroy || data.Op == walkPlanDestroy,
+		Planning:     true, // Always true in the rest of the code base
+	}
+	diags := node.Execute(data.Context, evalCtx, tofu.WalkOperation(data.Op))
+
+	return OutputValue{
+		evalCtx.State().OutputValue(node.Addr),
+		evalCtx.Changes().GetOutputChange(addr),
+	}, diags
+}
+
+/*func Walk(data *WalkData) tfdiags.Diagnostics {
+	root := NewModuleCalls(nil, &configs.ModuleCall{}, data.InputVars)
+	root.Instances[addrs.NoKey] = NewModule(addrs.RootModuleInstance, root, data.Config)
+	// TODO root outputs?
+	_, diags := root.Walk(data).Value()
+	return diags
+}*/
+
+/*
+	func (r *ModuleCalls) Walk(data *WalkData) *Promise {
 		var diags tfdiags.Diagnostics
 		// Perform Expansion
 		if c.Config != nil {
@@ -91,6 +494,7 @@ func (c *ModuleCalls) visit(exec *Executor) {
 					instance := NewModule(c.Caller.Addr.Child(c.Config.Name, key), c)
 					instance.RepetitionData = &data
 
+					// TODO set instance.config
 					c.Instances[key] = instance
 				}
 			}
@@ -104,7 +508,7 @@ func (c *ModuleCalls) visit(exec *Executor) {
 						if diags.HasErrors() {
 							return cty.NilVal, diags
 						}
-						scope, scopeDiags := c.Caller.ScopeForReferences(refs, c)
+						scope, scopeDiags := c.Caller.ScopeForReferences(refs, []any{c})
 						diags = diags.Append(scopeDiags)
 						if diags.HasErrors() {
 							return cty.NilVal, diags
@@ -143,124 +547,58 @@ func (c *ModuleCalls) visit(exec *Executor) {
 
 		// Visit all instances
 		for _, child := range c.Instances {
-			child.visit(exec)
+			child.expand(exec)
 		}
 
-		return diags
-	})
-}
-
-func (m *Module) visit(exec *Executor) {
-	if m.Config != nil {
-		// Ensure objects in config have been populated
-		for name, call := range m.Config.ModuleCalls {
-			addr := addrs.ModuleCall{Name: name}
-			if _, ok := m.ModuleCalls[addr]; !ok {
-				m.ModuleCalls[addr] = NewModuleCalls(m, call)
-			}
-			m.ModuleCalls[addr].Config = call
-		}
-		for name, resource := range m.Config.ManagedResources {
-			addr := addrs.Resource{Name: name}
-			if _, ok := m.Resources[addr]; !ok {
-				m.Resources[addr] = NewResources(m, resource)
-			}
-			m.Resources[addr].Config = resource
-		}
-		for name, resource := range m.Config.DataResources {
-			addr := addrs.Resource{Name: name}
-			if _, ok := m.Resources[addr]; !ok {
-				m.Resources[addr] = NewResources(m, resource)
-			}
-			m.Resources[addr].Config = resource
-		}
+		panic(diags)
 	}
 
-	for _, instances := range m.ModuleCalls {
-		instances.visit(exec)
-	}
-	for _, resources := range m.Resources {
-		resources.visit(exec)
-	}
-}
-
-func (m *Module) ScopeForReferences(refs []*addrs.Reference, requester any) (*lang.Scope, tfdiags.Diagnostics) {
-	var diags tfdiags.Diagnostics
-
-	data := NewEvalData()
-
-	for _, ref := range refs {
-		rawSubj := ref.Subject
-
-		// TODO this function skips a *lot* of validation
-
-		// This type switch must cover all of the "Referenceable" implementations
-		// in package addrs, however we are removing the possibility of
-		// Instances beforehand.
-		// TODO we can be *much* smarter about this
-		switch addr := rawSubj.(type) {
-		case addrs.ResourceInstance:
-			rawSubj = addr.ContainingResource()
-		case addrs.ModuleCallInstance:
-			rawSubj = addr.Call
-		case addrs.ModuleCallInstanceOutput:
-			rawSubj = addr.Call.Call
-		}
-
-		switch subj := rawSubj.(type) {
-		case addrs.Resource:
-			resource := m.Resources[subj]
-			data.Resources[subj] = resource.Value
-
-		case addrs.ModuleCall:
-			calls := m.ModuleCalls[subj]
-			data.Modules[subj] = calls.Value
-
-		case addrs.InputVariable:
-			variable := m.Variables[subj]
-			data.InputVariables[subj] = variable.Value
-
-		case addrs.LocalValue:
-			local := m.Locals[subj]
-			data.LocalValues[subj] = local.Value
-
-		/* TODO
-		case addrs.PathAttr:
-			b.pathAttrs[subj.Name], normDiags = normalizeRefValue(b.s.Data.GetPathAttr(subj, rng))
-
-		case addrs.TerraformAttr:
-			b.terraformAttrs[subj.Name], normDiags = normalizeRefValue(b.s.Data.GetTerraformAttr(subj, rng))
-		*/
-		case addrs.CountAttr:
-			data.CountAttrs[subj] = func() (cty.Value, tfdiags.Diagnostics) {
-				return m.RepetitionData.CountIndex, nil
-			}
-
-		case addrs.ForEachAttr:
-			data.ForEachAttrs[subj] = func() (cty.Value, tfdiags.Diagnostics) {
-				switch subj.Name {
-				case "key":
-					return m.RepetitionData.EachKey, nil
-				case "value":
-					return m.RepetitionData.EachValue, nil
-				default:
-					panic("impossible")
+	func (m *Module) expand(exec *Executor) {
+		if m.Config != nil {
+			// Ensure objects in config have been populated
+			for name, call := range m.Config.ModuleCalls {
+				addr := addrs.ModuleCall{Name: name}
+				if _, ok := m.ModuleCalls[addr]; !ok {
+					m.ModuleCalls[addr] = NewModuleCalls(m, call)
 				}
+				m.ModuleCalls[addr].Config = call
 			}
-		case addrs.OutputValue:
-			output := m.Outputs[subj]
-			data.Outputs[subj] = output.Value
+			for name, resource := range m.Config.ManagedResources {
+				addr := addrs.Resource{Name: name}
+				if _, ok := m.Resources[addr]; !ok {
+					m.Resources[addr] = NewResources(m, resource)
+				}
+				m.Resources[addr].Config = resource
+			}
+			for name, resource := range m.Config.DataResources {
+				addr := addrs.Resource{Name: name}
+				if _, ok := m.Resources[addr]; !ok {
+					m.Resources[addr] = NewResources(m, resource)
+				}
+				m.Resources[addr].Config = resource
+			}
+		}
 
-		/* TODO
-		case addrs.Check:
-			b.outputValues[subj.Name], normDiags = normalizeRefValue(b.s.Data.GetCheckBlock(subj, rng))
-		*/
-
-		default:
-			// Should never happen
-			panic(fmt.Errorf("Scope.buildEvalContext cannot handle address type %T", rawSubj))
+		for _, instances := range m.ModuleCalls {
+			instances.expand(exec)
+		}
+		for _, resources := range m.Resources {
+			resources.expand(exec)
 		}
 	}
+func (r *Resources) expand(exec *Executor) {
+	// TODO Expand Expr
+}
+*/
+
+/*func (m *Module) ScopeForReferences(refs []*addrs.Reference, stack []any) (*lang.Scope, tfdiags.Diagnostics) {
+var diags tfdiags.Diagnostics
+
+data := NewEvalData()
+
+/*for _, ref := range refs {
+	waiters = append(waiter, m.Resolve(ref, stack))
+}*/ /*
 
 	return &lang.Scope{
 		Data:     data,
@@ -272,178 +610,4 @@ func (m *Module) ScopeForReferences(refs []*addrs.Reference, requester any) (*la
 		//PlanTimestamp:     e.PlanTimestamp,
 		//ProviderFunctions: functions,
 	}, diags
-}
-
-func (r *Resources) visit(exec *Executor) {
-	// TODO Expand Expr
-}
-
-func (v *Variable) Value() (cty.Value, tfdiags.Diagnostics) {
-	return cty.NilVal, nil
-}
-
-func (l *Local) Value() (cty.Value, tfdiags.Diagnostics) {
-	return l.value()
-}
-
-func (l *Local) value() (cty.Value, tfdiags.Diagnostics) {
-	node := &tofu.NodeLocal{
-		Addr:   addrs.LocalValue{Name: l.Config.Name}.Absolute(l.Module.Addr),
-		Config: l.Config,
-	}
-
-	state := states.NewState()
-	evalCtx := &tofu.MockEvalContext{
-		PathPath:   l.Module.Addr,
-		StateState: state.SyncWrapper(),
-		EvaluateExprResultFunc: func(
-			expr hcl.Expression,
-			wantType cty.Type,
-			self addrs.Referenceable,
-		) (cty.Value, tfdiags.Diagnostics) {
-			refs := node.References()
-			scope, diags := l.Module.ScopeForReferences(refs, l)
-			if diags.HasErrors() {
-				return cty.NilVal, diags
-			}
-
-			value, valueDiags := scope.EvalExpr(expr, wantType)
-			return value, diags.Append(valueDiags)
-		},
-	}
-
-	diags := node.Execute(context.TODO(), evalCtx, tofu.WalkOperation(walkPlan))
-	if diags.HasErrors() {
-		return cty.NilVal, diags
-	}
-	return state.LocalValue(node.Addr), diags
-}
-
-func (o *Output) Value() (cty.Value, tfdiags.Diagnostics) {
-	return o.value()
-}
-func (o *Output) value() (cty.Value, tfdiags.Diagnostics) {
-	// TODO NodeDestroyableOutput
-	node := &tofu.NodeApplyableOutput{
-		Addr:   addrs.OutputValue{Name: o.Config.Name}.Absolute(o.Module.Addr),
-		Config: o.Config,
-		//Change:       change,
-		//RefreshOnly:  o.RefreshOnly,
-		//DestroyApply: o.Destroying,
-		//Planning:     o.Planning,
-	}
-
-	state := states.NewState()
-	evalCtx := &tofu.MockEvalContext{
-		PathPath:          o.Module.Addr,
-		StateState:        state.SyncWrapper(),
-		RefreshStateState: state.SyncWrapper(),
-		ChecksState:       checks.NewState(nil),
-		// Depends-on EvaluationScope
-	}
-
-	diags := node.Execute(context.TODO(), evalCtx, tofu.WalkOperation(walkPlan))
-	if diags.HasErrors() {
-		return cty.NilVal, diags
-	}
-	return state.OutputValue(node.Addr).Value, diags
-}
-
-func (m *ModuleCalls) Value() (cty.Value, tfdiags.Diagnostics) {
-	return m.value()
-}
-func (m *ModuleCalls) value() (cty.Value, tfdiags.Diagnostics) {
-	var diags tfdiags.Diagnostics
-
-	if m.Config == nil {
-		panic("asked for the value of a unconfigured module call!")
-	}
-
-	// TODO parallel execution of fetching module info
-	moduleInstances := make(map[addrs.InstanceKey]cty.Value)
-	for key, mod := range m.Instances {
-		var modDiags tfdiags.Diagnostics
-		moduleInstances[key], modDiags = mod.Value()
-		diags = diags.Append(modDiags)
-	}
-	if diags.HasErrors() {
-		return cty.NilVal, diags
-	}
-
-	// Lifted from tofu/evaluate.go
-
-	switch {
-	case m.Config.Count != nil:
-		length := -1
-		for key := range moduleInstances {
-			intKey, ok := key.(addrs.IntKey)
-			if !ok {
-				// old key from state which is being dropped
-				continue
-			}
-			if int(intKey) >= length {
-				length = int(intKey) + 1
-			}
-		}
-
-		if length <= 0 {
-			return cty.EmptyTupleVal, diags
-		}
-		vals := make([]cty.Value, length)
-		for key, instance := range moduleInstances {
-			intKey, ok := key.(addrs.IntKey)
-			if !ok {
-				// old key from state which is being dropped
-				continue
-			}
-
-			vals[int(intKey)] = instance
-		}
-
-		// Insert unknown values where there are any missing instances
-		for i, v := range vals {
-			if v.IsNull() {
-				vals[i] = cty.DynamicVal
-				continue
-			}
-		}
-		return cty.TupleVal(vals), diags
-
-	case m.Config.ForEach != nil:
-		instanceMap := make(map[string]cty.Value)
-		for key, mod := range moduleInstances {
-			sk := key.(addrs.StringKey)
-			instanceMap[string(sk)] = mod
-		}
-		return cty.ObjectVal(instanceMap), diags
-	default:
-		return moduleInstances[addrs.NoKey], diags
-	}
-}
-func (m *Module) Value() (cty.Value, tfdiags.Diagnostics) {
-	return m.value()
-}
-func (m *Module) value() (cty.Value, tfdiags.Diagnostics) {
-	var diags tfdiags.Diagnostics
-	if m.Config == nil {
-		panic("asked for the value of a unconfigured module")
-	}
-
-	outputValues := make(map[string]cty.Value)
-
-	// TODO parallel execution of fetching outputs
-	for _, output := range m.Outputs {
-		var outDiags tfdiags.Diagnostics
-		outputValues[output.Config.Name], outDiags = output.Value()
-		diags = diags.Append(outDiags)
-	}
-	if diags.HasErrors() {
-		return cty.NilVal, diags
-	}
-
-	return cty.ObjectVal(outputValues), nil
-}
-
-func (r *Resources) Value() (cty.Value, tfdiags.Diagnostics) {
-	return cty.NilVal, nil
-}
+}*/

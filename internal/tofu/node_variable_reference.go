@@ -69,7 +69,7 @@ func (n *nodeVariableReference) DynamicExpand(ctx EvalContext) (*Graph, error) {
 			checkableAddrs.Add(addr)
 		}
 
-		o := &nodeVariableReferenceInstance{
+		o := &NodeVariableReferenceInstance{
 			Addr:   addr,
 			Config: n.Config,
 			Expr:   n.Expr,
@@ -119,9 +119,9 @@ func (n *nodeVariableReference) ReferenceableAddrs() []addrs.Referenceable {
 	return []addrs.Referenceable{n.Addr}
 }
 
-// nodeVariableReferenceInstance represents a module variable reference during
+// NodeVariableReferenceInstance represents a module variable reference during
 // the apply step.
-type nodeVariableReferenceInstance struct {
+type NodeVariableReferenceInstance struct {
 	Addr   addrs.AbsInputVariableInstance
 	Config *configs.Variable // Config is the var in the config
 	Expr   hcl.Expression    // Used for diagnostics only
@@ -134,27 +134,27 @@ type nodeVariableReferenceInstance struct {
 // Ensure that we are implementing all of the interfaces we think we are
 // implementing.
 var (
-	_ GraphNodeModuleInstance = (*nodeVariableReferenceInstance)(nil)
-	_ GraphNodeExecutable     = (*nodeVariableReferenceInstance)(nil)
-	_ dag.GraphNodeDotter     = (*nodeVariableReferenceInstance)(nil)
+	_ GraphNodeModuleInstance = (*NodeVariableReferenceInstance)(nil)
+	_ GraphNodeExecutable     = (*NodeVariableReferenceInstance)(nil)
+	_ dag.GraphNodeDotter     = (*NodeVariableReferenceInstance)(nil)
 )
 
-func (n *nodeVariableReferenceInstance) Name() string {
+func (n *NodeVariableReferenceInstance) Name() string {
 	return n.Addr.String() + " (reference)"
 }
 
 // GraphNodeModuleInstance
-func (n *nodeVariableReferenceInstance) Path() addrs.ModuleInstance {
+func (n *NodeVariableReferenceInstance) Path() addrs.ModuleInstance {
 	return n.Addr.Module
 }
 
 // GraphNodeModulePath
-func (n *nodeVariableReferenceInstance) ModulePath() addrs.Module {
+func (n *NodeVariableReferenceInstance) ModulePath() addrs.Module {
 	return n.Addr.Module.Module()
 }
 
 // GraphNodeExecutable
-func (n *nodeVariableReferenceInstance) Execute(_ context.Context, evalCtx EvalContext, op WalkOperation) tfdiags.Diagnostics {
+func (n *NodeVariableReferenceInstance) Execute(_ context.Context, evalCtx EvalContext, op WalkOperation) tfdiags.Diagnostics {
 	log.Printf("[TRACE] nodeVariableReferenceInstance: evaluating %s", n.Addr)
 	diags := evalVariableValidations(n.Addr, n.Config, n.Expr, evalCtx)
 
@@ -176,7 +176,7 @@ func (n *nodeVariableReferenceInstance) Execute(_ context.Context, evalCtx EvalC
 }
 
 // dag.GraphNodeDotter impl.
-func (n *nodeVariableReferenceInstance) DotNode(name string, _ *dag.DotOpts) *dag.DotNode {
+func (n *NodeVariableReferenceInstance) DotNode(name string, _ *dag.DotOpts) *dag.DotNode {
 	return &dag.DotNode{
 		Name: name,
 		Attrs: map[string]string{

@@ -1,13 +1,6 @@
 package engine
 
-import (
-	"fmt"
-
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/states"
-)
-
+/*
 func NewRoot(config *configs.Config) *Root {
 	expanded := NewModule(addrs.RootModuleInstance, nil)
 	// TODO var inputs
@@ -66,3 +59,4 @@ func (root *Root) AttachState(state *states.State) {
 		}
 	}
 }
+*/

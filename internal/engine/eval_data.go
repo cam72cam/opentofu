@@ -2,38 +2,19 @@ package engine
 
 import (
 	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/instances"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 	"github.com/zclconf/go-cty/cty"
 )
 
-// Translation between lazy walk and existing scope
-type evalPromise func() (cty.Value, tfdiags.Diagnostics)
 type evalData struct {
-	CountAttrs     map[addrs.CountAttr]evalPromise
-	ForEachAttrs   map[addrs.ForEachAttr]evalPromise
-	Resources      map[addrs.Resource]evalPromise
-	LocalValues    map[addrs.LocalValue]evalPromise
-	Modules        map[addrs.ModuleCall]evalPromise
-	PathAttrs      map[addrs.PathAttr]evalPromise
-	TerraformAttrs map[addrs.TerraformAttr]evalPromise
-	InputVariables map[addrs.InputVariable]evalPromise
-	Outputs        map[addrs.OutputValue]evalPromise
-	CheckBlocks    map[addrs.Check]evalPromise
-}
-
-func NewEvalData() *evalData {
-	return &evalData{
-		CountAttrs:     map[addrs.CountAttr]evalPromise{},
-		ForEachAttrs:   map[addrs.ForEachAttr]evalPromise{},
-		Resources:      map[addrs.Resource]evalPromise{},
-		LocalValues:    map[addrs.LocalValue]evalPromise{},
-		Modules:        map[addrs.ModuleCall]evalPromise{},
-		PathAttrs:      map[addrs.PathAttr]evalPromise{},
-		TerraformAttrs: map[addrs.TerraformAttr]evalPromise{},
-		InputVariables: map[addrs.InputVariable]evalPromise{},
-		Outputs:        map[addrs.OutputValue]evalPromise{},
-		CheckBlocks:    map[addrs.Check]evalPromise{},
-	}
+	caller    promise
+	instance  instances.RepetitionData
+	variables map[addrs.InputVariable]*Promise[cty.Value]
+	locals    map[addrs.LocalValue]*Promise[cty.Value]
+	resources map[addrs.Resource]*Promise[cty.Value]
+	calls     map[addrs.ModuleCall]*Promise[ModuleCallValue]
+	outputs   map[addrs.OutputValue]*Promise[OutputValue]
 }
 
 func (d *evalData) StaticValidateReferences(refs []*addrs.Reference, self addrs.Referenceable, source addrs.Referenceable) tfdiags.Diagnostics {
@@ -42,32 +23,47 @@ func (d *evalData) StaticValidateReferences(refs []*addrs.Reference, self addrs.
 }
 
 func (d *evalData) GetCountAttr(addr addrs.CountAttr, _ tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
-	return d.CountAttrs[addr]()
+	return d.instance.CountIndex, nil
 }
 func (d *evalData) GetForEachAttr(addr addrs.ForEachAttr, _ tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
-	return d.ForEachAttrs[addr]()
+	switch addr.Name {
+	case "key":
+		return d.instance.EachKey, nil
+	case "value":
+		return d.instance.EachValue, nil
+	default:
+		panic("impossible")
+	}
 }
 func (d *evalData) GetResource(addr addrs.Resource, _ tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
-	return d.Resources[addr]()
+	return d.resources[addr].Value(d.caller)
 }
 func (d *evalData) GetLocalValue(addr addrs.LocalValue, _ tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
-	return d.LocalValues[addr]()
+	return d.locals[addr].Value(d.caller)
 }
 func (d *evalData) GetModule(addr addrs.ModuleCall, _ tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
-	return d.Modules[addr]()
+	call, diags := d.calls[addr].Value(d.caller)
+	if diags.HasErrors() {
+		return cty.NilVal, diags
+	}
+	return call.Expanded.Value(d.caller)
 }
 func (d *evalData) GetPathAttr(addr addrs.PathAttr, _ tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
-	return d.PathAttrs[addr]()
+	panic("TODO")
 }
 func (d *evalData) GetTerraformAttr(addr addrs.TerraformAttr, _ tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
-	return d.TerraformAttrs[addr]()
+	panic("TODO")
 }
 func (d *evalData) GetInputVariable(addr addrs.InputVariable, _ tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
-	return d.InputVariables[addr]()
+	return d.variables[addr].Value(d.caller)
 }
 func (d *evalData) GetOutput(addr addrs.OutputValue, _ tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
-	return d.Outputs[addr]()
+	out, diags := d.outputs[addr].Value(d.caller)
+	if diags.HasErrors() || out.state == nil {
+		return cty.NilVal, diags
+	}
+	return out.state.Value, diags
 }
 func (d *evalData) GetCheckBlock(addr addrs.Check, _ tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
-	return d.CheckBlocks[addr]()
+	panic("TODO")
 }

@@ -1,12 +1,6 @@
 package engine
 
-import (
-	"github.com/opentofu/opentofu/internal/addrs"
-	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/instances"
-	"github.com/opentofu/opentofu/internal/states"
-)
-
+/*
 type Resources struct {
 	Module *Module
 	Config *configs.Resource
@@ -30,3 +24,8 @@ type Resource struct {
 	RepetitionData *instances.RepetitionData
 	PreviousState  *states.ResourceInstance
 }
+
+func (r *Resources) Value() (cty.Value, tfdiags.Diagnostics) {
+	return cty.NilVal, nil
+}
+*/
