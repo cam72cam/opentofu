@@ -9,7 +9,7 @@ import (
 
 type Promise[T any] struct {
 	target  any
-	resolve func() (T, tfdiags.Diagnostics)
+	resolve func(self promise) (T, tfdiags.Diagnostics)
 
 	lock     sync.Mutex
 	started  bool
@@ -34,7 +34,7 @@ type Blocked[T any] struct {
 	promise    promise
 }
 
-func NewPromise[T any](target any, resolve func() (T, tfdiags.Diagnostics)) *Promise[T] {
+func NewPromise[T any](target any, resolve func(self promise) (T, tfdiags.Diagnostics)) *Promise[T] {
 	p := &Promise[T]{
 		target:  &target, // PTR for hashable
 		resolve: resolve,
@@ -56,7 +56,7 @@ func (p *Promise[T]) addVisit(visit promise) {
 func (p *Promise[T]) manager() {
 	resultChan := make(chan Result[T], 1)
 	go func() {
-		value, err := p.resolve()
+		value, err := p.resolve(p)
 		resultChan <- Result[T]{value, err}
 	}()
 

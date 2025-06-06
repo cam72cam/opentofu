@@ -1,7 +1,9 @@
 package engine
 
+import "github.com/opentofu/opentofu/internal/tofu"
+
 // walkOperation is an enum which tells the walkContext what to do.
-type WalkOperation byte
+type WalkOperation tofu.WalkOperation
 
 const (
 	walkInvalid WalkOperation = iota

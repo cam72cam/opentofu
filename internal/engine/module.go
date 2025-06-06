@@ -1,152 +1,92 @@
 package engine
 
-/*
-type Status int
+import (
+	"context"
 
-const (
-	StatusUnknown   = 0
-	StatusPending   = 1
-	StatusAvailable = 2
+	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/configs"
+	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/opentofu/opentofu/internal/states"
+	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/zclconf/go-cty/cty"
 )
 
-type ModuleCalls struct {
-	Caller    *Module
-	Config    *configs.ModuleCall
-	Instances map[addrs.InstanceKey]*Module
-
-	VariableValues map[addrs.InputVariable]*Promise[cty.Value]
-}
-
-func NewModuleCalls(caller *Module, config *configs.ModuleCall, vars map[addrs.InputVariable]*Promise[cty.Value]) *ModuleCalls {
-	return &ModuleCalls{
-		Caller:         caller,
-		Config:         config,
-		Instances:      map[addrs.InstanceKey]*Module{},
-		VariableValues: vars,
-	}
-}
-
-func (m *ModuleCalls) Value() (cty.Value, tfdiags.Diagnostics) {
-	return m.value()
-}
-func (m *ModuleCalls) value() (cty.Value, tfdiags.Diagnostics) {
+func NewModule(ctx context.Context, addr addrs.ModuleInstance, config *configs.Config, priorChanges *plans.Changes, priorState *states.State, parentScope *Scope, input map[addrs.InputVariable]VariableInput, op WalkOperation) (*Promise[cty.Value], Action, tfdiags.Diagnostics) {
+	var actions Actions
 	var diags tfdiags.Diagnostics
 
-	if m.Config == nil {
-		panic("asked for the value of a unconfigured module call!")
-	}
+	var outputValue *Promise[cty.Value]
 
-	// TODO parallel execution of fetching module info
-	moduleInstances := make(map[addrs.InstanceKey]cty.Value)
-	for key, mod := range m.Instances {
-		var modDiags tfdiags.Diagnostics
-		moduleInstances[key], modDiags = mod.Value()
-		diags = diags.Append(modDiags)
-	}
-	if diags.HasErrors() {
-		return cty.NilVal, diags
-	}
+	if config != nil {
+		scope := NewScope(addr, op, parentScope)
 
-	// Lifted from tofu/evaluate.go
+		for _, variable := range config.Module.Variables {
+			variable := variable
+			varAddr := addrs.InputVariable{Name: variable.Name}
 
-	switch {
-	case m.Config.Count != nil:
-		length := -1
-		for key := range moduleInstances {
-			intKey, ok := key.(addrs.IntKey)
-			if !ok {
-				// old key from state which is being dropped
-				continue
+			promise, action, newDiags := NewVariable(ctx, varAddr.Absolute(addr), variable, input[varAddr], scope, op)
+
+			scope.variables[varAddr] = promise
+			actions = append(actions, action)
+			diags = diags.Append(newDiags)
+		}
+		for _, local := range config.Module.Locals {
+			local := local
+
+			localAddr := addrs.LocalValue{Name: local.Name}
+			promise, action, newDiags := NewLocal(ctx, localAddr.Absolute(addr), local, scope, op)
+
+			scope.locals[localAddr] = promise
+			actions = append(actions, action)
+			diags = diags.Append(newDiags)
+		}
+		for _, resource := range config.Module.ManagedResources {
+			resource := resource
+
+			resAddr := addrs.Resource{Name: resource.Name, Type: resource.Type, Mode: addrs.ManagedResourceMode}
+			scope.resources[resAddr] = nil // TODO
+		}
+		// TODO DataResources
+		for _, call := range config.Module.ModuleCalls {
+			call := call
+
+			callAddr := addrs.ModuleCall{Name: call.Name}
+
+			promise, action, newDiags := NewModuleCall(ctx, callAddr.Absolute(addr), call, config.Children[call.Name], priorChanges, priorState, scope, op)
+
+			scope.calls[callAddr] = promise
+			actions = append(actions, action)
+			diags = diags.Append(newDiags)
+		}
+		for _, output := range config.Module.Outputs {
+			output := output
+
+			outputAddr := addrs.OutputValue{Name: output.Name}
+			promise, action, newDiags := NewOutput(ctx, outputAddr.Absolute(addr), output, priorChanges, scope, op)
+
+			scope.outputs[outputAddr] = promise
+			actions = append(actions, action)
+			diags = diags.Append(newDiags)
+		}
+
+		outputValue = NewPromise(addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
+			obj := map[string]cty.Value{}
+			var diags tfdiags.Diagnostics
+			for name := range config.Module.Outputs {
+				outVal, outDiags := scope.outputs[addrs.OutputValue{Name: name}].Value(outputValue)
+				diags = diags.Append(outDiags)
+
+				obj[name] = outVal
 			}
-			if int(intKey) >= length {
-				length = int(intKey) + 1
-			}
-		}
+			return cty.ObjectVal(obj), diags
+		})
 
-		if length <= 0 {
-			return cty.EmptyTupleVal, diags
-		}
-		vals := make([]cty.Value, length)
-		for key, instance := range moduleInstances {
-			intKey, ok := key.(addrs.IntKey)
-			if !ok {
-				// old key from state which is being dropped
-				continue
-			}
-
-			vals[int(intKey)] = instance
-		}
-
-		// Insert unknown values where there are any missing instances
-		for i, v := range vals {
-			if v.IsNull() {
-				vals[i] = cty.DynamicVal
-				continue
-			}
-		}
-		return cty.TupleVal(vals), diags
-
-	case m.Config.ForEach != nil:
-		instanceMap := make(map[string]cty.Value)
-		for key, mod := range moduleInstances {
-			sk := key.(addrs.StringKey)
-			instanceMap[string(sk)] = mod
-		}
-		return cty.ObjectVal(instanceMap), diags
-	default:
-		return moduleInstances[addrs.NoKey], diags
 	}
+	//TODO  data.InputState / data.InputChanges
+
+	// We have fully built all things we are responsible for and can now return:
+	// - Outputs that can be queried at will
+	// - Translation to the legacy change and state formats
+
+	return outputValue, actions.Parallel, nil
 }
-
-type Module struct {
-	Addr           addrs.ModuleInstance
-	Call           *ModuleCalls
-	RepetitionData *instances.RepetitionData
-	Config         *configs.Config
-
-	Variables   map[addrs.InputVariable]*Variable
-	Locals      map[addrs.LocalValue]*Local
-	ModuleCalls map[addrs.ModuleCall]*ModuleCalls
-	Resources   map[addrs.Resource]*Resources
-	Outputs     map[addrs.OutputValue]*Output
-}
-
-func NewModule(addr addrs.ModuleInstance, call *ModuleCalls, config *configs.Config) *Module {
-	fmt.Printf("Creating module instance %s\n", addr)
-	return &Module{
-		Addr:   addr,
-		Call:   call,
-		Config: config,
-
-		Variables:   map[addrs.InputVariable]*Variable{},
-		Locals:      map[addrs.LocalValue]*Local{},
-		Resources:   map[addrs.Resource]*Resources{},
-		ModuleCalls: map[addrs.ModuleCall]*ModuleCalls{},
-		Outputs:     map[addrs.OutputValue]*Output{},
-	}
-}
-
-func (m *Module) Value() (cty.Value, tfdiags.Diagnostics) {
-	return m.value()
-}
-func (m *Module) value() (cty.Value, tfdiags.Diagnostics) {
-	var diags tfdiags.Diagnostics
-	if m.Config == nil {
-		panic("asked for the value of a unconfigured module")
-	}
-
-	outputValues := make(map[string]cty.Value)
-
-	// TODO parallel execution of fetching outputs
-	for _, output := range m.Outputs {
-		var outDiags tfdiags.Diagnostics
-		outputValues[output.Config.Name], outDiags = output.Value()
-		diags = diags.Append(outDiags)
-	}
-	if diags.HasErrors() {
-		return cty.NilVal, diags
-	}
-
-	return cty.ObjectVal(outputValues), nil
-}
-*/

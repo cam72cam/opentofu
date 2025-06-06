@@ -13,8 +13,8 @@ type evalData struct {
 	variables map[addrs.InputVariable]*Promise[cty.Value]
 	locals    map[addrs.LocalValue]*Promise[cty.Value]
 	resources map[addrs.Resource]*Promise[cty.Value]
-	calls     map[addrs.ModuleCall]*Promise[ModuleCallValue]
-	outputs   map[addrs.OutputValue]*Promise[OutputValue]
+	calls     map[addrs.ModuleCall]*Promise[cty.Value]
+	outputs   map[addrs.OutputValue]*Promise[cty.Value]
 }
 
 func (d *evalData) StaticValidateReferences(refs []*addrs.Reference, self addrs.Referenceable, source addrs.Referenceable) tfdiags.Diagnostics {
@@ -42,11 +42,7 @@ func (d *evalData) GetLocalValue(addr addrs.LocalValue, _ tfdiags.SourceRange) (
 	return d.locals[addr].Value(d.caller)
 }
 func (d *evalData) GetModule(addr addrs.ModuleCall, _ tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
-	call, diags := d.calls[addr].Value(d.caller)
-	if diags.HasErrors() {
-		return cty.NilVal, diags
-	}
-	return call.Expanded.Value(d.caller)
+	return d.calls[addr].Value(d.caller)
 }
 func (d *evalData) GetPathAttr(addr addrs.PathAttr, _ tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
 	panic("TODO")
@@ -58,11 +54,7 @@ func (d *evalData) GetInputVariable(addr addrs.InputVariable, _ tfdiags.SourceRa
 	return d.variables[addr].Value(d.caller)
 }
 func (d *evalData) GetOutput(addr addrs.OutputValue, _ tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
-	out, diags := d.outputs[addr].Value(d.caller)
-	if diags.HasErrors() || out.state == nil {
-		return cty.NilVal, diags
-	}
-	return out.state.Value, diags
+	return d.outputs[addr].Value(d.caller)
 }
 func (d *evalData) GetCheckBlock(addr addrs.Check, _ tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
 	panic("TODO")

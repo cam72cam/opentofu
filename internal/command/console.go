@@ -21,7 +21,6 @@ import (
 	"github.com/opentofu/opentofu/internal/repl"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 	"github.com/opentofu/opentofu/internal/tofu"
-	"github.com/zclconf/go-cty/cty"
 
 	"github.com/mitchellh/cli"
 )
@@ -135,9 +134,9 @@ func (c *ConsoleCommand) Run(args []string) int {
 			Op:      2,
 
 			Config:       lr.Config,
-			InputState:   lr.InputState.SyncWrapper(),
-			InputChanges: plans.NewChanges().SyncWrapper(), //lr.Plan.Changes.SyncWrapper(),
-			InputVars:    map[addrs.InputVariable]*engine.Promise[cty.Value]{},
+			InputState:   lr.InputState,
+			InputChanges: plans.NewChanges(),                             //lr.Plan.Changes.SyncWrapper(),
+			InputVars:    map[addrs.InputVariable]engine.VariableInput{}, //TODO
 		})
 		c.showDiagnostics(diags)
 		spew.Dump(plan)
