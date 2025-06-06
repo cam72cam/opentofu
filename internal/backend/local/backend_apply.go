@@ -120,7 +120,33 @@ func (b *Local) opApply(
 	if op.PlanFile == nil {
 		// Perform the plan
 		log.Printf("[INFO] backend/local: apply calling Plan")
-		plan, moreDiags = lr.Core.Plan(ctx, lr.Config, lr.InputState, lr.PlanOpts)
+		//plan, moreDiags = lr.Core.Plan(ctx, lr.Config, lr.InputState, lr.PlanOpts)
+		changes, state, diags := engine.Walk(&engine.WalkData{
+			Context: ctx,
+			//Cancel:  cancel,
+			Op: 2,
+
+			Config:       lr.Config,
+			InputState:   lr.InputState,
+			InputChanges: plans.NewChanges(),                             //lr.Plan.Changes.SyncWrapper(),
+			InputVars:    map[addrs.InputVariable]engine.VariableInput{}, //TODO
+		})
+
+		plan = &plans.Plan{
+			UIMode:  lr.PlanOpts.Mode,
+			Changes: changes,
+			//DriftedResources:   driftedResources,
+			PrevRunState: lr.InputState,
+			PriorState:   lr.InputState,
+			PlannedState: state,
+			//ExternalReferences: opts.ExternalReferences,
+			//Checks:             states.NewCheckResults(walker.Checks),
+			//Timestamp:          timestamp,
+
+			// Other fields get populated by Context.Plan after we return
+		}
+		moreDiags = diags
+
 		diags = diags.Append(moreDiags)
 		if moreDiags.HasErrors() {
 			// If OpenTofu Core generated a partial plan despite the errors
@@ -298,6 +324,7 @@ func (b *Local) opApply(
 
 	// Store the final state
 	runningOp.State = applyState
+
 	err := statemgr.WriteAndPersist(opState, applyState, schemas)
 	if err != nil {
 		// Export the state file from the state manager and assign the new
