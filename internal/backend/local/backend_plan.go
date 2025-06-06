@@ -11,7 +11,9 @@ import (
 	"io"
 	"log"
 
+	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/backend"
+	"github.com/opentofu/opentofu/internal/engine"
 	"github.com/opentofu/opentofu/internal/genconfig"
 	"github.com/opentofu/opentofu/internal/logging"
 	"github.com/opentofu/opentofu/internal/plans"
@@ -117,7 +119,33 @@ func (b *Local) opPlan(
 		defer panicHandler()
 		defer close(doneCh)
 		log.Printf("[INFO] backend/local: plan calling Plan")
-		plan, planDiags = lr.Core.Plan(ctx, lr.Config, lr.InputState, lr.PlanOpts)
+		//plan, planDiags = lr.Core.Plan(ctx, lr.Config, lr.InputState, lr.PlanOpts)
+
+		changes, state, diags := engine.Walk(&engine.WalkData{
+			Context: ctx,
+			//Cancel:  cancel,
+			Op: 2,
+
+			Config:       lr.Config,
+			InputState:   lr.InputState,
+			InputChanges: plans.NewChanges(),                             //lr.Plan.Changes.SyncWrapper(),
+			InputVars:    map[addrs.InputVariable]engine.VariableInput{}, //TODO
+		})
+
+		plan = &plans.Plan{
+			UIMode:  lr.PlanOpts.Mode,
+			Changes: changes,
+			//DriftedResources:   driftedResources,
+			PrevRunState: lr.InputState,
+			PriorState:   lr.InputState,
+			PlannedState: state,
+			//ExternalReferences: opts.ExternalReferences,
+			//Checks:             states.NewCheckResults(walker.Checks),
+			//Timestamp:          timestamp,
+
+			// Other fields get populated by Context.Plan after we return
+		}
+		planDiags = diags
 	}()
 
 	if b.opWait(doneCh, stopCtx, cancelCtx, lr.Core, opState, op.View) {

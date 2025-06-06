@@ -17,6 +17,7 @@ import (
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/backend"
 	"github.com/opentofu/opentofu/internal/command/views"
+	"github.com/opentofu/opentofu/internal/engine"
 	"github.com/opentofu/opentofu/internal/logging"
 	"github.com/opentofu/opentofu/internal/plans"
 	"github.com/opentofu/opentofu/internal/states"
@@ -266,7 +267,20 @@ func (b *Local) opApply(
 		defer panicHandler()
 		defer close(doneCh)
 		log.Printf("[INFO] backend/local: apply calling Apply")
-		applyState, applyDiags = lr.Core.Apply(ctx, plan, lr.Config)
+		//applyState, applyDiags = lr.Core.Apply(ctx, plan, lr.Config)
+
+		_, state, diags := engine.Walk(&engine.WalkData{
+			Context: ctx,
+			//Cancel:  cancel,
+			Op: 1,
+
+			Config:       lr.Config,
+			InputState:   lr.InputState,
+			InputChanges: plans.NewChanges(),                             //lr.Plan.Changes.SyncWrapper(),
+			InputVars:    map[addrs.InputVariable]engine.VariableInput{}, //TODO
+		})
+		applyState = state
+		applyDiags = diags
 	}()
 
 	if b.opWait(doneCh, stopCtx, cancelCtx, lr.Core, opState, op.View) {
