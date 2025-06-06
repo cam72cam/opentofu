@@ -149,7 +149,6 @@ func (p *Promise[T]) manager() {
 func (p *Promise[T]) Value(caller promise) (T, tfdiags.Diagnostics) {
 	p.lock.Lock()
 	if p.resolved != nil {
-		fmt.Printf("Early %v\n", p.ident)
 		p.lock.Unlock()
 		return p.resolved.value, p.resolved.diags
 	}
@@ -167,5 +166,6 @@ func (p *Promise[T]) Value(caller promise) (T, tfdiags.Diagnostics) {
 	p.lock.Unlock()
 
 	result := <-resultChan
+
 	return result.value, result.diags
 }
