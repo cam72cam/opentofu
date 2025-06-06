@@ -41,6 +41,12 @@ type Action func(*plans.ChangesSync, *states.SyncState) tfdiags.Diagnostics
 type Actions []Action
 
 func (actions Actions) Parallel(change *plans.ChangesSync, state *states.SyncState) tfdiags.Diagnostics {
+
+	var pool = make(chan int, 10)
+	for i := 0; i < 10; i++ {
+		pool <- i
+	}
+
 	var diags tfdiags.Diagnostics
 
 	var wg sync.WaitGroup
@@ -52,14 +58,17 @@ func (actions Actions) Parallel(change *plans.ChangesSync, state *states.SyncSta
 			continue
 		}
 
+		slot := <-pool
+
 		wg.Add(1)
 		go func() {
-			defer wg.Done()
 
 			actionDiags := action(change, state)
 			diagLock.Lock()
 			diags = diags.Append(actionDiags)
 			diagLock.Unlock()
+			wg.Done()
+			pool <- slot
 		}()
 	}
 
