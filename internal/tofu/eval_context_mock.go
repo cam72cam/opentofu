@@ -113,10 +113,15 @@ type MockEvalContext struct {
 	EvaluateExprResult cty.Value
 	EvaluateExprDiags  tfdiags.Diagnostics
 
-	EvaluationScopeCalled  bool
-	EvaluationScopeSelf    addrs.Referenceable
-	EvaluationScopeKeyData InstanceKeyEvalData
-	EvaluationScopeScope   *lang.Scope
+	EvaluationScopeCalled     bool
+	EvaluationScopeSelf       addrs.Referenceable
+	EvaluationScopeKeyData    InstanceKeyEvalData
+	EvaluationScopeScope      *lang.Scope
+	EvaluationScopeResultFunc func(
+		self addrs.Referenceable,
+		source addrs.Referenceable,
+		keyData InstanceKeyEvalData,
+	) *lang.Scope // overrides the other values below, if set
 
 	PathCalled bool
 	PathPath   addrs.ModuleInstance
@@ -277,6 +282,10 @@ func (c *MockEvalContext) EvaluateReplaceTriggeredBy(hcl.Expression, instances.R
 	return nil, false, nil
 }
 
+func (c *MockEvalContext) InstallSimpleEval() {
+	c.installSimpleEval()
+}
+
 // installSimpleEval is a helper to install a simple mock implementation of
 // both EvaluateBlock and EvaluateExpr into the receiver.
 //
@@ -288,7 +297,11 @@ func (c *MockEvalContext) EvaluateReplaceTriggeredBy(hcl.Expression, instances.R
 // EvaluateBlockResultFunc and EvaluateExprResultFunc.
 func (c *MockEvalContext) installSimpleEval() {
 	c.EvaluateBlockResultFunc = func(body hcl.Body, schema *configschema.Block, self addrs.Referenceable, keyData InstanceKeyEvalData) (cty.Value, hcl.Body, tfdiags.Diagnostics) {
-		if scope := c.EvaluationScopeScope; scope != nil {
+		var scope = c.EvaluationScopeScope
+		if c.EvaluationScopeResultFunc != nil {
+			scope = c.EvaluationScopeResultFunc(self, nil, keyData)
+		}
+		if scope != nil {
 			// Fully-functional codepath.
 			var diags tfdiags.Diagnostics
 			body, diags = scope.ExpandBlock(body, schema)
@@ -308,7 +321,11 @@ func (c *MockEvalContext) installSimpleEval() {
 		return val, body, tfdiags.Diagnostics(nil).Append(hclDiags)
 	}
 	c.EvaluateExprResultFunc = func(expr hcl.Expression, wantType cty.Type, self addrs.Referenceable) (cty.Value, tfdiags.Diagnostics) {
-		if scope := c.EvaluationScopeScope; scope != nil {
+		var scope = c.EvaluationScopeScope
+		if c.EvaluationScopeResultFunc != nil {
+			scope = c.EvaluationScopeResultFunc(self, nil, EvalDataForNoInstanceKey)
+		}
+		if scope != nil {
 			// Fully-functional codepath.
 			return scope.EvalExpr(expr, wantType)
 		}
@@ -334,6 +351,11 @@ func (c *MockEvalContext) EvaluationScope(self addrs.Referenceable, source addrs
 	c.EvaluationScopeCalled = true
 	c.EvaluationScopeSelf = self
 	c.EvaluationScopeKeyData = keyData
+
+	if c.EvaluationScopeResultFunc != nil {
+		return c.EvaluationScopeResultFunc(self, source, keyData)
+	}
+
 	return c.EvaluationScopeScope
 }
 

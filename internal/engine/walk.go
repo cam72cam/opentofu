@@ -8,7 +8,6 @@ import (
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/checks"
 	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/configs/configschema"
 	"github.com/opentofu/opentofu/internal/instances"
 	"github.com/opentofu/opentofu/internal/lang"
 	"github.com/opentofu/opentofu/internal/lang/evalchecks"
@@ -79,7 +78,7 @@ func ModuleCall(data *WalkData, addr addrs.AbsModuleCall, config *configs.Module
 		return ModuleCallValue{}, diags
 	}
 
-	// expander hacks
+	// Legacy expander integration.  We should just be passing around RepetitionData instead.
 	expander := evalCtx.InstanceExpander()
 
 	childInstances := map[addrs.InstanceKey]ModuleValue{}
@@ -223,6 +222,8 @@ func ModuleCall(data *WalkData, addr addrs.AbsModuleCall, config *configs.Module
 			}()
 		}
 
+		wg.Wait()
+
 		return diags
 	}
 
@@ -246,13 +247,13 @@ func Module(data *WalkData, addr addrs.ModuleInstance, config *configs.Config, p
 
 	if config != nil {
 		// Legacy expander integration.  We should just be passing around RepetitionData instead.
-		repetitionData := parentEvalCtx.InstanceExpander().GetModuleInstanceRepetitionData(addr)
+		//repetitionData := parentEvalCtx.InstanceExpander().GetModuleInstanceRepetitionData(addr)
 
-		scopeForCaller := func(caller promise) *lang.Scope {
+		scopeForCaller := func(caller promise, instance instances.RepetitionData) *lang.Scope {
 			return &lang.Scope{
 				Data: &evalData{
 					caller:    caller,
-					instance:  repetitionData,
+					instance:  instance,
 					variables: variables,
 					locals:    locals,
 					resources: resources,
@@ -270,13 +271,11 @@ func Module(data *WalkData, addr addrs.ModuleInstance, config *configs.Config, p
 		}
 
 		evalContextFor := func(caller promise) tofu.EvalContext {
-			scope := scopeForCaller(caller)
-
 			// I think this can be stupid?
 			// This is just a hack for the variable input passthrough from parent -> child in the variable nodes
 			var varCache cty.Value
 
-			return &tofu.MockEvalContext{
+			evalCtx := &tofu.MockEvalContext{
 				PathPath:          addr,
 				ChangesChanges:    plans.NewChanges().SyncWrapper(),
 				StateState:        states.NewState().SyncWrapper(),
@@ -292,29 +291,18 @@ func Module(data *WalkData, addr addrs.ModuleInstance, config *configs.Config, p
 				},
 
 				// Evaluation
-				EvaluationScopeScope: scope,
-				EvaluateBlockResultFunc: func(
-					body hcl.Body,
-					schema *configschema.Block,
+				EvaluationScopeResultFunc: func(
 					self addrs.Referenceable,
+					source addrs.Referenceable,
 					keyData tofu.InstanceKeyEvalData,
-				) (cty.Value, hcl.Body, tfdiags.Diagnostics) {
-					var diags tfdiags.Diagnostics
-					body, evalDiags := scope.ExpandBlock(body, schema)
-					diags = diags.Append(evalDiags)
-					val, evalDiags := scope.EvalBlock(body, schema)
-					diags = diags.Append(evalDiags)
-					return val, body, diags
+				) *lang.Scope {
+					return scopeForCaller(caller, keyData)
 				},
-				EvaluateExprResultFunc: func(
-					expr hcl.Expression,
-					wantType cty.Type,
-					self addrs.Referenceable,
-				) (cty.Value, tfdiags.Diagnostics) {
-					return scope.EvalExpr(expr, wantType)
-				},
+
 				InstanceExpanderExpander: parentEvalCtx.InstanceExpander(),
 			}
+			evalCtx.InstallSimpleEval()
+			return evalCtx
 		}
 
 		for _, variable := range config.Module.Variables {
@@ -324,13 +312,7 @@ func Module(data *WalkData, addr addrs.ModuleInstance, config *configs.Config, p
 			varAddrAbs := varAddr.Absolute(addr)
 
 			variables[varAddr] = NewPromise[cty.Value](varAddrAbs, func() (cty.Value, tfdiags.Diagnostics) {
-				var expr hcl.Expression
-
-				if in, ok := input[varAddr]; ok {
-					expr = in.expr
-				}
-
-				return Variable(data, varAddrAbs, variable, evalContextFor(variables[varAddr]), expr, parentEvalCtx)
+				return Variable(data, varAddrAbs, variable, evalContextFor(variables[varAddr]), input[varAddr], parentEvalCtx)
 			})
 		}
 		for _, local := range config.Module.Locals {
@@ -459,8 +441,7 @@ func Variable(data *WalkData, addr addrs.AbsInputVariableInstance, config *confi
 		return cty.NilVal, diags
 	}
 
-	// HACK: Shift value from parent to child context
-	// TODO WithPath or Mock this is BROKEN
+	// HACK: Shift value from parent to child context (see mock hack)
 	_, call := addr.Module.CallInstance()
 	evalCtx.SetModuleCallArgument(
 		call, addr.Variable,
