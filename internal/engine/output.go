@@ -22,11 +22,15 @@ func NewOutput(ctx context.Context, addr addrs.AbsOutputValue, config *configs.O
 		evalCtx := scope.EvalContext(self)
 
 		// Make sure previous change is recorded
-		if change := priorChanges.OutputValue(addr); change != nil {
-			evalCtx.Changes().AppendOutputChange(change)
+		if priorChanges != nil {
+			if change := priorChanges.OutputValue(addr); change != nil {
+				evalCtx.Changes().AppendOutputChange(change)
+			}
 		}
-		if state := priorState.OutputValue(addr); state != nil {
-			evalCtx.State().SetOutputValue(addr, state.Value, state.Sensitive, state.Deprecated)
+		if priorState != nil {
+			if state := priorState.OutputValue(addr); state != nil {
+				evalCtx.State().SetOutputValue(addr, state.Value, state.Sensitive, state.Deprecated)
+			}
 		}
 
 		// TODO NodeDestroyableOutput
