@@ -8,7 +8,7 @@ import (
 )
 
 type Promise[T any] struct {
-	target  any
+	ident   fmt.Stringer
 	resolve func(self promise) (T, tfdiags.Diagnostics)
 
 	lock     sync.Mutex
@@ -20,7 +20,7 @@ type Promise[T any] struct {
 }
 
 type promise interface {
-	internalTarget() any
+	internalIdent() fmt.Stringer
 	addVisit(promise)
 }
 
@@ -34,9 +34,9 @@ type Blocked[T any] struct {
 	promise    promise
 }
 
-func NewPromise[T any](target any, resolve func(self promise) (T, tfdiags.Diagnostics)) *Promise[T] {
+func NewPromise[T any](ident fmt.Stringer, resolve func(self promise) (T, tfdiags.Diagnostics)) *Promise[T] {
 	p := &Promise[T]{
-		target:  &target, // PTR for hashable
+		ident:   ident, // PTR for hashable
 		resolve: resolve,
 		// TODO tune chan size
 		visitChan: make(chan promise, 100),
@@ -46,8 +46,8 @@ func NewPromise[T any](target any, resolve func(self promise) (T, tfdiags.Diagno
 	return p
 }
 
-func (p *Promise[T]) internalTarget() any {
-	return p.target
+func (p *Promise[T]) internalIdent() fmt.Stringer {
+	return p.ident
 }
 func (p *Promise[T]) addVisit(visit promise) {
 	p.visitChan <- visit
@@ -60,12 +60,12 @@ func (p *Promise[T]) manager() {
 		resultChan <- Result[T]{value, err}
 	}()
 
-	visits := map[any]promise{p.target: p}
+	visits := map[any]promise{p: p}
 	blocking := map[any]Blocked[T]{}
 	var waiters []Blocked[T]
 
 	debug := func(s string, args ...any) {
-		//fmt.Printf("%v: %s\n", p.target, fmt.Sprintf(s, args...))
+		//fmt.Printf("%v: %s\n", p.ident, fmt.Sprintf(s, args...))
 	}
 
 	writeResolved := func(result Result[T]) {
@@ -104,15 +104,15 @@ func (p *Promise[T]) manager() {
 				waiters = append(waiters, blocked)
 				continue
 			}
-			debug(">blocking %v", blocked.promise.internalTarget())
-			blocking[blocked.promise.internalTarget()] = blocked
+			debug(">blocking %v", blocked.promise.internalIdent())
+			blocking[blocked.promise] = blocked
 
 			// Cycle Check
-			if _, ok := visits[blocked.promise.internalTarget()]; ok {
+			if _, ok := visits[blocked.promise]; ok {
 				debug("cycle block")
 				// If we have visited the thing that we are now blocking
 				writeResolved(Result[T]{
-					diags: tfdiags.Diagnostics{}.Append(fmt.Errorf("Cyclic dependency between %v and %v", p.target, blocked.promise.internalTarget())),
+					diags: tfdiags.Diagnostics{}.Append(fmt.Errorf("Cyclic dependency between %s and %s", p.ident, blocked.promise.internalIdent())),
 				})
 				return
 			}
@@ -124,14 +124,14 @@ func (p *Promise[T]) manager() {
 			debug("<blocking")
 		case visit := <-p.visitChan:
 			debug(">visit")
-			visits[visit.internalTarget()] = visit
+			visits[visit] = visit
 
 			// Cycle Check
-			if blocked, ok := blocking[visit.internalTarget()]; ok {
+			if blocked, ok := blocking[visit]; ok {
 				debug("cycle visit")
 				// If we have visited something that we are blocking
 				writeResolved(Result[T]{
-					diags: tfdiags.Diagnostics{}.Append(fmt.Errorf("Cyclic dependency between %v and %v", p.target, blocked.promise.internalTarget())),
+					diags: tfdiags.Diagnostics{}.Append(fmt.Errorf("Cyclic dependency between %s and %s", p.ident, blocked.promise.internalIdent())),
 				})
 				return
 			}
@@ -149,7 +149,7 @@ func (p *Promise[T]) manager() {
 func (p *Promise[T]) Value(caller promise) (T, tfdiags.Diagnostics) {
 	p.lock.Lock()
 	if p.resolved != nil {
-		fmt.Printf("Early %v\n", p.target)
+		fmt.Printf("Early %v\n", p.ident)
 		p.lock.Unlock()
 		return p.resolved.value, p.resolved.diags
 	}

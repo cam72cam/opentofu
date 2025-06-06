@@ -2,20 +2,34 @@ package engine
 
 import (
 	"fmt"
+	"strconv"
 	"sync"
 	"testing"
 
+	"github.com/opentofu/opentofu/internal/tfdiags"
 	"github.com/zclconf/go-cty/cty"
 )
+
+type stringer string
+
+func (s stringer) String() string {
+	return string(s)
+}
+
+type istringer int
+
+func (s istringer) String() string {
+	return strconv.Itoa(int(s))
+}
 
 func TestSimpleValid(t *testing.T) {
 	var q *Promise[cty.Value]
 	var p *Promise[cty.Value]
 
-	p = NewPromise("var.foo", func() (cty.Value, error) {
+	p = NewPromise[cty.Value](stringer("var.foo"), func(_ promise) (cty.Value, tfdiags.Diagnostics) {
 		return cty.StringVal("Hello World"), nil
 	})
-	q = NewPromise("local.val", func() (cty.Value, error) {
+	q = NewPromise[cty.Value](stringer("local.val"), func(_ promise) (cty.Value, tfdiags.Diagnostics) {
 		return p.Value(q)
 	})
 
@@ -26,10 +40,10 @@ func TestSimpleCycle(t *testing.T) {
 	var q *Promise[cty.Value]
 	var p *Promise[cty.Value]
 
-	p = NewPromise(5, func() (cty.Value, error) {
+	p = NewPromise[cty.Value](istringer(5), func(_ promise) (cty.Value, tfdiags.Diagnostics) {
 		return q.Value(p)
 	})
-	q = NewPromise("z", func() (cty.Value, error) {
+	q = NewPromise[cty.Value](stringer("z"), func(_ promise) (cty.Value, tfdiags.Diagnostics) {
 		return p.Value(q)
 	})
 
@@ -41,7 +55,7 @@ func TestSingleCycle(t *testing.T) {
 	var n = 20
 	chain := make([]*Promise[cty.Value], n, n)
 	for i := 0; i < n; i++ {
-		chain[i] = NewPromise(i, func() (cty.Value, error) {
+		chain[i] = NewPromise[cty.Value](istringer(i), func(_ promise) (cty.Value, tfdiags.Diagnostics) {
 			return chain[(i+1)%n].Value(chain[i])
 		})
 	}
@@ -55,11 +69,11 @@ func TestParallelCycle(t *testing.T) {
 	chain := make([]*Promise[cty.Value], n, n)
 	for i := 0; i < n; i++ {
 		i := i
-		chain[i] = NewPromise(i, func() (cty.Value, error) {
+		chain[i] = NewPromise[cty.Value](istringer(i), func(_ promise) (cty.Value, tfdiags.Diagnostics) {
 			//time.Sleep(10 * time.Millisecond)
 			val, err := chain[(i+1)%n].Value(chain[i])
 			if err != nil {
-				err = fmt.Errorf("%v unavailable due to %w", i, err)
+				err = err.Append(fmt.Errorf("%v unavailable due", i))
 			}
 			return val, err
 		})
@@ -89,7 +103,7 @@ func TestParallelCrazy(t *testing.T) {
 	var n = 4000
 	chain := make([]*Promise[cty.Value], n, n)
 	for i := 0; i < n; i++ {
-		chain[i] = NewPromise(i, func() (cty.Value, error) {
+		chain[i] = NewPromise[cty.Value](istringer(i), func(_ promise) (cty.Value, tfdiags.Diagnostics) {
 			//time.Sleep(10 * time.Millisecond)
 			r := make(chan Result[cty.Value], 4)
 			go func() {
