@@ -62,7 +62,7 @@ func NewModule(ctx context.Context, addr addrs.ModuleInstance, config *configs.C
 			output := output
 
 			outputAddr := addrs.OutputValue{Name: output.Name}
-			promise, action, newDiags := NewOutput(ctx, outputAddr.Absolute(addr), output, priorChanges, scope, op)
+			promise, action, newDiags := NewOutput(ctx, outputAddr.Absolute(addr), output, priorChanges, priorState, scope, op)
 
 			scope.outputs[outputAddr] = promise
 			actions = append(actions, action)

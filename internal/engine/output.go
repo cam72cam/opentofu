@@ -12,7 +12,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-func NewOutput(ctx context.Context, addr addrs.AbsOutputValue, config *configs.Output, prior *plans.Changes, scope *Scope, op WalkOperation) (*Promise[cty.Value], Action, tfdiags.Diagnostics) {
+func NewOutput(ctx context.Context, addr addrs.AbsOutputValue, config *configs.Output, priorChanges *plans.Changes, priorState *states.State, scope *Scope, op WalkOperation) (*Promise[cty.Value], Action, tfdiags.Diagnostics) {
 	type Output struct {
 		state  *states.OutputValue
 		change *plans.OutputChangeSrc
@@ -21,11 +21,19 @@ func NewOutput(ctx context.Context, addr addrs.AbsOutputValue, config *configs.O
 	output := NewPromise[Output](addr, func(self promise) (Output, tfdiags.Diagnostics) {
 		evalCtx := scope.EvalContext(self)
 
+		// Make sure previous change is recorded
+		if change := priorChanges.OutputValue(addr); change != nil {
+			evalCtx.Changes().AppendOutputChange(change)
+		}
+		if state := priorState.OutputValue(addr); state != nil {
+			evalCtx.State().SetOutputValue(addr, state.Value, state.Sensitive, state.Deprecated)
+		}
+
 		// TODO NodeDestroyableOutput
 		node := &tofu.NodeApplyableOutput{
 			Addr:   addr,
 			Config: config,
-			Change: prior.OutputValue(addr),
+			Change: priorChanges.OutputValue(addr),
 			//TODO RefreshOnly:  o.RefreshOnly,
 			DestroyApply: op == walkDestroy || op == walkPlanDestroy,
 			Planning:     true, // Always true in the rest of the code base
