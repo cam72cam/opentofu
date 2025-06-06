@@ -36,7 +36,7 @@ type Blocked[T any] struct {
 
 func NewPromise[T any](target any, resolve func() (T, tfdiags.Diagnostics)) *Promise[T] {
 	p := &Promise[T]{
-		target:  target,
+		target:  &target, // PTR for hashable
 		resolve: resolve,
 		// TODO tune chan size
 		visitChan: make(chan promise, 100),

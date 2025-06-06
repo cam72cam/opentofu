@@ -7,17 +7,21 @@ package command
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"strings"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/backend"
 	"github.com/opentofu/opentofu/internal/command/arguments"
 	"github.com/opentofu/opentofu/internal/engine"
+	"github.com/opentofu/opentofu/internal/plans"
 	"github.com/opentofu/opentofu/internal/repl"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 	"github.com/opentofu/opentofu/internal/tofu"
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/mitchellh/cli"
 )
@@ -124,10 +128,20 @@ func (c *ConsoleCommand) Run(args []string) int {
 
 	//Config *configs.Config
 	if 1 == 1 {
-		root := engine.Build(lr.Config)
-		engine.AttachState(root, lr.InputState)
-		//spew.Dump(root)
-		c.showDiagnostics(root.Walk())
+		newCtx, cancel := context.WithCancel(ctx)
+		plan, state, diags := engine.Walk(&engine.WalkData{
+			Context: newCtx,
+			Cancel:  cancel,
+			Op:      2,
+
+			Config:       lr.Config,
+			InputState:   lr.InputState.SyncWrapper(),
+			InputChanges: plans.NewChanges().SyncWrapper(), //lr.Plan.Changes.SyncWrapper(),
+			InputVars:    map[addrs.InputVariable]*engine.Promise[cty.Value]{},
+		})
+		c.showDiagnostics(diags)
+		spew.Dump(plan)
+		spew.Dump(state)
 
 		return 1
 	}
