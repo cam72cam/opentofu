@@ -20,6 +20,7 @@ import (
 	"github.com/opentofu/opentofu/internal/engine"
 	"github.com/opentofu/opentofu/internal/logging"
 	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/opentofu/opentofu/internal/plugins"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/states/statefile"
 	"github.com/opentofu/opentofu/internal/states/statemgr"
@@ -128,6 +129,7 @@ func (b *Local) opApply(
 
 			Config:       lr.Config,
 			InputState:   lr.InputState,
+			Plugins:      lr.Core.Schemas().(plugins.Manager),
 			InputChanges: plans.NewChanges(),                             //lr.Plan.Changes.SyncWrapper(),
 			InputVars:    map[addrs.InputVariable]engine.VariableInput{}, //TODO
 		})
@@ -301,8 +303,10 @@ func (b *Local) opApply(
 			Op: 1,
 
 			Config:       lr.Config,
+			Plugins:      lr.Core.Schemas().(plugins.Manager),
+			Hooks:        lr.Core.Hooks(),
 			InputState:   lr.InputState,
-			InputChanges: plans.NewChanges(),                             //lr.Plan.Changes.SyncWrapper(),
+			InputChanges: plan.Changes,
 			InputVars:    map[addrs.InputVariable]engine.VariableInput{}, //TODO
 		})
 		applyState = state

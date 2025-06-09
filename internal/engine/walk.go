@@ -7,15 +7,20 @@ import (
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/opentofu/opentofu/internal/plugins"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/tofu"
 )
 
 // This is wired together a bit odd.  Instead of promising diagnostics as the "everything is done" value, it should instead return changes + state for each item
 type WalkData struct {
 	Context context.Context
 	Cancel  context.CancelFunc
+
 	Op      WalkOperation
+	Plugins plugins.Manager
+	Hooks   []tofu.Hook
 
 	Config       *configs.Config
 	InputState   *states.State
@@ -24,7 +29,7 @@ type WalkData struct {
 }
 
 func Walk(data *WalkData) (*plans.Changes, *states.State, tfdiags.Diagnostics) {
-	_, action, diags := NewModule(data.Context, addrs.RootModuleInstance, data.Config, data.InputChanges, data.InputState, nil, data.InputVars, data.Op)
+	_, action, diags := NewModule(data.Context, addrs.RootModuleInstance, data.Config, data.InputChanges, data.InputState, NewRootScope(data.Op, data.Plugins, data.Hooks), data.InputVars, data.Op)
 
 	//checks := checks.NewState(data.Config)
 	change := plans.NewChanges()

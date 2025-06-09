@@ -1,20 +1,26 @@
 package engine
 
 import (
+	"log"
+
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/checks"
 	"github.com/opentofu/opentofu/internal/instances"
 	"github.com/opentofu/opentofu/internal/lang"
 	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/opentofu/opentofu/internal/plugins"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/tofu"
 	"github.com/zclconf/go-cty/cty"
 )
 
 type Scope struct {
-	path      addrs.ModuleInstance
-	op        WalkOperation
-	expander  *instances.Expander
+	path     addrs.ModuleInstance
+	op       WalkOperation
+	expander *instances.Expander
+	hooks    []tofu.Hook
+	Plugins  plugins.Manager
+
 	variables map[addrs.InputVariable]*Promise[cty.Value]
 	locals    map[addrs.LocalValue]*Promise[cty.Value]
 	resources map[addrs.Resource]*Promise[cty.Value]
@@ -22,18 +28,30 @@ type Scope struct {
 	outputs   map[addrs.OutputValue]*Promise[cty.Value]
 }
 
-func NewScope(path addrs.ModuleInstance, op WalkOperation, parent *Scope) *Scope {
-	var expander *instances.Expander
-	if parent != nil {
-		expander = parent.expander
-	} else {
-		expander = instances.NewExpander()
-	}
-
+func NewRootScope(op WalkOperation, pluginManager plugins.Manager, hooks []tofu.Hook) *Scope {
 	return &Scope{
-		path:      path,
-		op:        op,
-		expander:  expander,
+		path:     addrs.RootModuleInstance,
+		op:       op,
+		expander: instances.NewExpander(),
+		hooks:    hooks,
+		Plugins:  pluginManager,
+
+		variables: map[addrs.InputVariable]*Promise[cty.Value]{},
+		locals:    map[addrs.LocalValue]*Promise[cty.Value]{},
+		resources: map[addrs.Resource]*Promise[cty.Value]{},
+		calls:     map[addrs.ModuleCall]*Promise[cty.Value]{},
+		outputs:   map[addrs.OutputValue]*Promise[cty.Value]{},
+	}
+}
+
+func NewScope(path addrs.ModuleInstance, parent *Scope) *Scope {
+	return &Scope{
+		path:     path,
+		op:       parent.op,
+		expander: parent.expander,
+		hooks:    parent.hooks,
+		Plugins:  parent.Plugins,
+
 		variables: map[addrs.InputVariable]*Promise[cty.Value]{},
 		locals:    map[addrs.LocalValue]*Promise[cty.Value]{},
 		resources: map[addrs.Resource]*Promise[cty.Value]{},
@@ -52,7 +70,28 @@ func (s *Scope) EvalContext(caller promise) tofu.EvalContext {
 		ChangesChanges:    plans.NewChanges().SyncWrapper(),
 		StateState:        states.NewState().SyncWrapper(),
 		RefreshStateState: states.NewState().SyncWrapper(),
+		PrevRunStateState: states.NewState().SyncWrapper(),
 		ChecksState:       checks.NewState(nil),
+		HookFn: func(fn func(tofu.Hook) (tofu.HookAction, error)) error {
+			// Lifted from BuiltinEvalContext
+			for _, h := range s.hooks {
+				action, err := fn(h)
+				if err != nil {
+					return err
+				}
+
+				switch action {
+				case tofu.HookActionContinue:
+					continue
+				case tofu.HookActionHalt:
+					// Return an early exit error to trigger an early exit
+					log.Printf("[WARN] Early exit triggered by hook: %T", h)
+					return nil
+				}
+			}
+
+			return nil
+		},
 
 		// Variables
 		GetVariableValueFunc: func(addr addrs.AbsInputVariableInstance) cty.Value {

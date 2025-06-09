@@ -34,8 +34,11 @@ type MockEvalContext struct {
 	StoppedValue  <-chan struct{}
 
 	HookCalled bool
-	HookHook   Hook
-	HookError  error
+	HookFn     func(
+		fn func(Hook) (HookAction, error),
+	) error // overrides the other values below, if set
+	HookHook  Hook
+	HookError error
 
 	InputCalled bool
 	InputInput  UIInput
@@ -177,6 +180,9 @@ func (c *MockEvalContext) Stopped() <-chan struct{} {
 
 func (c *MockEvalContext) Hook(fn func(Hook) (HookAction, error)) error {
 	c.HookCalled = true
+	if c.HookFn != nil {
+		return c.HookFn(fn)
+	}
 	if c.HookHook != nil {
 		if _, err := fn(c.HookHook); err != nil {
 			return err
@@ -308,7 +314,7 @@ func (c *MockEvalContext) installSimpleEval() {
 			if diags.HasErrors() {
 				return cty.DynamicVal, body, diags
 			}
-			val, evalDiags := c.EvaluationScopeScope.EvalBlock(body, schema)
+			val, evalDiags := scope.EvalBlock(body, schema)
 			diags = diags.Append(evalDiags)
 			if evalDiags.HasErrors() {
 				return cty.DynamicVal, body, diags

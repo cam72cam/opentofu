@@ -18,6 +18,7 @@ import (
 	"github.com/opentofu/opentofu/internal/logging"
 	"github.com/opentofu/opentofu/internal/plans"
 	"github.com/opentofu/opentofu/internal/plans/planfile"
+	"github.com/opentofu/opentofu/internal/plugins"
 	"github.com/opentofu/opentofu/internal/states/statefile"
 	"github.com/opentofu/opentofu/internal/states/statemgr"
 	"github.com/opentofu/opentofu/internal/tfdiags"
@@ -127,6 +128,7 @@ func (b *Local) opPlan(
 			Op: 2,
 
 			Config:       lr.Config,
+			Plugins:      lr.Core.Schemas().(plugins.Manager),
 			InputState:   lr.InputState,
 			InputChanges: plans.NewChanges(),                             //lr.Plan.Changes.SyncWrapper(),
 			InputVars:    map[addrs.InputVariable]engine.VariableInput{}, //TODO

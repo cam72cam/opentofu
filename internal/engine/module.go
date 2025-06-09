@@ -18,7 +18,7 @@ func NewModule(ctx context.Context, addr addrs.ModuleInstance, config *configs.C
 	var outputValue *Promise[cty.Value]
 
 	if config != nil {
-		scope := NewScope(addr, op, parentScope)
+		scope := NewScope(addr, parentScope)
 
 		for _, variable := range config.Module.Variables {
 			variable := variable
@@ -44,7 +44,10 @@ func NewModule(ctx context.Context, addr addrs.ModuleInstance, config *configs.C
 			resource := resource
 
 			resAddr := addrs.Resource{Name: resource.Name, Type: resource.Type, Mode: addrs.ManagedResourceMode}
-			scope.resources[resAddr] = nil // TODO
+			promise, action, newDiags := NewResource(ctx, resAddr.Absolute(addr), resource, priorChanges, priorState, scope, op)
+			scope.resources[resAddr] = promise
+			actions = append(actions, action)
+			diags = diags.Append(newDiags)
 		}
 		// TODO DataResources
 		for _, call := range config.Module.ModuleCalls {

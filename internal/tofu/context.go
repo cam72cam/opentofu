@@ -96,6 +96,10 @@ type Context struct {
 	encryption encryption.Encryption
 }
 
+func (c *Context) Hooks() []Hook {
+	return c.hooks
+}
+
 // (additional methods on Context can be found in context_*.go files.)
 
 // NewContext creates a new Context structure.
