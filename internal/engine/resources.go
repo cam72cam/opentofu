@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"sync"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/opentofu/opentofu/internal/addrs"
@@ -152,6 +153,12 @@ func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Re
 	return outputValue, action, nil
 }
 
+var (
+	// Until we have proper providers wired in to this system, this is a hack for testing unconfigured providers
+	runningProviders = map[addrs.Provider]providers.Interface{}
+	providersLock    sync.Mutex
+)
+
 func NewResourceInstance(ctx context.Context, addr addrs.AbsResourceInstance, config *configs.Resource, priorChanges *plans.Changes, priorState *states.State, scope *Scope, op WalkOperation) (*Promise[cty.Value], Action, tfdiags.Diagnostics) {
 
 	type Resource struct {
@@ -219,8 +226,6 @@ func NewResourceInstance(ctx context.Context, addr addrs.AbsResourceInstance, co
 			// During import we may generate configuration for a resource, which needs
 			// to be stored in the final change.
 			//TODO generatedConfigHCL string
-
-			ResolvedProviderKey: addrs.NoKey, // TODO
 		}
 
 		// Make sure previous change is recorded
@@ -278,29 +283,38 @@ func NewResourceInstance(ctx context.Context, addr addrs.AbsResourceInstance, co
 			return Resource{}, diags.Append(err)
 		}
 		// TODO use actually resolved provider
-		mock.ProviderProvider, err = scope.Plugins.NewProviderInstance(abstract.Provider())
-		if err != nil {
-			return Resource{}, diags.Append(err)
-		}
-		// TODO HACK actually configure resolved provider
-		{
-
-			configSchema, _ := scope.Plugins.ProviderConfigSchema(abstract.Provider())
-			configBody := hcl2shim.SynthBody(abstract.Provider().String(), make(map[string]cty.Value))
-			configVal, _, evalDiags := evalCtx.EvaluateBlock(configBody, configSchema, nil, tofu.EvalDataForNoInstanceKey)
-			if evalDiags.HasErrors() {
-				return Resource{}, diags.Append(evalDiags)
+		providersLock.Lock()
+		if _, ok := runningProviders[abstract.Provider()]; !ok {
+			println("START")
+			runningProviders[abstract.Provider()], err = scope.Plugins.NewProviderInstance(abstract.Provider())
+			if err != nil {
+				providersLock.Unlock()
+				return Resource{}, diags.Append(err)
 			}
+			// TODO HACK actually configure resolved provider
+			{
+				configSchema, _ := scope.Plugins.ProviderConfigSchema(abstract.Provider())
+				configBody := hcl2shim.SynthBody(abstract.Provider().String(), make(map[string]cty.Value))
+				configVal, _, evalDiags := evalCtx.EvaluateBlock(configBody, configSchema, nil, tofu.EvalDataForNoInstanceKey)
+				if evalDiags.HasErrors() {
+					providersLock.Unlock()
+					return Resource{}, diags.Append(evalDiags)
+				}
 
-			cpr := mock.ProviderProvider.ConfigureProvider(ctx, providers.ConfigureProviderRequest{
-				TerraformVersion: "1.10.0",
-				Config:           configVal,
-			})
-			diags = diags.Append(cpr.Diagnostics)
-			if diags.HasErrors() {
-				return Resource{}, diags
+				cpr := runningProviders[abstract.Provider()].ConfigureProvider(ctx, providers.ConfigureProviderRequest{
+					TerraformVersion: "1.10.0",
+					Config:           configVal,
+				})
+				diags = diags.Append(cpr.Diagnostics)
+				if diags.HasErrors() {
+					providersLock.Unlock()
+					return Resource{}, diags
+				}
 			}
 		}
+		mock.ProviderProvider = runningProviders[abstract.Provider()]
+
+		providersLock.Unlock()
 
 		resource := Resource{}
 		if op == walkPlan {
