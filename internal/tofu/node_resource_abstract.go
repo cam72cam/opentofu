@@ -495,7 +495,7 @@ func (n *NodeAbstractResource) DotNode(name string, opts *dag.DotOpts) *dag.DotN
 // eval is the only change we get to set the resource "each mode" to list
 // in that case, allowing expression evaluation to see it as a zero-element list
 // rather than as not set at all.
-func (n *NodeAbstractResource) writeResourceState(evalCtx EvalContext, addr addrs.AbsResource) (diags tfdiags.Diagnostics) {
+func (n *NodeAbstractResource) WriteResourceState(evalCtx EvalContext, addr addrs.AbsResource) (diags tfdiags.Diagnostics) {
 	state := evalCtx.State()
 
 	// We'll record our expansion decision in the shared "expander" object

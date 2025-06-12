@@ -97,6 +97,23 @@ func (e *Expander) SetResourceForEach(moduleAddr addrs.ModuleInstance, resourceA
 	e.setResourceExpansion(moduleAddr, resourceAddr, expansionForEach(mapping))
 }
 
+func (e *Expander) ExpandAbsModuleCall(addr addrs.AbsModuleCall) []addrs.ModuleInstance {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	parentMod := e.findModule(addr.Module)
+	exp, ok := parentMod.moduleCalls[addrs.ModuleCall{Name: addr.Call.Name}]
+	if !ok {
+		panic(fmt.Sprintf("no expansion has been registered for %s", addr))
+	}
+
+	var ret []addrs.ModuleInstance
+	for _, key := range exp.instanceKeys() {
+		ret = append(ret, addr.Instance(key))
+	}
+	return ret
+}
+
 // ExpandModule finds the exhaustive set of module instances resulting from
 // the expansion of the given module and all of its ancestor modules.
 //

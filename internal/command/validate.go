@@ -15,6 +15,8 @@ import (
 	"github.com/opentofu/opentofu/internal/command/arguments"
 	"github.com/opentofu/opentofu/internal/command/views"
 	"github.com/opentofu/opentofu/internal/configs"
+	"github.com/opentofu/opentofu/internal/engine"
+	"github.com/opentofu/opentofu/internal/plugins"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 	"github.com/opentofu/opentofu/internal/tofu"
 )
@@ -119,7 +121,8 @@ func (c *ValidateCommand) validate(ctx context.Context, dir, testDir string, noT
 			return diags
 		}
 
-		return diags.Append(tfCtx.Validate(ctx, cfg))
+		//return diags.Append(tfCtx.Validate(ctx, cfg))
+		return engine.WalkValidate(ctx, cfg, tfCtx.Schemas().(plugins.Manager), tfCtx.Hooks())
 	}
 
 	diags = diags.Append(validate(cfg))

@@ -54,7 +54,7 @@ func (b *Local) opApply(
 	runningOp *backend.RunningOperation) {
 	log.Printf("[INFO] backend/local: starting Apply operation")
 
-	var diags, moreDiags tfdiags.Diagnostics
+	var diags tfdiags.Diagnostics
 
 	// For the moment we have a bit of a tangled mess of context.Context here, for
 	// historical reasons. Hopefully we'll clean this up one day, but here's the
@@ -122,32 +122,29 @@ func (b *Local) opApply(
 		// Perform the plan
 		log.Printf("[INFO] backend/local: apply calling Plan")
 		//plan, moreDiags = lr.Core.Plan(ctx, lr.Config, lr.InputState, lr.PlanOpts)
-		changes, state, diags := engine.Walk(&engine.WalkData{
-			Context: ctx,
-			//Cancel:  cancel,
-			Op: 2,
 
-			Config:       lr.Config,
-			InputState:   lr.InputState,
-			Plugins:      lr.Core.Schemas().(plugins.Manager),
-			InputChanges: plans.NewChanges(),                             //lr.Plan.Changes.SyncWrapper(),
-			InputVars:    map[addrs.InputVariable]engine.VariableInput{}, //TODO
-		})
+		data, moreDiags := engine.WalkPlan(
+			ctx,
+			lr.Config,
+			lr.Core.Schemas().(plugins.Manager),
+			lr.Core.Hooks(),
+			lr.InputState,
+			engine.VariableInputs{}, //TODO
+		)
 
 		plan = &plans.Plan{
 			UIMode:  lr.PlanOpts.Mode,
-			Changes: changes,
+			Changes: data.Changes,
 			//DriftedResources:   driftedResources,
-			PrevRunState: lr.InputState,
-			PriorState:   lr.InputState,
-			PlannedState: state,
+			PrevRunState: data.PrevRun,
+			PriorState:   data.Refresh,
+			PlannedState: data.State,
 			//ExternalReferences: opts.ExternalReferences,
 			//Checks:             states.NewCheckResults(walker.Checks),
 			//Timestamp:          timestamp,
 
 			// Other fields get populated by Context.Plan after we return
 		}
-		moreDiags = diags
 
 		diags = diags.Append(moreDiags)
 		if moreDiags.HasErrors() {
@@ -297,18 +294,15 @@ func (b *Local) opApply(
 		log.Printf("[INFO] backend/local: apply calling Apply")
 		//applyState, applyDiags = lr.Core.Apply(ctx, plan, lr.Config)
 
-		_, state, diags := engine.Walk(&engine.WalkData{
-			Context: ctx,
-			//Cancel:  cancel,
-			Op: 1,
-
-			Config:       lr.Config,
-			Plugins:      lr.Core.Schemas().(plugins.Manager),
-			Hooks:        lr.Core.Hooks(),
-			InputState:   lr.InputState,
-			InputChanges: plan.Changes,
-			InputVars:    map[addrs.InputVariable]engine.VariableInput{}, //TODO
-		})
+		state, diags := engine.WalkApply(
+			ctx,
+			lr.Config,
+			lr.Core.Schemas().(plugins.Manager),
+			lr.Core.Hooks(),
+			plan.Changes,
+			plan.PriorState,
+			engine.VariableInputs{}, //TODO
+		)
 		applyState = state
 		applyDiags = diags
 	}()

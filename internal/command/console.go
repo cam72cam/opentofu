@@ -7,17 +7,13 @@ package command
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"os"
 	"strings"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/backend"
 	"github.com/opentofu/opentofu/internal/command/arguments"
-	"github.com/opentofu/opentofu/internal/engine"
-	"github.com/opentofu/opentofu/internal/plans"
 	"github.com/opentofu/opentofu/internal/repl"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 	"github.com/opentofu/opentofu/internal/tofu"
@@ -122,26 +118,6 @@ func (c *ConsoleCommand) Run(args []string) int {
 	diags = diags.Append(ctxDiags)
 	if ctxDiags.HasErrors() {
 		c.showDiagnostics(diags)
-		return 1
-	}
-
-	//Config *configs.Config
-	if 1 == 1 {
-		newCtx, cancel := context.WithCancel(ctx)
-		plan, state, diags := engine.Walk(&engine.WalkData{
-			Context: newCtx,
-			Cancel:  cancel,
-			Op:      2,
-
-			Config:       lr.Config,
-			InputState:   lr.InputState,
-			InputChanges: plans.NewChanges(),                             //lr.Plan.Changes.SyncWrapper(),
-			InputVars:    map[addrs.InputVariable]engine.VariableInput{}, //TODO
-		})
-		c.showDiagnostics(diags)
-		spew.Dump(plan)
-		spew.Dump(state)
-
 		return 1
 	}
 

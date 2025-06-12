@@ -12,41 +12,54 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-func NewOutput(ctx context.Context, addr addrs.AbsOutputValue, config *configs.Output, priorChanges *plans.Changes, priorState *states.State, scope *Scope, op WalkOperation) (*Promise[cty.Value], Action, tfdiags.Diagnostics) {
-	type Output struct {
-		state  *states.OutputValue
-		change *plans.OutputChangeSrc
-	}
+func NewOutputValidate(ctx context.Context, addr addrs.AbsOutputValue, config *configs.Output, scope *Scope) (*Promise[cty.Value], Validate, tfdiags.Diagnostics) {
+	value := NewPromise[cty.Value](addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
+		evalCtx := scope.EvalContext(self)
+		node := &tofu.NodeApplyableOutput{
+			Addr:         addr,
+			Config:       config,
+			DestroyApply: false,
+			Planning:     true, // Always true in the rest of the code base
+		}
+		diags := node.Execute(ctx, evalCtx, tofu.WalkOperation(walkValidate))
 
+		var result cty.Value
+		if out := evalCtx.State().OutputValue(addr); out != nil {
+			result = out.Value
+		}
+
+		return result, diags
+	})
+	return value, ValidatePromise(value), nil
+}
+
+func NewOutputPlan(ctx context.Context, addr addrs.AbsOutputValue, config *configs.Output, priorState *states.State, scope *Scope) (*Promise[cty.Value], Plan, tfdiags.Diagnostics) {
+	type Output struct {
+		state   *states.OutputValue
+		refresh *states.OutputValue
+		change  *plans.OutputChangeSrc
+	}
 	output := NewPromise[Output](addr, func(self promise) (Output, tfdiags.Diagnostics) {
 		evalCtx := scope.EvalContext(self)
 
-		// Make sure previous change is recorded
-		if priorChanges != nil {
-			if change := priorChanges.OutputValue(addr); change != nil {
-				evalCtx.Changes().AppendOutputChange(change)
-			}
-		}
-		if priorState != nil {
-			if state := priorState.OutputValue(addr); state != nil {
-				evalCtx.State().SetOutputValue(addr, state.Value, state.Sensitive, state.Deprecated)
-			}
+		if state := priorState.OutputValue(addr); state != nil {
+			evalCtx.State().SetOutputValue(addr, state.Value, state.Sensitive, state.Deprecated)
 		}
 
 		// TODO NodeDestroyableOutput
 		node := &tofu.NodeApplyableOutput{
 			Addr:   addr,
 			Config: config,
-			Change: priorChanges.OutputValue(addr),
 			//TODO RefreshOnly:  o.RefreshOnly,
-			DestroyApply: op == walkDestroy || op == walkPlanDestroy,
-			Planning:     true, // Always true in the rest of the code base
+			DestroyApply: false, // TODO op == walkDestroy || op == walkPlanDestroy,
+			Planning:     true,  // Always true in the rest of the code base
 		}
-		diags := node.Execute(ctx, evalCtx, tofu.WalkOperation(op))
+		diags := node.Execute(ctx, evalCtx, tofu.WalkOperation(walkPlan))
 
 		return Output{
-			evalCtx.State().OutputValue(node.Addr),
-			evalCtx.Changes().GetOutputChange(addr),
+			state:   evalCtx.State().OutputValue(node.Addr),
+			refresh: evalCtx.RefreshState().OutputValue(node.Addr),
+			change:  evalCtx.Changes().GetOutputChange(addr),
 		}, diags
 	})
 
@@ -59,16 +72,64 @@ func NewOutput(ctx context.Context, addr addrs.AbsOutputValue, config *configs.O
 		return cty.NilVal, diags
 	})
 
-	action := func(change *plans.ChangesSync, state *states.SyncState) tfdiags.Diagnostics {
+	plan := func(data PlanData) tfdiags.Diagnostics {
 		out, diags := output.Value(nil)
 		if out.state != nil {
-			state.SetOutputValue(addr, out.state.Value, out.state.Sensitive, out.state.Deprecated)
+			data.State.SetOutputValue(addr, out.state.Value, out.state.Sensitive, out.state.Deprecated)
+		}
+		if out.refresh != nil {
+			data.Refresh.SetOutputValue(addr, out.refresh.Value, out.refresh.Sensitive, out.refresh.Deprecated)
 		}
 		if out.change != nil {
-			change.AppendOutputChange(out.change)
+			data.Changes.AppendOutputChange(out.change)
 		}
 		return diags
 	}
 
-	return outputValue, action, nil
+	return outputValue, plan, nil
+}
+
+func NewOutputApply(ctx context.Context, addr addrs.AbsOutputValue, config *configs.Output, priorChanges *plans.Changes, priorState *states.State, scope *Scope) (*Promise[cty.Value], Apply, tfdiags.Diagnostics) {
+	output := NewPromise[*states.OutputValue](addr, func(self promise) (*states.OutputValue, tfdiags.Diagnostics) {
+		evalCtx := scope.EvalContext(self)
+
+		if change := priorChanges.OutputValue(addr); change != nil {
+			evalCtx.Changes().AppendOutputChange(change)
+		}
+		if state := priorState.OutputValue(addr); state != nil {
+			evalCtx.State().SetOutputValue(addr, state.Value, state.Sensitive, state.Deprecated)
+		}
+
+		// TODO NodeDestroyableOutput
+		node := &tofu.NodeApplyableOutput{
+			Addr:   addr,
+			Config: config,
+			Change: priorChanges.OutputValue(addr),
+			//TODO RefreshOnly:  o.RefreshOnly,
+			DestroyApply: false, // TODO op == walkDestroy || op == walkApplyDestroy,
+			Planning:     true,  // Always true in the rest of the code base
+		}
+		diags := node.Execute(ctx, evalCtx, tofu.WalkOperation(walkApply))
+
+		return evalCtx.State().OutputValue(node.Addr), diags
+	})
+
+	// TODO better promise refinement
+	outputValue := NewPromise[cty.Value](&addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
+		out, diags := output.Value(self)
+		if out != nil {
+			return out.Value, diags
+		}
+		return cty.NilVal, diags
+	})
+
+	apply := func(data ApplyData) tfdiags.Diagnostics {
+		out, diags := output.Value(nil)
+		if out != nil {
+			data.State.SetOutputValue(addr, out.Value, out.Sensitive, out.Deprecated)
+		}
+		return diags
+	}
+
+	return outputValue, apply, nil
 }

@@ -110,7 +110,7 @@ func (t *ModuleExpansionTransformer) transform(g *Graph, c *configs.Config, tree
 	_, call := c.Path.Call()
 	modCall := c.Parent.Module.ModuleCalls[call.Name]
 
-	n := &nodeExpandModule{
+	n := &NodeExpandModule{
 		Addr:       c.Path,
 		Config:     c.Module,
 		ModuleCall: modCall,

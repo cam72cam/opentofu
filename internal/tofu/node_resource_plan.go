@@ -16,10 +16,10 @@ import (
 	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
-// nodeExpandPlannableResource represents an addrs.ConfigResource and implements
+// NodeExpandPlannableResource represents an addrs.ConfigResource and implements
 // DynamicExpand to a subgraph containing all of the addrs.AbsResourceInstance
 // resulting from both the containing module and resource-specific expansion.
-type nodeExpandPlannableResource struct {
+type NodeExpandPlannableResource struct {
 	*NodeAbstractResource
 
 	// ForceCreateBeforeDestroy might be set via our GraphNodeDestroyerCBD
@@ -51,31 +51,31 @@ type nodeExpandPlannableResource struct {
 }
 
 var (
-	_ GraphNodeDestroyerCBD         = (*nodeExpandPlannableResource)(nil)
-	_ GraphNodeDynamicExpandable    = (*nodeExpandPlannableResource)(nil)
-	_ GraphNodeReferenceable        = (*nodeExpandPlannableResource)(nil)
-	_ GraphNodeReferencer           = (*nodeExpandPlannableResource)(nil)
-	_ GraphNodeConfigResource       = (*nodeExpandPlannableResource)(nil)
-	_ GraphNodeAttachResourceConfig = (*nodeExpandPlannableResource)(nil)
-	_ GraphNodeAttachDependencies   = (*nodeExpandPlannableResource)(nil)
-	_ GraphNodeTargetable           = (*nodeExpandPlannableResource)(nil)
-	_ graphNodeExpandsInstances     = (*nodeExpandPlannableResource)(nil)
+	_ GraphNodeDestroyerCBD         = (*NodeExpandPlannableResource)(nil)
+	_ GraphNodeDynamicExpandable    = (*NodeExpandPlannableResource)(nil)
+	_ GraphNodeReferenceable        = (*NodeExpandPlannableResource)(nil)
+	_ GraphNodeReferencer           = (*NodeExpandPlannableResource)(nil)
+	_ GraphNodeConfigResource       = (*NodeExpandPlannableResource)(nil)
+	_ GraphNodeAttachResourceConfig = (*NodeExpandPlannableResource)(nil)
+	_ GraphNodeAttachDependencies   = (*NodeExpandPlannableResource)(nil)
+	_ GraphNodeTargetable           = (*NodeExpandPlannableResource)(nil)
+	_ graphNodeExpandsInstances     = (*NodeExpandPlannableResource)(nil)
 )
 
-func (n *nodeExpandPlannableResource) Name() string {
+func (n *NodeExpandPlannableResource) Name() string {
 	return n.NodeAbstractResource.Name() + " (expand)"
 }
 
-func (n *nodeExpandPlannableResource) expandsInstances() {
+func (n *NodeExpandPlannableResource) expandsInstances() {
 }
 
 // GraphNodeAttachDependencies
-func (n *nodeExpandPlannableResource) AttachDependencies(deps []addrs.ConfigResource) {
+func (n *NodeExpandPlannableResource) AttachDependencies(deps []addrs.ConfigResource) {
 	n.dependencies = deps
 }
 
 // GraphNodeDestroyerCBD
-func (n *nodeExpandPlannableResource) CreateBeforeDestroy() bool {
+func (n *NodeExpandPlannableResource) CreateBeforeDestroy() bool {
 	if n.ForceCreateBeforeDestroy != nil {
 		return *n.ForceCreateBeforeDestroy
 	}
@@ -89,12 +89,12 @@ func (n *nodeExpandPlannableResource) CreateBeforeDestroy() bool {
 }
 
 // GraphNodeDestroyerCBD
-func (n *nodeExpandPlannableResource) ModifyCreateBeforeDestroy(v bool) error {
+func (n *NodeExpandPlannableResource) ModifyCreateBeforeDestroy(v bool) error {
 	n.ForceCreateBeforeDestroy = &v
 	return nil
 }
 
-func (n *nodeExpandPlannableResource) DynamicExpand(evalCtx EvalContext) (*Graph, error) {
+func (n *NodeExpandPlannableResource) DynamicExpand(evalCtx EvalContext) (*Graph, error) {
 	var g Graph
 
 	expander := evalCtx.InstanceExpander()
@@ -211,7 +211,7 @@ func (n *nodeExpandPlannableResource) DynamicExpand(evalCtx EvalContext) (*Graph
 // within, the caller must register the final superset instAddrs with the
 // checks subsystem so that it knows the fully expanded set of checkable
 // object instances for this resource instance.
-func (n *nodeExpandPlannableResource) expandResourceInstances(ctx context.Context, globalCtx EvalContext, resAddr addrs.AbsResource, g *Graph, instAddrs addrs.Set[addrs.Checkable]) error {
+func (n *NodeExpandPlannableResource) expandResourceInstances(ctx context.Context, globalCtx EvalContext, resAddr addrs.AbsResource, g *Graph, instAddrs addrs.Set[addrs.Checkable]) error {
 	var diags tfdiags.Diagnostics
 
 	// The rest of our work here needs to know which module instance it's
@@ -221,7 +221,7 @@ func (n *nodeExpandPlannableResource) expandResourceInstances(ctx context.Contex
 	// writeResourceState is responsible for informing the expander of what
 	// repetition mode this resource has, which allows expander.ExpandResource
 	// to work below.
-	moreDiags := n.writeResourceState(moduleCtx, resAddr)
+	moreDiags := n.WriteResourceState(moduleCtx, resAddr)
 	diags = diags.Append(moreDiags)
 	if moreDiags.HasErrors() {
 		return diags.ErrWithWarnings()
@@ -316,7 +316,7 @@ func (n *nodeExpandPlannableResource) expandResourceInstances(ctx context.Contex
 	return diags.ErrWithWarnings()
 }
 
-func (n *nodeExpandPlannableResource) resourceInstanceSubgraph(ctx context.Context, evalCtx EvalContext, addr addrs.AbsResource, instanceAddrs []addrs.AbsResourceInstance) (*Graph, error) {
+func (n *NodeExpandPlannableResource) resourceInstanceSubgraph(ctx context.Context, evalCtx EvalContext, addr addrs.AbsResource, instanceAddrs []addrs.AbsResourceInstance) (*Graph, error) {
 	var diags tfdiags.Diagnostics
 
 	var commandLineImportTargets []CommandLineImportTarget

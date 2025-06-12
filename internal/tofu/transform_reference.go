@@ -373,7 +373,7 @@ func (m ReferenceMap) dependsOn(g *Graph, depender graphNodeDependsOn) ([]dag.Ve
 	refs = append(refs, m.dataDependsOn(depender)...)
 
 	// This is where we record that a module has depends_on configured.
-	if _, ok := depender.(*nodeExpandModule); ok && len(refs) > 0 {
+	if _, ok := depender.(*NodeExpandModule); ok && len(refs) > 0 {
 		fromModule = true
 	}
 
@@ -466,7 +466,7 @@ func (m ReferenceMap) parentModuleDependsOn(g *Graph, depender graphNodeDependsO
 	// look one step away.
 	for _, v := range g.DownEdges(depender) {
 		// we're only concerned with module expansion nodes here.
-		mod, ok := v.(*nodeExpandModule)
+		mod, ok := v.(*NodeExpandModule)
 		if !ok {
 			continue
 		}

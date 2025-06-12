@@ -15,12 +15,34 @@ type VariableInput struct {
 	expr  hcl.Expression
 	scope *Scope
 }
+type VariableInputs map[addrs.InputVariable]VariableInput
 
-type Variable struct {
-	*Promise[cty.Value]
+func NewVariableValidate(ctx context.Context, addr addrs.AbsInputVariableInstance, config *configs.Variable, caller VariableInput, scope *Scope) (*Promise[cty.Value], Validate, tfdiags.Diagnostics) {
+	value, diags := NewVariable(ctx, addr, config, caller, scope, walkValidate)
+	return value, ValidatePromise(value), diags
 }
 
-func NewVariable(ctx context.Context, addr addrs.AbsInputVariableInstance, config *configs.Variable, caller VariableInput, scope *Scope, op WalkOperation) (*Promise[cty.Value], Action, tfdiags.Diagnostics) {
+func NewVariablePlan(ctx context.Context, addr addrs.AbsInputVariableInstance, config *configs.Variable, caller VariableInput, scope *Scope) (*Promise[cty.Value], Plan, tfdiags.Diagnostics) {
+	value, diags := NewVariable(ctx, addr, config, caller, scope, walkPlan)
+	plan := func(_ PlanData) tfdiags.Diagnostics {
+		// Variable values are not saved in the plan changes or state
+		_, diags := value.Value(nil)
+		return diags
+	}
+	return value, plan, diags
+}
+
+func NewVariableApply(ctx context.Context, addr addrs.AbsInputVariableInstance, config *configs.Variable, caller VariableInput, scope *Scope) (*Promise[cty.Value], Apply, tfdiags.Diagnostics) {
+	value, diags := NewVariable(ctx, addr, config, caller, scope, walkApply)
+	plan := func(_ ApplyData) tfdiags.Diagnostics {
+		// Variable values are not saved in the plan changes or state
+		_, diags := value.Value(nil)
+		return diags
+	}
+	return value, plan, diags
+}
+
+func NewVariable(ctx context.Context, addr addrs.AbsInputVariableInstance, config *configs.Variable, caller VariableInput, scope *Scope, op WalkOperation) (*Promise[cty.Value], tfdiags.Diagnostics) {
 	variable := NewPromise[cty.Value](addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
 		evalCtx := scope.EvalContext(self)
 		parentEvalCtx := caller.scope.EvalContext(self)
@@ -57,6 +79,6 @@ func NewVariable(ctx context.Context, addr addrs.AbsInputVariableInstance, confi
 		return parentEvalCtx.GetVariableValue(addr), diags
 	})
 
-	return variable, nil, nil
+	return variable, nil
 
 }

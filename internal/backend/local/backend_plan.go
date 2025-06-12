@@ -11,7 +11,6 @@ import (
 	"io"
 	"log"
 
-	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/backend"
 	"github.com/opentofu/opentofu/internal/engine"
 	"github.com/opentofu/opentofu/internal/genconfig"
@@ -122,25 +121,22 @@ func (b *Local) opPlan(
 		log.Printf("[INFO] backend/local: plan calling Plan")
 		//plan, planDiags = lr.Core.Plan(ctx, lr.Config, lr.InputState, lr.PlanOpts)
 
-		changes, state, diags := engine.Walk(&engine.WalkData{
-			Context: ctx,
-			//Cancel:  cancel,
-			Op: 2,
-
-			Config:       lr.Config,
-			Plugins:      lr.Core.Schemas().(plugins.Manager),
-			InputState:   lr.InputState,
-			InputChanges: plans.NewChanges(),                             //lr.Plan.Changes.SyncWrapper(),
-			InputVars:    map[addrs.InputVariable]engine.VariableInput{}, //TODO
-		})
+		data, diags := engine.WalkPlan(
+			ctx,
+			lr.Config,
+			lr.Core.Schemas().(plugins.Manager),
+			lr.Core.Hooks(),
+			lr.InputState,
+			engine.VariableInputs{}, //TODO
+		)
 
 		plan = &plans.Plan{
 			UIMode:  lr.PlanOpts.Mode,
-			Changes: changes,
+			Changes: data.Changes,
 			//DriftedResources:   driftedResources,
-			PrevRunState: lr.InputState,
-			PriorState:   lr.InputState,
-			PlannedState: state,
+			PrevRunState: data.PrevRun,
+			PriorState:   data.Refresh,
+			PlannedState: data.State,
 			//ExternalReferences: opts.ExternalReferences,
 			//Checks:             states.NewCheckResults(walker.Checks),
 			//Timestamp:          timestamp,

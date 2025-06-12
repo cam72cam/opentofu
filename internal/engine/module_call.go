@@ -6,7 +6,6 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/lang/evalchecks"
 	"github.com/opentofu/opentofu/internal/plans"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/tfdiags"
@@ -14,99 +13,143 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *configs.ModuleCall, moduleConfig *configs.Config, priorChanges *plans.Changes, priorState *states.State, scope *Scope, op WalkOperation) (*Promise[cty.Value], Action, tfdiags.Diagnostics) {
+func getModuleCallInputExpressions(config *configs.ModuleCall, moduleConfig *configs.Config) (map[string]hcl.Expression, tfdiags.Diagnostics) {
+	// Lifted from transform_module_variable
+
+	// We need to construct a schema for the expected call arguments based on
+	// the configured variables in our config, which we can then use to
+	// decode the content of the call block.
+	schema := &hcl.BodySchema{}
+	for _, v := range moduleConfig.Module.Variables {
+		schema.Attributes = append(schema.Attributes, hcl.AttributeSchema{
+			Name:     v.Name,
+			Required: v.Default == cty.NilVal,
+		})
+	}
+
+	content, contentDiags := config.Config.Content(schema)
+	diags := tfdiags.Diagnostics{}.Append(contentDiags)
+	if diags.HasErrors() {
+		// Validation code elsewhere should deal with any errors before we
+		// get in here, but we'll report them out here just in case, to
+		// avoid crashes.
+		return nil, diags
+	}
+
+	exprs := map[string]hcl.Expression{}
+
+	for name, attr := range content.Attributes {
+		exprs[name] = attr.Expr
+	}
+
+	return exprs, diags
+
+}
+
+func NewModuleCallValidate(ctx context.Context, addr addrs.AbsModuleCall, config *configs.ModuleCall, moduleConfig *configs.Config, scope *Scope) (*Promise[cty.Value], Validate, tfdiags.Diagnostics) {
+	// Validate only ever does a single expansion
 
 	type expanded struct {
-		instances map[addrs.InstanceKey]*Promise[cty.Value]
-		actions   Actions
+		instance *Promise[cty.Value]
+		validate Validate
 	}
 
 	expansion := NewPromise[expanded](addr, func(self promise) (expanded, tfdiags.Diagnostics) {
-		// Lifted from transform_module_variable
-		// We need to construct a schema for the expected call arguments based on
-		// the configured variables in our config, which we can then use to
-		// decode the content of the call block.
-		schema := &hcl.BodySchema{}
+		evalCtx := scope.EvalContext(self)
+
+		node := tofu.NodeValidateModule{tofu.NodeExpandModule{
+			Addr:       append(addr.Module.Module(), config.Name),
+			Config:     moduleConfig.Module,
+			ModuleCall: config,
+		}}
+		diags := node.Execute(ctx, evalCtx, tofu.WalkOperation(walkValidate))
+
+		exprs, exprDiags := getModuleCallInputExpressions(config, moduleConfig)
+		diags = diags.Append(exprDiags)
+
+		input := VariableInputs{}
 		for _, v := range moduleConfig.Module.Variables {
-			schema.Attributes = append(schema.Attributes, hcl.AttributeSchema{
-				Name:     v.Name,
-				Required: v.Default == cty.NilVal,
-			})
+			input[addrs.InputVariable{Name: v.Name}] = VariableInput{
+				expr:  exprs[v.Name], // TODO this differs from existing tofu logic
+				scope: scope,
+			}
 		}
+		promise, validate, newDiags := NewModuleValidate(ctx, addr.Instance(addrs.NoKey), moduleConfig, input, scope)
+		return expanded{promise, validate}, diags.Append(newDiags)
+	})
 
-		content, contentDiags := config.Config.Content(schema)
-		diags := tfdiags.Diagnostics{}.Append(contentDiags)
-		if diags.HasErrors() {
-			// Validation code elsewhere should deal with any errors before we
-			// get in here, but we'll report them out here just in case, to
-			// avoid crashes.
-			return expanded{}, diags
+	outputValue := NewPromise[cty.Value](&addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
+		expanded, diags := expansion.Value(self)
+		out, outDiags := expanded.instance.Value(self)
+		diags = diags.Append(outDiags)
+
+		// FROM: tofu/evaluate.go
+		// While we know the type here and it would be nice to validate whether
+		// indexes are valid or not, because tuples and objects have fixed
+		// numbers of elements we can't simply return an unknown value of the
+		// same type since we have not expanded any instances during
+		// validation.
+		//
+		// In order to validate the expression a little precisely, we'll create
+		// an unknown map or list here to get more type information.
+		ty := out.Type()
+		switch {
+		case config.Count != nil:
+			return cty.UnknownVal(cty.List(ty)), diags
+		case config.ForEach != nil:
+			return cty.UnknownVal(cty.Map(ty)), diags
+		default:
+			return cty.UnknownVal(ty), diags
 		}
+	})
 
-		// Legacy expander integration.  We should just be passing around RepetitionData instead.
-		expander := scope.expander
+	validate := func() tfdiags.Diagnostics {
+		expanded, diags := expansion.Value(nil)
+		return diags.Append(expanded.validate())
+	}
 
-		// Keep track resulting instance promises and their actions
-		promises := map[addrs.InstanceKey]*Promise[cty.Value]{}
-		var actions Actions
+	return outputValue, validate, nil
+}
 
-		addInstance := func(key addrs.InstanceKey) {
-			input := map[addrs.InputVariable]VariableInput{}
+func NewModuleCallPlan(ctx context.Context, addr addrs.AbsModuleCall, config *configs.ModuleCall, moduleConfig *configs.Config, priorState *states.State, scope *Scope) (*Promise[cty.Value], Plan, tfdiags.Diagnostics) {
 
+	type expanded struct {
+		instances map[addrs.InstanceKey]*Promise[cty.Value]
+		plans     Plans
+	}
+
+	expansion := NewPromise[expanded](addr, func(self promise) (expanded, tfdiags.Diagnostics) {
+		evalCtx := scope.EvalContext(self)
+
+		node := tofu.NodeExpandModule{
+			Addr:       append(addr.Module.Module(), config.Name),
+			Config:     moduleConfig.Module,
+			ModuleCall: config,
+		}
+		diags := node.Execute(ctx, evalCtx, tofu.WalkOperation(walkPlan))
+
+		exprs, exprDiags := getModuleCallInputExpressions(config, moduleConfig)
+		diags = diags.Append(exprDiags)
+
+		ret := expanded{
+			instances: map[addrs.InstanceKey]*Promise[cty.Value]{},
+		}
+		for _, modAddr := range evalCtx.InstanceExpander().ExpandAbsModuleCall(addr) {
+			input := VariableInputs{}
 			for _, v := range moduleConfig.Module.Variables {
-				var expr hcl.Expression
-				if attr := content.Attributes[v.Name]; attr != nil {
-					expr = attr.Expr
-				}
 				input[addrs.InputVariable{Name: v.Name}] = VariableInput{
-					expr:  expr,
+					expr:  exprs[v.Name],
 					scope: scope,
 				}
 			}
-
-			promise, action, newDiags := NewModule(ctx, addr.Instance(key), moduleConfig, priorChanges, priorState, scope, input, op)
-			promises[key] = promise
-			actions = append(actions, action)
+			promise, plan, newDiags := NewModulePlan(ctx, modAddr, moduleConfig, input, priorState, scope)
 			diags = diags.Append(newDiags)
+			key := modAddr[len(modAddr)-1].InstanceKey
+			ret.instances[key] = promise
+			ret.plans = append(ret.plans, plan)
+
 		}
-
-		switch {
-		case config.Count != nil:
-			count, countDiags := evalchecks.EvaluateCountExpression(
-				config.Count,
-				func(expr hcl.Expression) (cty.Value, tfdiags.Diagnostics) {
-					return scope.EvalContext(self).EvaluateExpr(expr, cty.Number, nil)
-				},
-				nil,
-			)
-
-			diags = diags.Append(countDiags)
-			expander.SetModuleCount(addr.Module, addr.Call, count)
-
-			for index := range count {
-				addInstance(addrs.IntKey(index))
-			}
-		case config.ForEach != nil:
-			// TODO make sure we are using the right call here
-			forEachVals, forEachDiags := evalchecks.EvaluateForEachExpression(
-				config.ForEach,
-				func(refs []*addrs.Reference) (*hcl.EvalContext, tfdiags.Diagnostics) {
-					scope := scope.EvalContext(self).EvaluationScope(nil, nil, tofu.InstanceKeyEvalData{})
-					return scope.EvalContext(refs)
-				}, nil)
-
-			diags = diags.Append(forEachDiags)
-			expander.SetModuleForEach(addr.Module, addr.Call, forEachVals)
-
-			for key := range forEachVals {
-				addInstance(addrs.StringKey(key))
-			}
-		default:
-			expander.SetModuleSingle(addr.Module, addr.Call)
-			addInstance(addrs.NoKey)
-		}
-
-		return expanded{promises, actions}, diags
+		return ret, diags
 	})
 
 	outputValue := NewPromise[cty.Value](&addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
@@ -174,11 +217,126 @@ func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *config
 		}
 	})
 
-	action := func(change *plans.ChangesSync, state *states.SyncState) tfdiags.Diagnostics {
+	plan := func(data PlanData) tfdiags.Diagnostics {
 		expanded, diags := expansion.Value(nil)
-		diags = diags.Append(expanded.actions.Parallel(change, state))
+		diags = diags.Append(expanded.plans.Collect(data))
 		return diags
 	}
 
-	return outputValue, action, nil
+	return outputValue, plan, nil
+}
+
+func NewModuleCallApply(ctx context.Context, addr addrs.AbsModuleCall, config *configs.ModuleCall, moduleConfig *configs.Config, priorChanges *plans.Changes, priorState *states.State, scope *Scope) (*Promise[cty.Value], Apply, tfdiags.Diagnostics) {
+
+	type expanded struct {
+		instances map[addrs.InstanceKey]*Promise[cty.Value]
+		applys    Applys
+	}
+
+	expansion := NewPromise[expanded](addr, func(self promise) (expanded, tfdiags.Diagnostics) {
+		evalCtx := scope.EvalContext(self)
+
+		node := tofu.NodeExpandModule{
+			Addr:       append(addr.Module.Module(), config.Name),
+			Config:     moduleConfig.Module,
+			ModuleCall: config,
+		}
+		diags := node.Execute(ctx, evalCtx, tofu.WalkOperation(walkApply))
+
+		exprs, exprDiags := getModuleCallInputExpressions(config, moduleConfig)
+		diags = diags.Append(exprDiags)
+
+		ret := expanded{
+			instances: map[addrs.InstanceKey]*Promise[cty.Value]{},
+		}
+		for _, modAddr := range evalCtx.InstanceExpander().ExpandAbsModuleCall(addr) {
+			input := VariableInputs{}
+			for _, v := range moduleConfig.Module.Variables {
+				input[addrs.InputVariable{Name: v.Name}] = VariableInput{
+					expr:  exprs[v.Name],
+					scope: scope,
+				}
+			}
+			promise, apply, newDiags := NewModuleApply(ctx, modAddr, moduleConfig, input, priorChanges, priorState, scope)
+			diags = diags.Append(newDiags)
+			key := modAddr[len(modAddr)-1].InstanceKey
+			ret.instances[key] = promise
+			ret.applys = append(ret.applys, apply)
+
+		}
+		return ret, diags
+	})
+
+	outputValue := NewPromise[cty.Value](&addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
+		// expansion
+		expanded, diags := expansion.Value(self)
+
+		moduleInstances := make(map[addrs.InstanceKey]cty.Value)
+		for key, mod := range expanded.instances {
+			var modDiags tfdiags.Diagnostics
+			moduleInstances[key], modDiags = mod.Value(self)
+			diags = diags.Append(modDiags)
+		}
+		if diags.HasErrors() {
+			return cty.NilVal, diags
+		}
+
+		// Lifted from tofu/evaluate.go
+
+		switch {
+		case config.Count != nil:
+			length := -1
+			for key := range moduleInstances {
+				intKey, ok := key.(addrs.IntKey)
+				if !ok {
+					// old key from state which is being dropped
+					continue
+				}
+				if int(intKey) >= length {
+					length = int(intKey) + 1
+				}
+			}
+
+			if length <= 0 {
+				return cty.EmptyTupleVal, diags
+			}
+			vals := make([]cty.Value, length)
+			for key, instance := range moduleInstances {
+				intKey, ok := key.(addrs.IntKey)
+				if !ok {
+					// old key from state which is being dropped
+					continue
+				}
+
+				vals[int(intKey)] = instance
+			}
+
+			// Insert unknown values where there are any missing instances
+			for i, v := range vals {
+				if v.IsNull() {
+					vals[i] = cty.DynamicVal
+					continue
+				}
+			}
+			return cty.TupleVal(vals), diags
+
+		case config.ForEach != nil:
+			instanceMap := make(map[string]cty.Value)
+			for key, mod := range moduleInstances {
+				sk := key.(addrs.StringKey)
+				instanceMap[string(sk)] = mod
+			}
+			return cty.ObjectVal(instanceMap), diags
+		default:
+			return moduleInstances[addrs.NoKey], diags
+		}
+	})
+
+	apply := func(data ApplyData) tfdiags.Diagnostics {
+		expanded, diags := expansion.Value(nil)
+		diags = diags.Append(expanded.applys.Collect(data))
+		return diags
+	}
+
+	return outputValue, apply, nil
 }

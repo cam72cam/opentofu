@@ -272,7 +272,7 @@ func (b *PlanGraphBuilder) initPlan() {
 	}
 
 	b.ConcreteResource = func(a *NodeAbstractResource) dag.Vertex {
-		return &nodeExpandPlannableResource{
+		return &NodeExpandPlannableResource{
 			NodeAbstractResource: a,
 			skipRefresh:          b.skipRefresh,
 			skipPlanChanges:      b.skipPlanChanges,
@@ -327,9 +327,9 @@ func (b *PlanGraphBuilder) initValidate() {
 		}
 	}
 
-	b.ConcreteModule = func(n *nodeExpandModule) dag.Vertex {
-		return &nodeValidateModule{
-			nodeExpandModule: *n,
+	b.ConcreteModule = func(n *NodeExpandModule) dag.Vertex {
+		return &NodeValidateModule{
+			NodeExpandModule: *n,
 		}
 	}
 }
@@ -342,7 +342,7 @@ func (b *PlanGraphBuilder) initImport() {
 	}
 
 	b.ConcreteResource = func(a *NodeAbstractResource) dag.Vertex {
-		return &nodeExpandPlannableResource{
+		return &NodeExpandPlannableResource{
 			NodeAbstractResource: a,
 
 			// For now we always skip planning changes for import, since we are
