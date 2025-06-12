@@ -49,7 +49,7 @@ func WalkValidate(ctx context.Context, config *configs.Config, plugins plugins.M
 		}
 	}
 
-	_, validate, diags := NewModuleValidate(ctx, addrs.RootModuleInstance, config, inputs, scope)
+	root := NewModuleValidate(ctx, addrs.RootModuleInstance, config, inputs, scope)
 
-	return diags.Append(validate())
+	return root.Collect()
 }

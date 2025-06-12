@@ -11,38 +11,37 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
+type VariablePlan struct {
+	ValuePromise
+}
+
 type VariableInput struct {
 	expr  hcl.Expression
 	scope *Scope
 }
 type VariableInputs map[addrs.InputVariable]VariableInput
 
-func NewVariableValidate(ctx context.Context, addr addrs.AbsInputVariableInstance, config *configs.Variable, caller VariableInput, scope *Scope) (*Promise[cty.Value], Validate, tfdiags.Diagnostics) {
-	value, diags := NewVariable(ctx, addr, config, caller, scope, walkValidate)
-	return value, ValidatePromise(value), diags
+func NewVariableValidate(ctx context.Context, addr addrs.AbsInputVariableInstance, config *configs.Variable, caller VariableInput, scope *Scope) ValuePromise {
+	return internalVariable(ctx, addr, config, caller, scope, walkValidate)
 }
 
-func NewVariablePlan(ctx context.Context, addr addrs.AbsInputVariableInstance, config *configs.Variable, caller VariableInput, scope *Scope) (*Promise[cty.Value], Plan, tfdiags.Diagnostics) {
-	value, diags := NewVariable(ctx, addr, config, caller, scope, walkPlan)
-	plan := func(_ PlanData) tfdiags.Diagnostics {
-		// Variable values are not saved in the plan changes or state
-		_, diags := value.Value(nil)
-		return diags
+func NewVariablePlan(ctx context.Context, addr addrs.AbsInputVariableInstance, config *configs.Variable, caller VariableInput, scope *Scope) VariablePlan {
+	return VariablePlan{
+		internalVariable(ctx, addr, config, caller, scope, walkPlan),
 	}
-	return value, plan, diags
 }
 
 func NewVariableApply(ctx context.Context, addr addrs.AbsInputVariableInstance, config *configs.Variable, caller VariableInput, scope *Scope) (*Promise[cty.Value], Apply, tfdiags.Diagnostics) {
-	value, diags := NewVariable(ctx, addr, config, caller, scope, walkApply)
+	value := internalVariable(ctx, addr, config, caller, scope, walkApply)
 	plan := func(_ ApplyData) tfdiags.Diagnostics {
 		// Variable values are not saved in the plan changes or state
 		_, diags := value.Value(nil)
 		return diags
 	}
-	return value, plan, diags
+	return value, plan, nil
 }
 
-func NewVariable(ctx context.Context, addr addrs.AbsInputVariableInstance, config *configs.Variable, caller VariableInput, scope *Scope, op WalkOperation) (*Promise[cty.Value], tfdiags.Diagnostics) {
+func internalVariable(ctx context.Context, addr addrs.AbsInputVariableInstance, config *configs.Variable, caller VariableInput, scope *Scope, op WalkOperation) *Promise[cty.Value] {
 	variable := NewPromise[cty.Value](addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
 		evalCtx := scope.EvalContext(self)
 		parentEvalCtx := caller.scope.EvalContext(self)
@@ -79,6 +78,6 @@ func NewVariable(ctx context.Context, addr addrs.AbsInputVariableInstance, confi
 		return parentEvalCtx.GetVariableValue(addr), diags
 	})
 
-	return variable, nil
+	return variable
 
 }

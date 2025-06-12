@@ -21,6 +21,8 @@ type Scope struct {
 	hooks    []tofu.Hook
 	Plugins  plugins.Manager
 
+	altData func(caller promise, instance instances.RepetitionData) lang.Data
+
 	variables map[addrs.InputVariable]*Promise[cty.Value]
 	locals    map[addrs.LocalValue]*Promise[cty.Value]
 	resources map[addrs.Resource]*Promise[cty.Value]
@@ -57,6 +59,24 @@ func NewScope(path addrs.ModuleInstance, parent *Scope) *Scope {
 		resources: map[addrs.Resource]*Promise[cty.Value]{},
 		calls:     map[addrs.ModuleCall]*Promise[cty.Value]{},
 		outputs:   map[addrs.OutputValue]*Promise[cty.Value]{},
+	}
+}
+
+func NewScopeAlt[Variable, Local, Resource, Call, Output ValuePromise](path addrs.ModuleInstance, parent *Scope, data ModuleData[Variable, Local, Resource, Call, Output]) *Scope {
+	return &Scope{
+		path:     path,
+		op:       parent.op,
+		expander: parent.expander,
+		hooks:    parent.hooks,
+		Plugins:  parent.Plugins,
+
+		altData: func(caller promise, instance instances.RepetitionData) lang.Data {
+			return &evalDataAlt[Variable, Local, Resource, Call, Output]{
+				caller,
+				instance,
+				data,
+			}
+		},
 	}
 }
 
@@ -107,8 +127,11 @@ func (s *Scope) EvalContext(caller promise) tofu.EvalContext {
 			source addrs.Referenceable,
 			keyData tofu.InstanceKeyEvalData,
 		) *lang.Scope {
-			return &lang.Scope{
-				Data: &evalData{
+			var data lang.Data
+			if s.altData != nil {
+				data = s.altData(caller, keyData)
+			} else {
+				data = &evalData{
 					caller:    caller,
 					instance:  keyData,
 					variables: s.variables,
@@ -116,7 +139,10 @@ func (s *Scope) EvalContext(caller promise) tofu.EvalContext {
 					resources: s.resources,
 					calls:     s.calls,
 					outputs:   s.outputs,
-				},
+				}
+			}
+			return &lang.Scope{
+				Data:     data,
 				ParseRef: addrs.ParseRef,
 				//SelfAddr:          self,
 				//SourceAddr:        source,

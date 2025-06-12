@@ -11,126 +11,226 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-func NewModuleValidate(ctx context.Context, addr addrs.ModuleInstance, config *configs.Config, inputs VariableInputs, parentScope *Scope) (*Promise[cty.Value], Validate, tfdiags.Diagnostics) {
-	var validates Validates
-	var diags tfdiags.Diagnostics
-
-	scope := NewScope(addr, parentScope)
-
-	for _, variable := range config.Module.Variables {
-		varAddr := addrs.InputVariable{Name: variable.Name}
-		promise, validate, newDiags := NewVariableValidate(ctx, varAddr.Absolute(addr), variable, inputs[varAddr], scope)
-		scope.variables[varAddr] = promise
-		validates = append(validates, validate)
-		diags = diags.Append(newDiags)
-	}
-	for _, local := range config.Module.Locals {
-		localAddr := addrs.LocalValue{Name: local.Name}
-		promise, validate, newDiags := NewLocalValidate(ctx, localAddr.Absolute(addr), local, scope)
-		scope.locals[localAddr] = promise
-		validates = append(validates, validate)
-		diags = diags.Append(newDiags)
-	}
-	for _, resource := range config.Module.ManagedResources {
-		resAddr := addrs.Resource{Name: resource.Name, Type: resource.Type, Mode: addrs.ManagedResourceMode}
-		promise, validate, newDiags := NewResourceValidate(ctx, resAddr.Absolute(addr), resource, scope)
-		scope.resources[resAddr] = promise
-		validates = append(validates, validate)
-		diags = diags.Append(newDiags)
-	}
-	for _, resource := range config.Module.DataResources {
-		resAddr := addrs.Resource{Name: resource.Name, Type: resource.Type, Mode: addrs.ManagedResourceMode}
-		promise, validate, newDiags := NewResourceValidate(ctx, resAddr.Absolute(addr), resource, scope)
-		scope.resources[resAddr] = promise
-		validates = append(validates, validate)
-		diags = diags.Append(newDiags)
-	}
-	for _, call := range config.Module.ModuleCalls {
-		callAddr := addrs.ModuleCall{Name: call.Name}
-		promise, validate, newDiags := NewModuleCallValidate(ctx, callAddr.Absolute(addr), call, config.Children[call.Name], scope)
-		scope.calls[callAddr] = promise
-		validates = append(validates, validate)
-		diags = diags.Append(newDiags)
-	}
-	for _, output := range config.Module.Outputs {
-		outputAddr := addrs.OutputValue{Name: output.Name}
-		promise, validate, newDiags := NewOutputValidate(ctx, outputAddr.Absolute(addr), output, scope)
-		scope.outputs[outputAddr] = promise
-		validates = append(validates, validate)
-		diags = diags.Append(newDiags)
-	}
-
-	return NewPromise(addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
-		obj := map[string]cty.Value{}
-		var diags tfdiags.Diagnostics
-		for name := range config.Module.Outputs {
-			outVal, outDiags := scope.outputs[addrs.OutputValue{Name: name}].Value(self)
-			obj[name] = outVal
-			diags = diags.Append(outDiags)
-		}
-		return cty.ObjectVal(obj), diags
-	}), validates.Collect, diags
+type ValuePromise interface {
+	Value(promise) (cty.Value, tfdiags.Diagnostics)
 }
 
-func NewModulePlan(ctx context.Context, addr addrs.ModuleInstance, config *configs.Config, inputs VariableInputs, priorState *states.State, parentScope *Scope) (*Promise[cty.Value], Plan, tfdiags.Diagnostics) {
-	var plans Plans
-	var diags tfdiags.Diagnostics
+type ModuleData[Variable, Local, Resource, Call, Output ValuePromise] struct {
+	Addr      addrs.ModuleInstance
+	Variables map[addrs.InputVariable]Variable
+	Locals    map[addrs.LocalValue]Local
+	Resources map[addrs.Resource]Resource
+	Calls     map[addrs.ModuleCall]Call
+	Outputs   map[addrs.OutputValue]Output
+}
 
-	scope := NewScope(addr, parentScope)
+func NewModuleData[Variable, Local, Resource, Call, Output ValuePromise](addr addrs.ModuleInstance) ModuleData[Variable, Local, Resource, Call, Output] {
+	return ModuleData[Variable, Local, Resource, Call, Output]{
+		Addr:      addr,
+		Variables: map[addrs.InputVariable]Variable{},
+		Locals:    map[addrs.LocalValue]Local{},
+		Resources: map[addrs.Resource]Resource{},
+		Calls:     map[addrs.ModuleCall]Call{},
+		Outputs:   map[addrs.OutputValue]Output{},
+	}
+}
+
+type ModuleValidate struct {
+	*Promise[cty.Value]
+	ModuleData[ValuePromise, ValuePromise, ValuePromise, ModuleCallValidate, ValuePromise]
+}
+
+func NewModuleValidate(ctx context.Context, addr addrs.ModuleInstance, config *configs.Config, inputs VariableInputs, parentScope *Scope) ModuleValidate {
+	data := NewModuleData[ValuePromise, ValuePromise, ValuePromise, ModuleCallValidate, ValuePromise](addr)
+	scope := NewScopeAlt(addr, parentScope, data)
 
 	for _, variable := range config.Module.Variables {
 		varAddr := addrs.InputVariable{Name: variable.Name}
-		promise, plan, newDiags := NewVariablePlan(ctx, varAddr.Absolute(addr), variable, inputs[varAddr], scope)
-		scope.variables[varAddr] = promise
-		plans = append(plans, plan)
-		diags = diags.Append(newDiags)
+		data.Variables[varAddr] = NewVariableValidate(ctx, varAddr.Absolute(addr), variable, inputs[varAddr], scope)
 	}
 	for _, local := range config.Module.Locals {
 		localAddr := addrs.LocalValue{Name: local.Name}
-		promise, plan, newDiags := NewLocalPlan(ctx, localAddr.Absolute(addr), local, scope)
-		scope.locals[localAddr] = promise
-		plans = append(plans, plan)
-		diags = diags.Append(newDiags)
+		data.Locals[localAddr] = NewLocalValidate(ctx, localAddr.Absolute(addr), local, scope)
 	}
 	for _, resource := range config.Module.ManagedResources {
 		resAddr := addrs.Resource{Name: resource.Name, Type: resource.Type, Mode: addrs.ManagedResourceMode}
-		promise, plan, newDiags := NewResourcePlan(ctx, resAddr.Absolute(addr), resource, priorState, scope)
-		scope.resources[resAddr] = promise
-		plans = append(plans, plan)
-		diags = diags.Append(newDiags)
+		data.Resources[resAddr] = NewResourceValidate(ctx, resAddr.Absolute(addr), resource, scope)
 	}
 	for _, resource := range config.Module.DataResources {
 		resAddr := addrs.Resource{Name: resource.Name, Type: resource.Type, Mode: addrs.ManagedResourceMode}
-		promise, plan, newDiags := NewResourcePlan(ctx, resAddr.Absolute(addr), resource, priorState, scope)
-		scope.resources[resAddr] = promise
-		plans = append(plans, plan)
-		diags = diags.Append(newDiags)
+		data.Resources[resAddr] = NewResourceValidate(ctx, resAddr.Absolute(addr), resource, scope)
 	}
 	for _, call := range config.Module.ModuleCalls {
 		callAddr := addrs.ModuleCall{Name: call.Name}
-		promise, plan, newDiags := NewModuleCallPlan(ctx, callAddr.Absolute(addr), call, config.Children[call.Name], priorState, scope)
-		scope.calls[callAddr] = promise
-		plans = append(plans, plan)
-		diags = diags.Append(newDiags)
+		data.Calls[callAddr] = NewModuleCallValidate(ctx, callAddr.Absolute(addr), call, config.Children[call.Name], scope)
 	}
 	for _, output := range config.Module.Outputs {
 		outputAddr := addrs.OutputValue{Name: output.Name}
-		promise, plan, newDiags := NewOutputPlan(ctx, outputAddr.Absolute(addr), output, priorState, scope)
-		scope.outputs[outputAddr] = promise
-		plans = append(plans, plan)
-		diags = diags.Append(newDiags)
+		data.Outputs[outputAddr] = NewOutputValidate(ctx, outputAddr.Absolute(addr), output, scope)
 	}
 
-	return NewPromise(addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
+	return ModuleValidate{
+		NewPromise(addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
+			obj := map[string]cty.Value{}
+			var diags tfdiags.Diagnostics
+			for name := range config.Module.Outputs {
+				outVal, outDiags := data.Outputs[addrs.OutputValue{Name: name}].Value(self)
+				obj[name] = outVal
+				diags = diags.Append(outDiags)
+			}
+			return cty.ObjectVal(obj), diags
+		}),
+		data,
+	}
+}
+
+func validateCollection[T comparable](m map[T]ValuePromise) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	for _, p := range m {
+		_, newDiags := p.Value(nil)
+		diags = diags.Append(newDiags)
+	}
+	return diags
+}
+func (m *ModuleValidate) Collect() tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	diags = diags.Append(validateCollection(m.Variables))
+	diags = diags.Append(validateCollection(m.Locals))
+	diags = diags.Append(validateCollection(m.Resources))
+	// Follow Expansion
+	for _, call := range m.Calls {
+		child, newDiags := call.instance.Value(nil)
+		diags = diags.Append(newDiags)
+		diags = diags.Append(child.Collect())
+	}
+	diags = diags.Append(validateCollection(m.Outputs))
+
+	return diags
+}
+
+type ModulePlan struct {
+	*Promise[cty.Value]
+	ModuleData[VariablePlan, LocalPlan, ResourcePlan, ModuleCallPlan, OutputPlan]
+}
+
+func NewModulePlan(ctx context.Context, addr addrs.ModuleInstance, config *configs.Config, inputs VariableInputs, priorState *states.State, parentScope *Scope) ModulePlan {
+	data := NewModuleData[VariablePlan, LocalPlan, ResourcePlan, ModuleCallPlan, OutputPlan](addr)
+	scope := NewScopeAlt(addr, parentScope, data)
+
+	for _, variable := range config.Module.Variables {
+		varAddr := addrs.InputVariable{Name: variable.Name}
+		data.Variables[varAddr] = NewVariablePlan(ctx, varAddr.Absolute(addr), variable, inputs[varAddr], scope)
+	}
+	for _, local := range config.Module.Locals {
+		localAddr := addrs.LocalValue{Name: local.Name}
+		data.Locals[localAddr] = NewLocalPlan(ctx, localAddr.Absolute(addr), local, scope)
+	}
+	for _, resource := range config.Module.ManagedResources {
+		resAddr := addrs.Resource{Name: resource.Name, Type: resource.Type, Mode: addrs.ManagedResourceMode}
+		data.Resources[resAddr] = NewResourcePlan(ctx, resAddr.Absolute(addr), resource, priorState.Resource(resAddr.Absolute(addr)), scope)
+	}
+	for _, resource := range config.Module.DataResources {
+		resAddr := addrs.Resource{Name: resource.Name, Type: resource.Type, Mode: addrs.ManagedResourceMode}
+		data.Resources[resAddr] = NewResourcePlan(ctx, resAddr.Absolute(addr), resource, priorState.Resource(resAddr.Absolute(addr)), scope)
+	}
+	for _, call := range config.Module.ModuleCalls {
+		callAddr := addrs.ModuleCall{Name: call.Name}
+		data.Calls[callAddr] = NewModuleCallPlan(ctx, callAddr.Absolute(addr), call, config.Children[call.Name], priorState, scope)
+	}
+	for _, output := range config.Module.Outputs {
+		outputAddr := addrs.OutputValue{Name: output.Name}
+		data.Outputs[outputAddr] = NewOutputPlan(ctx, outputAddr.Absolute(addr), output, priorState.OutputValue(outputAddr.Absolute(addr)), scope)
+	}
+
+	outputValue := NewPromise(addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
 		obj := map[string]cty.Value{}
 		var diags tfdiags.Diagnostics
 		for name := range config.Module.Outputs {
-			outVal, outDiags := scope.outputs[addrs.OutputValue{Name: name}].Value(self)
+			outVal, outDiags := data.Outputs[addrs.OutputValue{Name: name}].Value(self)
 			obj[name] = outVal
 			diags = diags.Append(outDiags)
 		}
 		return cty.ObjectVal(obj), diags
-	}), plans.Collect, diags
+	})
+
+	return ModulePlan{outputValue, data}
+}
+
+type ModulePlanData struct {
+	PrevRun   []*states.Module
+	Refresh   []*states.Module
+	State     []*states.Module
+	Resources []*plans.ResourceInstanceChangeSrc
+	Outputs   []*plans.OutputChangeSrc
+}
+
+func (m ModulePlan) PlanData() (ModulePlanData, tfdiags.Diagnostics) {
+	var data ModulePlanData
+	var diags tfdiags.Diagnostics
+
+	prevRun := states.NewModule(m.Addr)
+	refresh := states.NewModule(m.Addr)
+	state := states.NewModule(m.Addr)
+
+	// Collect resource results
+	for addr, resource := range m.Resources {
+		res, planDiags := resource.Data.Value(nil)
+		diags = diags.Append(planDiags)
+		if res.Changes != nil {
+			data.Resources = append(data.Resources, res.Changes...)
+		}
+		if res.PrevRun != nil {
+			prevRun.Resources[addr.String()] = res.PrevRun
+		}
+		if res.Refresh != nil {
+			refresh.Resources[addr.String()] = res.Refresh
+		}
+		if res.State != nil {
+			state.Resources[addr.String()] = res.State
+		}
+	}
+
+	// Collect Call results
+	for _, call := range m.Calls {
+		instances, instanceDiags := call.instances.Value(nil)
+		diags = diags.Append(instanceDiags)
+		for _, instance := range instances {
+			modData, modDiags := instance.PlanData()
+			diags = diags.Append(modDiags)
+
+			// Merge changes
+			data.PrevRun = append(data.PrevRun, modData.PrevRun...)
+			data.Refresh = append(data.Refresh, modData.Refresh...)
+			data.State = append(data.State, modData.State...)
+			data.Resources = append(data.Resources, modData.Resources...)
+			data.Outputs = append(data.Outputs, modData.Outputs...)
+		}
+	}
+
+	// Collect Output results
+	for addr, output := range m.Outputs {
+		outData, outDiags := output.promise.Value(nil)
+		diags = diags.Append(outDiags)
+		if outData.change != nil {
+			data.Outputs = append(data.Outputs, outData.change)
+		}
+		if outData.prevRun != nil {
+			prevRun.OutputValues[addr.Name] = outData.prevRun
+		}
+		if outData.refresh != nil {
+			refresh.OutputValues[addr.Name] = outData.refresh
+		}
+		if outData.state != nil {
+			state.OutputValues[addr.Name] = outData.state
+		}
+	}
+
+	// TODO don't set if not populated?
+	data.PrevRun = append(data.PrevRun, prevRun)
+	data.Refresh = append(data.Refresh, refresh)
+	data.State = append(data.State, state)
+
+	return data, diags
 }
 
 func NewModuleApply(ctx context.Context, addr addrs.ModuleInstance, config *configs.Config, inputs VariableInputs, priorChanges *plans.Changes, priorState *states.State, parentScope *Scope) (*Promise[cty.Value], Apply, tfdiags.Diagnostics) {

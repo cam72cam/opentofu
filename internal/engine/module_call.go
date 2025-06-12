@@ -46,15 +46,15 @@ func getModuleCallInputExpressions(config *configs.ModuleCall, moduleConfig *con
 
 }
 
-func NewModuleCallValidate(ctx context.Context, addr addrs.AbsModuleCall, config *configs.ModuleCall, moduleConfig *configs.Config, scope *Scope) (*Promise[cty.Value], Validate, tfdiags.Diagnostics) {
+type ModuleCallValidate struct {
+	*Promise[cty.Value]
+	instance *Promise[ModuleValidate]
+}
+
+func NewModuleCallValidate(ctx context.Context, addr addrs.AbsModuleCall, config *configs.ModuleCall, moduleConfig *configs.Config, scope *Scope) ModuleCallValidate {
 	// Validate only ever does a single expansion
 
-	type expanded struct {
-		instance *Promise[cty.Value]
-		validate Validate
-	}
-
-	expansion := NewPromise[expanded](addr, func(self promise) (expanded, tfdiags.Diagnostics) {
+	expansion := NewPromise[ModuleValidate](addr, func(self promise) (ModuleValidate, tfdiags.Diagnostics) {
 		evalCtx := scope.EvalContext(self)
 
 		node := tofu.NodeValidateModule{tofu.NodeExpandModule{
@@ -74,24 +74,16 @@ func NewModuleCallValidate(ctx context.Context, addr addrs.AbsModuleCall, config
 				scope: scope,
 			}
 		}
-		promise, validate, newDiags := NewModuleValidate(ctx, addr.Instance(addrs.NoKey), moduleConfig, input, scope)
-		return expanded{promise, validate}, diags.Append(newDiags)
+
+		return NewModuleValidate(ctx, addr.Instance(addrs.NoKey), moduleConfig, input, scope), diags
 	})
 
 	outputValue := NewPromise[cty.Value](&addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
 		expanded, diags := expansion.Value(self)
-		out, outDiags := expanded.instance.Value(self)
+		out, outDiags := expanded.Value(self)
 		diags = diags.Append(outDiags)
 
 		// FROM: tofu/evaluate.go
-		// While we know the type here and it would be nice to validate whether
-		// indexes are valid or not, because tuples and objects have fixed
-		// numbers of elements we can't simply return an unknown value of the
-		// same type since we have not expanded any instances during
-		// validation.
-		//
-		// In order to validate the expression a little precisely, we'll create
-		// an unknown map or list here to get more type information.
 		ty := out.Type()
 		switch {
 		case config.Count != nil:
@@ -103,22 +95,16 @@ func NewModuleCallValidate(ctx context.Context, addr addrs.AbsModuleCall, config
 		}
 	})
 
-	validate := func() tfdiags.Diagnostics {
-		expanded, diags := expansion.Value(nil)
-		return diags.Append(expanded.validate())
-	}
-
-	return outputValue, validate, nil
+	return ModuleCallValidate{outputValue, expansion}
 }
 
-func NewModuleCallPlan(ctx context.Context, addr addrs.AbsModuleCall, config *configs.ModuleCall, moduleConfig *configs.Config, priorState *states.State, scope *Scope) (*Promise[cty.Value], Plan, tfdiags.Diagnostics) {
+type ModuleCallPlan struct {
+	*Promise[cty.Value]
+	instances *Promise[map[addrs.InstanceKey]ModulePlan]
+}
 
-	type expanded struct {
-		instances map[addrs.InstanceKey]*Promise[cty.Value]
-		plans     Plans
-	}
-
-	expansion := NewPromise[expanded](addr, func(self promise) (expanded, tfdiags.Diagnostics) {
+func NewModuleCallPlan(ctx context.Context, addr addrs.AbsModuleCall, config *configs.ModuleCall, moduleConfig *configs.Config, priorState *states.State, scope *Scope) ModuleCallPlan {
+	expansion := NewPromise(addr, func(self promise) (map[addrs.InstanceKey]ModulePlan, tfdiags.Diagnostics) {
 		evalCtx := scope.EvalContext(self)
 
 		node := tofu.NodeExpandModule{
@@ -131,9 +117,7 @@ func NewModuleCallPlan(ctx context.Context, addr addrs.AbsModuleCall, config *co
 		exprs, exprDiags := getModuleCallInputExpressions(config, moduleConfig)
 		diags = diags.Append(exprDiags)
 
-		ret := expanded{
-			instances: map[addrs.InstanceKey]*Promise[cty.Value]{},
-		}
+		ret := map[addrs.InstanceKey]ModulePlan{}
 		for _, modAddr := range evalCtx.InstanceExpander().ExpandAbsModuleCall(addr) {
 			input := VariableInputs{}
 			for _, v := range moduleConfig.Module.Variables {
@@ -142,11 +126,8 @@ func NewModuleCallPlan(ctx context.Context, addr addrs.AbsModuleCall, config *co
 					scope: scope,
 				}
 			}
-			promise, plan, newDiags := NewModulePlan(ctx, modAddr, moduleConfig, input, priorState, scope)
-			diags = diags.Append(newDiags)
 			key := modAddr[len(modAddr)-1].InstanceKey
-			ret.instances[key] = promise
-			ret.plans = append(ret.plans, plan)
+			ret[key] = NewModulePlan(ctx, modAddr, moduleConfig, input, priorState, scope)
 
 		}
 		return ret, diags
@@ -157,7 +138,7 @@ func NewModuleCallPlan(ctx context.Context, addr addrs.AbsModuleCall, config *co
 		expanded, diags := expansion.Value(self)
 
 		moduleInstances := make(map[addrs.InstanceKey]cty.Value)
-		for key, mod := range expanded.instances {
+		for key, mod := range expanded {
 			var modDiags tfdiags.Diagnostics
 			moduleInstances[key], modDiags = mod.Value(self)
 			diags = diags.Append(modDiags)
@@ -217,13 +198,7 @@ func NewModuleCallPlan(ctx context.Context, addr addrs.AbsModuleCall, config *co
 		}
 	})
 
-	plan := func(data PlanData) tfdiags.Diagnostics {
-		expanded, diags := expansion.Value(nil)
-		diags = diags.Append(expanded.plans.Collect(data))
-		return diags
-	}
-
-	return outputValue, plan, nil
+	return ModuleCallPlan{outputValue, expansion}
 }
 
 func NewModuleCallApply(ctx context.Context, addr addrs.AbsModuleCall, config *configs.ModuleCall, moduleConfig *configs.Config, priorChanges *plans.Changes, priorState *states.State, scope *Scope) (*Promise[cty.Value], Apply, tfdiags.Diagnostics) {

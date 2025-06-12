@@ -10,22 +10,24 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-func NewLocalValidate(ctx context.Context, addr addrs.AbsLocalValue, config *configs.Local, scope *Scope) (*Promise[cty.Value], Validate, tfdiags.Diagnostics) {
-	value, diags := NewLocal(ctx, addr, config, scope, walkValidate)
-	return value, ValidatePromise(value), diags
+type LocalPlan struct {
+	ValuePromise
 }
 
-func NewLocalPlan(ctx context.Context, addr addrs.AbsLocalValue, config *configs.Local, scope *Scope) (*Promise[cty.Value], Plan, tfdiags.Diagnostics) {
-	value, diags := NewLocal(ctx, addr, config, scope, walkPlan)
-	return value, nil, diags
+func NewLocalValidate(ctx context.Context, addr addrs.AbsLocalValue, config *configs.Local, scope *Scope) ValuePromise {
+	value := NewLocal(ctx, addr, config, scope, walkValidate)
+	return value
+}
+
+func NewLocalPlan(ctx context.Context, addr addrs.AbsLocalValue, config *configs.Local, scope *Scope) LocalPlan {
+	return LocalPlan{NewLocal(ctx, addr, config, scope, walkPlan)}
 }
 
 func NewLocalApply(ctx context.Context, addr addrs.AbsLocalValue, config *configs.Local, scope *Scope) (*Promise[cty.Value], Apply, tfdiags.Diagnostics) {
-	value, diags := NewLocal(ctx, addr, config, scope, walkApply)
-	return value, nil, diags
+	return NewLocal(ctx, addr, config, scope, walkApply), nil, nil
 }
 
-func NewLocal(ctx context.Context, addr addrs.AbsLocalValue, config *configs.Local, scope *Scope, op WalkOperation) (*Promise[cty.Value], tfdiags.Diagnostics) {
+func NewLocal(ctx context.Context, addr addrs.AbsLocalValue, config *configs.Local, scope *Scope, op WalkOperation) *Promise[cty.Value] {
 	local := NewPromise[cty.Value](addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
 		evalCtx := scope.EvalContext(self)
 
@@ -47,5 +49,5 @@ func NewLocal(ctx context.Context, addr addrs.AbsLocalValue, config *configs.Loc
 			return nil
 		}*/
 
-	return local, nil
+	return local
 }
