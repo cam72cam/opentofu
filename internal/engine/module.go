@@ -68,7 +68,7 @@ type ModuleData struct {
 	Addr      addrs.ModuleInstance
 	Variables map[addrs.InputVariable]ValuePromise
 	Locals    map[addrs.LocalValue]ValuePromise
-	Resources map[addrs.Resource]ValuePromise
+	Resources map[addrs.Resource]ExpandValuePromise
 	Calls     map[addrs.ModuleCall]ExpandValuePromise
 	Outputs   map[addrs.OutputValue]ValuePromise
 }
@@ -78,7 +78,7 @@ func NewModuleData(addr addrs.ModuleInstance) ModuleData {
 		Addr:      addr,
 		Variables: map[addrs.InputVariable]ValuePromise{},
 		Locals:    map[addrs.LocalValue]ValuePromise{},
-		Resources: map[addrs.Resource]ValuePromise{},
+		Resources: map[addrs.Resource]ExpandValuePromise{},
 		Calls:     map[addrs.ModuleCall]ExpandValuePromise{},
 		Outputs:   map[addrs.OutputValue]ValuePromise{},
 	}
@@ -145,12 +145,13 @@ func (m *Module) Collect(c *ConcurrencyPool) {
 	//diags = diags.Append(collectDiagnostics(m.Variables))
 	//diags = diags.Append(collectDiagnostics(m.Locals))
 	for _, resource := range m.Resources {
-		c.Add(resource)
+		c.Expand(resource)
 	}
 	// Follow Expansion
 	for _, call := range m.Calls {
 		c.Expand(call)
 	}
+	// Do we only care about the root module here?
 	for _, out := range m.Outputs {
 		c.Add(out)
 	}

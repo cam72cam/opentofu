@@ -15,11 +15,9 @@ import (
 func WalkApply(ctx context.Context, config *configs.Config, plugins plugins.Manager, hooks []tofu.Hook, changes *plans.Changes, state *states.State, inputs VariableInputs) (*states.State, tfdiags.Diagnostics) {
 	if state == nil {
 		state = states.NewState()
-	} else {
-		state = state.DeepCopy()
 	}
 
-	scope := NewRootScope(walkApply, plugins, hooks, state.SyncWrapper(), state.SyncWrapper(), state.SyncWrapper(), changes.SyncWrapper())
+	scope := NewRootScope(walkApply, plugins, hooks, state.DeepCopy().SyncWrapper(), state.DeepCopy().SyncWrapper(), state.SyncWrapper(), changes.SyncWrapper())
 	root := NewModule(ctx, addrs.RootModuleInstance, config, inputs, scope)
 
 	p := NewConcurrencyPool(10)

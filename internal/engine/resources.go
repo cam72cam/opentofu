@@ -14,9 +14,15 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Resource, scope *Scope) ValuePromise {
+type ResourceInstances map[addrs.InstanceKey]ValuePromise
+type Resource struct {
+	ValuePromise
+	instances *Promise[ResourceInstances]
+}
+
+func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Resource, scope *Scope) Resource {
 	if scope.op == walkValidate {
-		return NewPromise[cty.Value](addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
+		return Resource{ValuePromise: NewPromise(addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
 			abstract, diags := tofuNodeAbstractResource(addr.Config(), config, scope)
 			node := tofu.NodeValidatableResource{&abstract}
 			evalCtx := scope.EvalContext(self)
@@ -39,23 +45,40 @@ func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Re
 
 			// TODO this mirrors tofu/evaluate.go, but should be made a *lot* smarter as we know the output schema + if there are any count/for_each wrappers applied
 			return cty.DynamicVal, diags
-		})
+		})}
 	}
-	return NewPromise(addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
+	expansion := NewPromise(addr, func(self promise) (ResourceInstances, tfdiags.Diagnostics) {
 		evalCtx := scope.EvalContext(self)
 
 		abstract, diags := tofuNodeAbstractResource(addr.Config(), config, scope)
 		writeDiags := abstract.WriteResourceState(evalCtx, addr) // Oddly named, but this performs the expansion (for now)
 		diags = diags.Append(writeDiags)
 
-		instances := map[addrs.InstanceKey]cty.Value{}
+		instances := ResourceInstances{}
 
 		// Some of the state manipulation here is doing pieces of states.Module.SetResourceInstanceCurrent
 		for _, resAddr := range evalCtx.InstanceExpander().ExpandResource(addr) {
+			resAddr := resAddr
 			key := resAddr.Resource.Key
-			instance, instanceDiags := NewResourceInstance(ctx, resAddr, config, self, scope)
-			diags = diags.Append(instanceDiags)
-			instances[key] = instance
+			instances[key] = NewPromise(resAddr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
+				return NewResourceInstance(ctx, resAddr, config, self, scope)
+			})
+		}
+		return instances, diags
+	})
+
+	outputValue := NewPromise(&addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
+		// expansion
+		expanded, diags := expansion.Value(self)
+
+		instances := make(map[addrs.InstanceKey]cty.Value)
+		for key, mod := range expanded {
+			var modDiags tfdiags.Diagnostics
+			instances[key], modDiags = mod.Value(self)
+			diags = diags.Append(modDiags)
+		}
+		if diags.HasErrors() {
+			return cty.NilVal, diags
 		}
 
 		// Lifted from tofu/evaluate.go
@@ -109,6 +132,20 @@ func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Re
 			return instances[addrs.NoKey], diags
 		}
 	})
+
+	return Resource{outputValue, expansion}
+}
+
+func (m Resource) Expand(c *ConcurrencyPool) tfdiags.Diagnostics {
+	if m.instances == nil {
+		return nil
+	}
+	expanded, diags := m.instances.Value(nil)
+
+	for _, res := range expanded {
+		c.Add(res)
+	}
+	return diags
 }
 
 var (

@@ -126,14 +126,14 @@ func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *config
 		return ret, diags
 	})
 
-	outputValue := NewPromise[cty.Value](&addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
+	outputValue := NewPromise(&addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
 		// expansion
 		expanded, diags := expansion.Value(self)
 
-		moduleInstances := make(map[addrs.InstanceKey]cty.Value)
+		instances := make(map[addrs.InstanceKey]cty.Value)
 		for key, mod := range expanded {
 			var modDiags tfdiags.Diagnostics
-			moduleInstances[key], modDiags = mod.Value(self)
+			instances[key], modDiags = mod.Value(self)
 			diags = diags.Append(modDiags)
 		}
 		if diags.HasErrors() {
@@ -145,7 +145,7 @@ func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *config
 		switch {
 		case config.Count != nil:
 			length := -1
-			for key := range moduleInstances {
+			for key := range instances {
 				intKey, ok := key.(addrs.IntKey)
 				if !ok {
 					// old key from state which is being dropped
@@ -160,7 +160,7 @@ func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *config
 				return cty.EmptyTupleVal, diags
 			}
 			vals := make([]cty.Value, length)
-			for key, instance := range moduleInstances {
+			for key, instance := range instances {
 				intKey, ok := key.(addrs.IntKey)
 				if !ok {
 					// old key from state which is being dropped
@@ -181,13 +181,13 @@ func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *config
 
 		case config.ForEach != nil:
 			instanceMap := make(map[string]cty.Value)
-			for key, mod := range moduleInstances {
+			for key, mod := range instances {
 				sk := key.(addrs.StringKey)
 				instanceMap[string(sk)] = mod
 			}
 			return cty.ObjectVal(instanceMap), diags
 		default:
-			return moduleInstances[addrs.NoKey], diags
+			return instances[addrs.NoKey], diags
 		}
 	})
 
