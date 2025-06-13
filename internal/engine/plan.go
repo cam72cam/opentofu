@@ -20,34 +20,22 @@ type PlanOutput struct {
 }
 
 func WalkPlan(ctx context.Context, config *configs.Config, plugins plugins.Manager, hooks []tofu.Hook, state *states.State, inputs VariableInputs) (PlanOutput, tfdiags.Diagnostics) {
-	scope := NewRootScope(walkPlan, plugins, hooks)
-
 	if state == nil {
 		state = states.NewState()
 	}
 
-	root := NewModulePlan(ctx, addrs.RootModuleInstance, config, inputs, state, scope)
-
 	out := PlanOutput{
-		PrevRun: states.NewState(),
-		Refresh: states.NewState(),
-		State:   states.NewState(),
+		PrevRun: state.DeepCopy(),
+		Refresh: state.DeepCopy(),
+		State:   state.DeepCopy(),
 		Changes: plans.NewChanges(),
 	}
 
-	data, diags := root.PlanData()
-	for _, m := range data.PrevRun {
-		out.PrevRun.Modules[m.Addr.String()] = m
-	}
-	for _, m := range data.Refresh {
-		out.Refresh.Modules[m.Addr.String()] = m
-	}
-	for _, m := range data.State {
-		out.State.Modules[m.Addr.String()] = m
-	}
+	scope := NewRootScope(walkPlan, plugins, hooks, out.PrevRun.SyncWrapper(), out.Refresh.SyncWrapper(), out.State.SyncWrapper(), out.Changes.SyncWrapper())
 
-	out.Changes.Resources = data.Resources
-	out.Changes.Outputs = data.Outputs
+	root := NewModule(ctx, addrs.RootModuleInstance, config, inputs, scope)
 
-	return out, diags
+	p := NewConcurrencyPool(10)
+	root.Collect(p)
+	return out, p.Wait()
 }

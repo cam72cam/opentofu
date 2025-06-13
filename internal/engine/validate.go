@@ -6,7 +6,9 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs"
+	"github.com/opentofu/opentofu/internal/plans"
 	"github.com/opentofu/opentofu/internal/plugins"
+	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 	"github.com/opentofu/opentofu/internal/tofu"
 	"github.com/zclconf/go-cty/cty"
@@ -32,7 +34,7 @@ func (s Validates) Collect() tfdiags.Diagnostics {
 }
 
 func WalkValidate(ctx context.Context, config *configs.Config, plugins plugins.Manager, hooks []tofu.Hook) tfdiags.Diagnostics {
-	scope := NewRootScope(walkValidate, plugins, hooks)
+	scope := NewRootScope(walkValidate, plugins, hooks, states.NewState().SyncWrapper(), states.NewState().SyncWrapper(), states.NewState().SyncWrapper(), plans.NewChanges().SyncWrapper())
 	inputs := VariableInputs{}
 
 	// Mirrors tofu/context_validate.go
@@ -49,7 +51,10 @@ func WalkValidate(ctx context.Context, config *configs.Config, plugins plugins.M
 		}
 	}
 
-	root := NewModuleValidate(ctx, addrs.RootModuleInstance, config, inputs, scope)
+	root := NewModule(ctx, addrs.RootModuleInstance, config, inputs, scope)
 
-	return root.Collect()
+	p := NewConcurrencyPool(10)
+	root.Collect(p)
+
+	return p.Wait()
 }

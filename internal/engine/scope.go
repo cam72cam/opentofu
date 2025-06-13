@@ -21,16 +21,20 @@ type Scope struct {
 	hooks    []tofu.Hook
 	Plugins  plugins.Manager
 
-	altData func(caller promise, instance instances.RepetitionData) lang.Data
+	PrevRun *states.SyncState
+	Refresh *states.SyncState
+	State   *states.SyncState
+	Changes *plans.ChangesSync
 
-	variables map[addrs.InputVariable]*Promise[cty.Value]
-	locals    map[addrs.LocalValue]*Promise[cty.Value]
-	resources map[addrs.Resource]*Promise[cty.Value]
-	calls     map[addrs.ModuleCall]*Promise[cty.Value]
-	outputs   map[addrs.OutputValue]*Promise[cty.Value]
+	Data ModuleData
 }
 
-func NewRootScope(op WalkOperation, pluginManager plugins.Manager, hooks []tofu.Hook) *Scope {
+func NewRootScope(op WalkOperation, pluginManager plugins.Manager, hooks []tofu.Hook,
+	prevRun *states.SyncState,
+	refresh *states.SyncState,
+	state *states.SyncState,
+	changes *plans.ChangesSync,
+) *Scope {
 	return &Scope{
 		path:     addrs.RootModuleInstance,
 		op:       op,
@@ -38,15 +42,14 @@ func NewRootScope(op WalkOperation, pluginManager plugins.Manager, hooks []tofu.
 		hooks:    hooks,
 		Plugins:  pluginManager,
 
-		variables: map[addrs.InputVariable]*Promise[cty.Value]{},
-		locals:    map[addrs.LocalValue]*Promise[cty.Value]{},
-		resources: map[addrs.Resource]*Promise[cty.Value]{},
-		calls:     map[addrs.ModuleCall]*Promise[cty.Value]{},
-		outputs:   map[addrs.OutputValue]*Promise[cty.Value]{},
+		PrevRun: prevRun,
+		Refresh: refresh,
+		State:   state,
+		Changes: changes,
 	}
 }
 
-func NewScope(path addrs.ModuleInstance, parent *Scope) *Scope {
+func NewScope(path addrs.ModuleInstance, parent *Scope, data ModuleData) *Scope {
 	return &Scope{
 		path:     path,
 		op:       parent.op,
@@ -54,29 +57,12 @@ func NewScope(path addrs.ModuleInstance, parent *Scope) *Scope {
 		hooks:    parent.hooks,
 		Plugins:  parent.Plugins,
 
-		variables: map[addrs.InputVariable]*Promise[cty.Value]{},
-		locals:    map[addrs.LocalValue]*Promise[cty.Value]{},
-		resources: map[addrs.Resource]*Promise[cty.Value]{},
-		calls:     map[addrs.ModuleCall]*Promise[cty.Value]{},
-		outputs:   map[addrs.OutputValue]*Promise[cty.Value]{},
-	}
-}
+		PrevRun: parent.PrevRun,
+		Refresh: parent.Refresh,
+		State:   parent.State,
+		Changes: parent.Changes,
 
-func NewScopeAlt[Variable, Local, Resource, Call, Output ValuePromise](path addrs.ModuleInstance, parent *Scope, data ModuleData[Variable, Local, Resource, Call, Output]) *Scope {
-	return &Scope{
-		path:     path,
-		op:       parent.op,
-		expander: parent.expander,
-		hooks:    parent.hooks,
-		Plugins:  parent.Plugins,
-
-		altData: func(caller promise, instance instances.RepetitionData) lang.Data {
-			return &evalDataAlt[Variable, Local, Resource, Call, Output]{
-				caller,
-				instance,
-				data,
-			}
-		},
+		Data: data,
 	}
 }
 
@@ -87,10 +73,10 @@ func (s *Scope) EvalContext(caller promise) tofu.EvalContext {
 
 	evalCtx := &tofu.MockEvalContext{
 		PathPath:          s.path,
-		ChangesChanges:    plans.NewChanges().SyncWrapper(),
-		StateState:        states.NewState().SyncWrapper(),
-		RefreshStateState: states.NewState().SyncWrapper(),
-		PrevRunStateState: states.NewState().SyncWrapper(),
+		ChangesChanges:    s.Changes,
+		StateState:        s.State,
+		RefreshStateState: s.Refresh,
+		PrevRunStateState: s.PrevRun,
 		ChecksState:       checks.NewState(nil),
 		HookFn: func(fn func(tofu.Hook) (tofu.HookAction, error)) error {
 			// Lifted from BuiltinEvalContext
@@ -127,22 +113,12 @@ func (s *Scope) EvalContext(caller promise) tofu.EvalContext {
 			source addrs.Referenceable,
 			keyData tofu.InstanceKeyEvalData,
 		) *lang.Scope {
-			var data lang.Data
-			if s.altData != nil {
-				data = s.altData(caller, keyData)
-			} else {
-				data = &evalData{
-					caller:    caller,
-					instance:  keyData,
-					variables: s.variables,
-					locals:    s.locals,
-					resources: s.resources,
-					calls:     s.calls,
-					outputs:   s.outputs,
-				}
-			}
 			return &lang.Scope{
-				Data:     data,
+				Data: &evalData{
+					caller,
+					keyData,
+					s.Data,
+				},
 				ParseRef: addrs.ParseRef,
 				//SelfAddr:          self,
 				//SourceAddr:        source,

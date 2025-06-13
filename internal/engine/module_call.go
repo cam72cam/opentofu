@@ -6,8 +6,6 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/plans"
-	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 	"github.com/opentofu/opentofu/internal/tofu"
 	"github.com/zclconf/go-cty/cty"
@@ -46,65 +44,60 @@ func getModuleCallInputExpressions(config *configs.ModuleCall, moduleConfig *con
 
 }
 
-type ModuleCallValidate struct {
+type ModuleInstances map[addrs.InstanceKey]Module
+type ModuleCall struct {
 	*Promise[cty.Value]
-	instance *Promise[ModuleValidate]
+	instances *Promise[ModuleInstances]
 }
 
-func NewModuleCallValidate(ctx context.Context, addr addrs.AbsModuleCall, config *configs.ModuleCall, moduleConfig *configs.Config, scope *Scope) ModuleCallValidate {
-	// Validate only ever does a single expansion
+func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *configs.ModuleCall, moduleConfig *configs.Config, scope *Scope) ModuleCall {
+	if scope.op == walkValidate {
+		// Validate only ever does a single expansion
+		expansion := NewPromise(addr, func(self promise) (ModuleInstances, tfdiags.Diagnostics) {
+			evalCtx := scope.EvalContext(self)
 
-	expansion := NewPromise[ModuleValidate](addr, func(self promise) (ModuleValidate, tfdiags.Diagnostics) {
-		evalCtx := scope.EvalContext(self)
+			node := tofu.NodeValidateModule{tofu.NodeExpandModule{
+				Addr:       append(addr.Module.Module(), config.Name),
+				Config:     moduleConfig.Module,
+				ModuleCall: config,
+			}}
+			diags := node.Execute(ctx, evalCtx, tofu.WalkOperation(walkValidate))
 
-		node := tofu.NodeValidateModule{tofu.NodeExpandModule{
-			Addr:       append(addr.Module.Module(), config.Name),
-			Config:     moduleConfig.Module,
-			ModuleCall: config,
-		}}
-		diags := node.Execute(ctx, evalCtx, tofu.WalkOperation(walkValidate))
+			exprs, exprDiags := getModuleCallInputExpressions(config, moduleConfig)
+			diags = diags.Append(exprDiags)
 
-		exprs, exprDiags := getModuleCallInputExpressions(config, moduleConfig)
-		diags = diags.Append(exprDiags)
-
-		input := VariableInputs{}
-		for _, v := range moduleConfig.Module.Variables {
-			input[addrs.InputVariable{Name: v.Name}] = VariableInput{
-				expr:  exprs[v.Name], // TODO this differs from existing tofu logic
-				scope: scope,
+			input := VariableInputs{}
+			for _, v := range moduleConfig.Module.Variables {
+				input[addrs.InputVariable{Name: v.Name}] = VariableInput{
+					expr:  exprs[v.Name], // TODO this differs from existing tofu logic
+					scope: scope,
+				}
 			}
-		}
 
-		return NewModuleValidate(ctx, addr.Instance(addrs.NoKey), moduleConfig, input, scope), diags
-	})
+			return ModuleInstances{addrs.NoKey: NewModule(ctx, addr.Instance(addrs.NoKey), moduleConfig, input, scope)}, diags
+		})
 
-	outputValue := NewPromise[cty.Value](&addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
-		expanded, diags := expansion.Value(self)
-		out, outDiags := expanded.Value(self)
-		diags = diags.Append(outDiags)
+		outputValue := NewPromise(&addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
+			expanded, diags := expansion.Value(self)
+			out, outDiags := expanded[addrs.NoKey].Value(self)
+			diags = diags.Append(outDiags)
 
-		// FROM: tofu/evaluate.go
-		ty := out.Type()
-		switch {
-		case config.Count != nil:
-			return cty.UnknownVal(cty.List(ty)), diags
-		case config.ForEach != nil:
-			return cty.UnknownVal(cty.Map(ty)), diags
-		default:
-			return cty.UnknownVal(ty), diags
-		}
-	})
+			// FROM: tofu/evaluate.go
+			ty := out.Type()
+			switch {
+			case config.Count != nil:
+				return cty.UnknownVal(cty.List(ty)), diags
+			case config.ForEach != nil:
+				return cty.UnknownVal(cty.Map(ty)), diags
+			default:
+				return cty.UnknownVal(ty), diags
+			}
+		})
 
-	return ModuleCallValidate{outputValue, expansion}
-}
+		return ModuleCall{outputValue, expansion}
+	}
 
-type ModuleCallPlan struct {
-	*Promise[cty.Value]
-	instances *Promise[map[addrs.InstanceKey]ModulePlan]
-}
-
-func NewModuleCallPlan(ctx context.Context, addr addrs.AbsModuleCall, config *configs.ModuleCall, moduleConfig *configs.Config, priorState *states.State, scope *Scope) ModuleCallPlan {
-	expansion := NewPromise(addr, func(self promise) (map[addrs.InstanceKey]ModulePlan, tfdiags.Diagnostics) {
+	expansion := NewPromise(addr, func(self promise) (ModuleInstances, tfdiags.Diagnostics) {
 		evalCtx := scope.EvalContext(self)
 
 		node := tofu.NodeExpandModule{
@@ -117,7 +110,7 @@ func NewModuleCallPlan(ctx context.Context, addr addrs.AbsModuleCall, config *co
 		exprs, exprDiags := getModuleCallInputExpressions(config, moduleConfig)
 		diags = diags.Append(exprDiags)
 
-		ret := map[addrs.InstanceKey]ModulePlan{}
+		ret := ModuleInstances{}
 		for _, modAddr := range evalCtx.InstanceExpander().ExpandAbsModuleCall(addr) {
 			input := VariableInputs{}
 			for _, v := range moduleConfig.Module.Variables {
@@ -127,7 +120,7 @@ func NewModuleCallPlan(ctx context.Context, addr addrs.AbsModuleCall, config *co
 				}
 			}
 			key := modAddr[len(modAddr)-1].InstanceKey
-			ret[key] = NewModulePlan(ctx, modAddr, moduleConfig, input, priorState, scope)
+			ret[key] = NewModule(ctx, modAddr, moduleConfig, input, scope)
 
 		}
 		return ret, diags
@@ -198,120 +191,14 @@ func NewModuleCallPlan(ctx context.Context, addr addrs.AbsModuleCall, config *co
 		}
 	})
 
-	return ModuleCallPlan{outputValue, expansion}
+	return ModuleCall{outputValue, expansion}
 }
 
-func NewModuleCallApply(ctx context.Context, addr addrs.AbsModuleCall, config *configs.ModuleCall, moduleConfig *configs.Config, priorChanges *plans.Changes, priorState *states.State, scope *Scope) (*Promise[cty.Value], Apply, tfdiags.Diagnostics) {
+func (m ModuleCall) Expand(c *ConcurrencyPool) tfdiags.Diagnostics {
+	expanded, diags := m.instances.Value(nil)
 
-	type expanded struct {
-		instances map[addrs.InstanceKey]*Promise[cty.Value]
-		applys    Applys
+	for _, mod := range expanded {
+		mod.Collect(c)
 	}
-
-	expansion := NewPromise[expanded](addr, func(self promise) (expanded, tfdiags.Diagnostics) {
-		evalCtx := scope.EvalContext(self)
-
-		node := tofu.NodeExpandModule{
-			Addr:       append(addr.Module.Module(), config.Name),
-			Config:     moduleConfig.Module,
-			ModuleCall: config,
-		}
-		diags := node.Execute(ctx, evalCtx, tofu.WalkOperation(walkApply))
-
-		exprs, exprDiags := getModuleCallInputExpressions(config, moduleConfig)
-		diags = diags.Append(exprDiags)
-
-		ret := expanded{
-			instances: map[addrs.InstanceKey]*Promise[cty.Value]{},
-		}
-		for _, modAddr := range evalCtx.InstanceExpander().ExpandAbsModuleCall(addr) {
-			input := VariableInputs{}
-			for _, v := range moduleConfig.Module.Variables {
-				input[addrs.InputVariable{Name: v.Name}] = VariableInput{
-					expr:  exprs[v.Name],
-					scope: scope,
-				}
-			}
-			promise, apply, newDiags := NewModuleApply(ctx, modAddr, moduleConfig, input, priorChanges, priorState, scope)
-			diags = diags.Append(newDiags)
-			key := modAddr[len(modAddr)-1].InstanceKey
-			ret.instances[key] = promise
-			ret.applys = append(ret.applys, apply)
-
-		}
-		return ret, diags
-	})
-
-	outputValue := NewPromise[cty.Value](&addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
-		// expansion
-		expanded, diags := expansion.Value(self)
-
-		moduleInstances := make(map[addrs.InstanceKey]cty.Value)
-		for key, mod := range expanded.instances {
-			var modDiags tfdiags.Diagnostics
-			moduleInstances[key], modDiags = mod.Value(self)
-			diags = diags.Append(modDiags)
-		}
-		if diags.HasErrors() {
-			return cty.NilVal, diags
-		}
-
-		// Lifted from tofu/evaluate.go
-
-		switch {
-		case config.Count != nil:
-			length := -1
-			for key := range moduleInstances {
-				intKey, ok := key.(addrs.IntKey)
-				if !ok {
-					// old key from state which is being dropped
-					continue
-				}
-				if int(intKey) >= length {
-					length = int(intKey) + 1
-				}
-			}
-
-			if length <= 0 {
-				return cty.EmptyTupleVal, diags
-			}
-			vals := make([]cty.Value, length)
-			for key, instance := range moduleInstances {
-				intKey, ok := key.(addrs.IntKey)
-				if !ok {
-					// old key from state which is being dropped
-					continue
-				}
-
-				vals[int(intKey)] = instance
-			}
-
-			// Insert unknown values where there are any missing instances
-			for i, v := range vals {
-				if v.IsNull() {
-					vals[i] = cty.DynamicVal
-					continue
-				}
-			}
-			return cty.TupleVal(vals), diags
-
-		case config.ForEach != nil:
-			instanceMap := make(map[string]cty.Value)
-			for key, mod := range moduleInstances {
-				sk := key.(addrs.StringKey)
-				instanceMap[string(sk)] = mod
-			}
-			return cty.ObjectVal(instanceMap), diags
-		default:
-			return moduleInstances[addrs.NoKey], diags
-		}
-	})
-
-	apply := func(data ApplyData) tfdiags.Diagnostics {
-		expanded, diags := expansion.Value(nil)
-		diags = diags.Append(expanded.applys.Collect(data))
-		return diags
-	}
-
-	return outputValue, apply, nil
+	return diags
 }
