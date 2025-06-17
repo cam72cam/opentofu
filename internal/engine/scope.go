@@ -66,7 +66,7 @@ func NewScope(path addrs.ModuleInstance, parent *Scope, data ModuleData) *Scope 
 	}
 }
 
-func (s *Scope) EvalContext(caller promise) tofu.EvalContext {
+func (s *Scope) EvalContext(caller executor) tofu.EvalContext {
 	// I think this can be stupid?
 	// This is just a hack for the variable input passthrough from parent -> child in the variable nodes
 	var varCache cty.Value

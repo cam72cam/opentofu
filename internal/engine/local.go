@@ -11,7 +11,7 @@ import (
 )
 
 func NewLocal(ctx context.Context, addr addrs.AbsLocalValue, config *configs.Local, scope *Scope) ValuePromise {
-	return NewPromise(addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
+	return NewPromise(addr, func(self executor) (cty.Value, tfdiags.Diagnostics) {
 		evalCtx := scope.EvalContext(self)
 
 		node := &tofu.NodeLocal{

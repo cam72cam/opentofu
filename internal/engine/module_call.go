@@ -53,7 +53,7 @@ type ModuleCall struct {
 func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *configs.ModuleCall, moduleConfig *configs.Config, scope *Scope) ModuleCall {
 	if scope.op == walkValidate {
 		// Validate only ever does a single expansion
-		expansion := NewPromise(addr, func(self promise) (ModuleInstances, tfdiags.Diagnostics) {
+		expansion := NewPromise(addr, func(self executor) (ModuleInstances, tfdiags.Diagnostics) {
 			evalCtx := scope.EvalContext(self)
 
 			node := tofu.NodeValidateModule{tofu.NodeExpandModule{
@@ -77,7 +77,7 @@ func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *config
 			return ModuleInstances{addrs.NoKey: NewModule(ctx, addr.Instance(addrs.NoKey), moduleConfig, input, scope)}, diags
 		})
 
-		outputValue := NewPromise(&addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
+		outputValue := NewPromise(&addr, func(self executor) (cty.Value, tfdiags.Diagnostics) {
 			expanded, diags := expansion.Value(self)
 			out, outDiags := expanded[addrs.NoKey].Value(self)
 			diags = diags.Append(outDiags)
@@ -97,7 +97,7 @@ func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *config
 		return ModuleCall{outputValue, expansion}
 	}
 
-	expansion := NewPromise(addr, func(self promise) (ModuleInstances, tfdiags.Diagnostics) {
+	expansion := NewPromise(addr, func(self executor) (ModuleInstances, tfdiags.Diagnostics) {
 		evalCtx := scope.EvalContext(self)
 
 		node := tofu.NodeExpandModule{
@@ -126,7 +126,7 @@ func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *config
 		return ret, diags
 	})
 
-	outputValue := NewPromise(&addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
+	outputValue := NewPromise(&addr, func(self executor) (cty.Value, tfdiags.Diagnostics) {
 		// expansion
 		expanded, diags := expansion.Value(self)
 

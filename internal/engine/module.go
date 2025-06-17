@@ -56,7 +56,7 @@ func (c *ConcurrencyPool) Wait() tfdiags.Diagnostics {
 }
 
 type ValuePromise interface {
-	Value(promise) (cty.Value, tfdiags.Diagnostics)
+	Value(executor) (cty.Value, tfdiags.Diagnostics)
 }
 
 type ExpandValuePromise interface {
@@ -119,7 +119,7 @@ func NewModule(ctx context.Context, addr addrs.ModuleInstance, config *configs.C
 	}
 
 	return Module{
-		NewPromise(addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
+		NewPromise(addr, func(self executor) (cty.Value, tfdiags.Diagnostics) {
 			obj := map[string]cty.Value{}
 			var diags tfdiags.Diagnostics
 			for name := range config.Module.Outputs {

@@ -22,7 +22,7 @@ type Resource struct {
 
 func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Resource, scope *Scope) Resource {
 	if scope.op == walkValidate {
-		return Resource{ValuePromise: NewPromise(addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
+		return Resource{ValuePromise: NewPromise(addr, func(self executor) (cty.Value, tfdiags.Diagnostics) {
 			abstract, diags := tofuNodeAbstractResource(addr.Config(), config, scope)
 			node := tofu.NodeValidatableResource{&abstract}
 			evalCtx := scope.EvalContext(self)
@@ -47,7 +47,7 @@ func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Re
 			return cty.DynamicVal, diags
 		})}
 	}
-	expansion := NewPromise(addr, func(self promise) (ResourceInstances, tfdiags.Diagnostics) {
+	expansion := NewPromise(addr, func(self executor) (ResourceInstances, tfdiags.Diagnostics) {
 		evalCtx := scope.EvalContext(self)
 
 		abstract, diags := tofuNodeAbstractResource(addr.Config(), config, scope)
@@ -60,14 +60,14 @@ func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Re
 		for _, resAddr := range evalCtx.InstanceExpander().ExpandResource(addr) {
 			resAddr := resAddr
 			key := resAddr.Resource.Key
-			instances[key] = NewPromise(resAddr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
+			instances[key] = NewPromise(resAddr, func(self executor) (cty.Value, tfdiags.Diagnostics) {
 				return NewResourceInstance(ctx, resAddr, config, self, scope)
 			})
 		}
 		return instances, diags
 	})
 
-	outputValue := NewPromise(&addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
+	outputValue := NewPromise(&addr, func(self executor) (cty.Value, tfdiags.Diagnostics) {
 		// expansion
 		expanded, diags := expansion.Value(self)
 
@@ -152,6 +152,7 @@ var (
 	// Until we have proper providers wired in to this system, this is a hack for testing unconfigured providers
 	runningProviders = map[addrs.Provider]providers.Interface{}
 	providersLock    sync.Mutex
+	numRequests      = 0
 )
 
 func providersHack(ctx context.Context, evalCtx tofu.EvalContext, scope *Scope, provider addrs.Provider) tfdiags.Diagnostics {
@@ -238,7 +239,7 @@ func tofuNodeAbstractResource(addr addrs.ConfigResource, config *configs.Resourc
 
 }
 
-func NewResourceInstance(ctx context.Context, addr addrs.AbsResourceInstance, config *configs.Resource, self promise, scope *Scope) (cty.Value, tfdiags.Diagnostics) {
+func NewResourceInstance(ctx context.Context, addr addrs.AbsResourceInstance, config *configs.Resource, self executor, scope *Scope) (cty.Value, tfdiags.Diagnostics) {
 	evalCtx := scope.EvalContext(self)
 
 	// Create pre-expansion node for embedding

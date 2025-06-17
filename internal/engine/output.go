@@ -11,7 +11,7 @@ import (
 )
 
 func NewOutput(ctx context.Context, addr addrs.AbsOutputValue, config *configs.Output, scope *Scope) ValuePromise {
-	return NewPromise(addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
+	return NewPromise(addr, func(self executor) (cty.Value, tfdiags.Diagnostics) {
 		evalCtx := scope.EvalContext(self)
 
 		// TODO NodeDestroyableOutput

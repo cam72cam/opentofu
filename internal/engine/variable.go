@@ -18,7 +18,7 @@ type VariableInput struct {
 type VariableInputs map[addrs.InputVariable]VariableInput
 
 func NewVariable(ctx context.Context, addr addrs.AbsInputVariableInstance, config *configs.Variable, caller VariableInput, scope *Scope) *Promise[cty.Value] {
-	return NewPromise(addr, func(self promise) (cty.Value, tfdiags.Diagnostics) {
+	return NewPromise(addr, func(self executor) (cty.Value, tfdiags.Diagnostics) {
 		evalCtx := scope.EvalContext(self)
 		parentEvalCtx := caller.scope.EvalContext(self)
 

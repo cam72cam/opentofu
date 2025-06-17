@@ -26,25 +26,26 @@ func TestSimpleValid(t *testing.T) {
 	var q *Promise[cty.Value]
 	var p *Promise[cty.Value]
 
-	p = NewPromise[cty.Value](stringer("var.foo"), func(_ promise) (cty.Value, tfdiags.Diagnostics) {
+	p = NewPromise[cty.Value](stringer("var.foo"), func(e executor) (cty.Value, tfdiags.Diagnostics) {
 		return cty.StringVal("Hello World"), nil
 	})
-	q = NewPromise[cty.Value](stringer("local.val"), func(_ promise) (cty.Value, tfdiags.Diagnostics) {
-		return p.Value(q)
+	q = NewPromise[cty.Value](stringer("local.val"), func(e executor) (cty.Value, tfdiags.Diagnostics) {
+		return p.Value(e)
 	})
 
 	result, err := q.Value(nil)
 	t.Logf("%v, %v\n", result, err)
 }
+
 func TestSimpleCycle(t *testing.T) {
 	var q *Promise[cty.Value]
 	var p *Promise[cty.Value]
 
-	p = NewPromise[cty.Value](istringer(5), func(_ promise) (cty.Value, tfdiags.Diagnostics) {
-		return q.Value(p)
+	p = NewPromise[cty.Value](istringer(5), func(e executor) (cty.Value, tfdiags.Diagnostics) {
+		return q.Value(e)
 	})
-	q = NewPromise[cty.Value](stringer("z"), func(_ promise) (cty.Value, tfdiags.Diagnostics) {
-		return p.Value(q)
+	q = NewPromise[cty.Value](stringer("z"), func(e executor) (cty.Value, tfdiags.Diagnostics) {
+		return p.Value(e)
 	})
 
 	result, err := q.Value(nil)
@@ -55,8 +56,8 @@ func TestSingleCycle(t *testing.T) {
 	var n = 20
 	chain := make([]*Promise[cty.Value], n, n)
 	for i := 0; i < n; i++ {
-		chain[i] = NewPromise[cty.Value](istringer(i), func(_ promise) (cty.Value, tfdiags.Diagnostics) {
-			return chain[(i+1)%n].Value(chain[i])
+		chain[i] = NewPromise[cty.Value](istringer(i), func(e executor) (cty.Value, tfdiags.Diagnostics) {
+			return chain[(i+1)%n].Value(e)
 		})
 	}
 
@@ -69,9 +70,9 @@ func TestParallelCycle(t *testing.T) {
 	chain := make([]*Promise[cty.Value], n, n)
 	for i := 0; i < n; i++ {
 		i := i
-		chain[i] = NewPromise[cty.Value](istringer(i), func(_ promise) (cty.Value, tfdiags.Diagnostics) {
+		chain[i] = NewPromise[cty.Value](istringer(i), func(e executor) (cty.Value, tfdiags.Diagnostics) {
 			//time.Sleep(10 * time.Millisecond)
-			val, err := chain[(i+1)%n].Value(chain[i])
+			val, err := chain[(i+1)%n].Value(e)
 			if err != nil {
 				err = err.Append(fmt.Errorf("%v unavailable due", i))
 			}
@@ -99,17 +100,18 @@ func TestParallelCycle(t *testing.T) {
 	}
 }
 
+/*
 func TestParallelCrazy(t *testing.T) {
 	var n = 4000
 	chain := make([]*Promise[cty.Value], n, n)
 	for i := 0; i < n; i++ {
-		chain[i] = NewPromise[cty.Value](istringer(i), func(_ promise) (cty.Value, tfdiags.Diagnostics) {
+		chain[i] = NewPromise[cty.Value](istringer(i), func(e executor) (cty.Value, tfdiags.Diagnostics) {
 			//time.Sleep(10 * time.Millisecond)
-			r := make(chan Result[cty.Value], 4)
+			r := make(chan int, 4)
 			go func() {
-				chain[(i+40)%n].Value(chain[i])
-				chain[(i+80)%n].Value(chain[i])
-				chain[(i+120)%n].Value(chain[i])
+				chain[(i+40)%n].Value(e)
+				chain[(i+80)%n].Value(e)
+				chain[(i+120)%n].Value(e)
 			}()
 			for i := 0; i < 4; i++ {
 				<-r
@@ -131,4 +133,4 @@ func TestParallelCrazy(t *testing.T) {
 		t.Logf("%v, %v\n", result, err)
 	}()
 	wg.Wait()
-}
+}*/

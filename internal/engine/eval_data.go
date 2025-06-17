@@ -8,7 +8,7 @@ import (
 )
 
 type evalData struct {
-	caller   promise
+	caller   executor
 	instance instances.RepetitionData
 
 	ModuleData
