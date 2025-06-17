@@ -2,45 +2,42 @@ package engine
 
 import (
 	"fmt"
-	"sync"
 
+	"github.com/apparentlymart/go-workgraph/workgraph"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
+var mainWorker = workgraph.NewWorker()
+
 type Promise[T any] struct {
 	ident   fmt.Stringer
-	resolve func(self promise) (T, tfdiags.Diagnostics)
-
-	lock     sync.Mutex
-	started  bool
-	resolved *Result[T]
-
-	visitChan chan promise
-	blockChan chan Blocked[T]
+	promise workgraph.Promise[T]
 }
 
-type promise interface {
-	internalIdent() fmt.Stringer
-	addVisit(promise)
-}
-
-type Result[T any] struct {
-	value T
-	diags tfdiags.Diagnostics
-}
-
-type Blocked[T any] struct {
-	resultChan chan Result[T]
-	promise    promise
-}
+type promise *workgraph.Worker
 
 func NewPromise[T any](ident fmt.Stringer, resolve func(self promise) (T, tfdiags.Diagnostics)) *Promise[T] {
+	resolver, promise := workgraph.NewRequest[T](mainWorker)
+
+	//fmt.Printf("New Promise %s => %s\n", ident.String(), resolver.RequestID())
+
+	workgraph.WithNewAsyncWorker(func(w *workgraph.Worker) {
+		//fmt.Printf("Resolve Promise %s => %s\n", ident.String(), resolver.RequestID())
+
+		t, diags := resolve(w)
+		err := diags.Err()
+		if err != nil {
+			resolver.ReportError(w, err)
+		} else {
+			resolver.ReportSuccess(w, t)
+		}
+
+		//fmt.Printf("Resolved Promise %s => %s\n", ident.String(), resolver.RequestID())
+	}, resolver)
+
 	p := &Promise[T]{
 		ident:   ident, // PTR for hashable
-		resolve: resolve,
-		// TODO tune chan size
-		visitChan: make(chan promise, 100),
-		blockChan: make(chan Blocked[T], 100),
+		promise: promise,
 	}
 
 	return p
@@ -49,123 +46,11 @@ func NewPromise[T any](ident fmt.Stringer, resolve func(self promise) (T, tfdiag
 func (p *Promise[T]) internalIdent() fmt.Stringer {
 	return p.ident
 }
-func (p *Promise[T]) addVisit(visit promise) {
-	p.visitChan <- visit
-}
-
-func (p *Promise[T]) manager() {
-	resultChan := make(chan Result[T], 1)
-	go func() {
-		value, err := p.resolve(p)
-		resultChan <- Result[T]{value, err}
-	}()
-
-	visits := map[any]promise{p: p}
-	blocking := map[any]Blocked[T]{}
-	var waiters []Blocked[T]
-
-	debug := func(s string, args ...any) {
-		//fmt.Printf("%v: %s\n", p.ident, fmt.Sprintf(s, args...))
-	}
-
-	writeResolved := func(result Result[T]) {
-		debug("resolved")
-		p.lock.Lock()
-		p.resolved = &result
-		p.lock.Unlock()
-
-		// Flush remaining waiters
-		debug("flush")
-		close(p.blockChan)
-		for blocked := range p.blockChan {
-			blocked.resultChan <- result
-		}
-		for _, blocked := range blocking {
-			blocked.resultChan <- result
-		}
-		for _, blocked := range waiters {
-			blocked.resultChan <- result
-		}
-		debug("done")
-
-		return
-	}
-
-	debug("loop manager")
-	for {
-		select {
-		case result := <-resultChan:
-			debug("result")
-			writeResolved(result)
-			return
-		case blocked := <-p.blockChan:
-			if blocked.promise == nil {
-				debug("waiter")
-				waiters = append(waiters, blocked)
-				continue
-			}
-			debug(">blocking %v", blocked.promise.internalIdent())
-			blocking[blocked.promise] = blocked
-
-			// Cycle Check
-			if _, ok := visits[blocked.promise]; ok {
-				debug("cycle block")
-				// If we have visited the thing that we are now blocking
-				writeResolved(Result[T]{
-					diags: tfdiags.Diagnostics{}.Append(fmt.Errorf("Cyclic dependency between %s and %s", p.ident, blocked.promise.internalIdent())),
-				})
-				return
-			}
-
-			// Back-propogate visits to new blocked
-			for _, visit := range visits {
-				blocked.promise.addVisit(visit)
-			}
-			debug("<blocking")
-		case visit := <-p.visitChan:
-			debug(">visit")
-			visits[visit] = visit
-
-			// Cycle Check
-			if blocked, ok := blocking[visit]; ok {
-				debug("cycle visit")
-				// If we have visited something that we are blocking
-				writeResolved(Result[T]{
-					diags: tfdiags.Diagnostics{}.Append(fmt.Errorf("Cyclic dependency between %s and %s", p.ident, blocked.promise.internalIdent())),
-				})
-				return
-			}
-
-			// Back-propogate new visit to all blocked
-			for _, blocked := range blocking {
-				blocked.promise.addVisit(visit)
-			}
-			debug("<visit")
-		}
-	}
-
-}
 
 func (p *Promise[T]) Value(caller promise) (T, tfdiags.Diagnostics) {
-	p.lock.Lock()
-	if p.resolved != nil {
-		p.lock.Unlock()
-		return p.resolved.value, p.resolved.diags
+	if caller == nil {
+		caller = workgraph.NewWorker()
 	}
-
-	if !p.started {
-		go p.manager()
-		p.started = true
-	}
-
-	resultChan := make(chan Result[T], 1)
-	p.blockChan <- Blocked[T]{
-		resultChan: resultChan,
-		promise:    caller,
-	}
-	p.lock.Unlock()
-
-	result := <-resultChan
-
-	return result.value, result.diags
+	t, err := p.promise.Await(caller)
+	return t, tfdiags.Diagnostics{}.Append(err)
 }
