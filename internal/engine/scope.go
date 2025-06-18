@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"log"
 
 	"github.com/opentofu/opentofu/internal/addrs"
@@ -9,6 +10,7 @@ import (
 	"github.com/opentofu/opentofu/internal/lang"
 	"github.com/opentofu/opentofu/internal/plans"
 	"github.com/opentofu/opentofu/internal/plugins"
+	"github.com/opentofu/opentofu/internal/providers"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/tofu"
 	"github.com/zclconf/go-cty/cty"
@@ -104,6 +106,23 @@ func (s *Scope) EvalContext(caller executor) tofu.EvalContext {
 			}
 
 			return nil
+		},
+
+		// Providers
+		ProviderFn: func(addr addrs.AbsProviderConfig, _ addrs.InstanceKey) providers.Interface {
+			// TODO keep mapping to parent providers in-tact
+			// hack for now
+			providerConfig := s.Data.Providers[addrs.LocalProviderConfig{
+				LocalName: addr.Provider.Type,
+				Alias:     addr.Alias,
+			}]
+
+			// TODO manage scope of provider (if we care)
+			provider, _, _ := providerConfig(caller)
+			return provider
+		},
+		ProviderSchemaFn: func(_ context.Context, addr addrs.AbsProviderConfig) (providers.ProviderSchema, error) {
+			return s.Plugins.ProviderSchema(addr.Provider)
 		},
 
 		// Variables

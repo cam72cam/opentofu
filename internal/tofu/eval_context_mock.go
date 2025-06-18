@@ -52,11 +52,13 @@ type MockEvalContext struct {
 	ProviderCalled   bool
 	ProviderAddr     addrs.AbsProviderConfig
 	ProviderProvider providers.Interface
+	ProviderFn       func(addrs.AbsProviderConfig, addrs.InstanceKey) providers.Interface
 
 	ProviderSchemaCalled bool
 	ProviderSchemaAddr   addrs.AbsProviderConfig
 	ProviderSchemaSchema providers.ProviderSchema
 	ProviderSchemaError  error
+	ProviderSchemaFn     func(context.Context, addrs.AbsProviderConfig) (providers.ProviderSchema, error)
 
 	CloseProviderCalled   bool
 	CloseProviderAddr     addrs.AbsProviderConfig
@@ -204,15 +206,21 @@ func (c *MockEvalContext) InitProvider(addr addrs.AbsProviderConfig, _ addrs.Ins
 	return c.InitProviderProvider, c.InitProviderError
 }
 
-func (c *MockEvalContext) Provider(addr addrs.AbsProviderConfig, _ addrs.InstanceKey) providers.Interface {
+func (c *MockEvalContext) Provider(addr addrs.AbsProviderConfig, key addrs.InstanceKey) providers.Interface {
 	c.ProviderCalled = true
 	c.ProviderAddr = addr
+	if c.ProviderFn != nil {
+		return c.ProviderFn(addr, key)
+	}
 	return c.ProviderProvider
 }
 
-func (c *MockEvalContext) ProviderSchema(_ context.Context, addr addrs.AbsProviderConfig) (providers.ProviderSchema, error) {
+func (c *MockEvalContext) ProviderSchema(ctx context.Context, addr addrs.AbsProviderConfig) (providers.ProviderSchema, error) {
 	c.ProviderSchemaCalled = true
 	c.ProviderSchemaAddr = addr
+	if c.ProviderSchemaFn != nil {
+		return c.ProviderSchemaFn(ctx, addr)
+	}
 	return c.ProviderSchemaSchema, c.ProviderSchemaError
 }
 

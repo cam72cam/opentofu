@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs"
@@ -21,14 +20,9 @@ type Resource struct {
 func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Resource, scope *Scope) Resource {
 	if scope.op == walkValidate {
 		return Resource{ValuePromise: NewPromise(addr, func(self executor) (cty.Value, tfdiags.Diagnostics) {
-			evalCtx, done, diags := evalContextForProvider(ctx, scope, self, config)
-			defer done()
-			if diags.HasErrors() {
-				return cty.NilVal, diags
-			}
+			evalCtx := scope.EvalContext(self)
 
-			abstract, abstractDiags := tofuNodeAbstractResource(addr.Config(), config, scope)
-			diags = diags.Append(abstractDiags)
+			abstract, diags := tofuNodeAbstractResource(addr.Config(), config, scope)
 			node := tofu.NodeValidatableResource{&abstract}
 
 			resolvedProvider := tofu.ResolvedProvider{
@@ -145,28 +139,6 @@ func (m Resource) Expand(c *ConcurrencyPool) tfdiags.Diagnostics {
 	return diags
 }
 
-func evalContextForProvider(ctx context.Context, scope *Scope, self executor, config *configs.Resource) (tofu.EvalContext, func(), tfdiags.Diagnostics) {
-	var diags tfdiags.Diagnostics
-
-	// TODO provider keys
-	addr := config.ProviderConfigAddr()
-	providerConfig, ok := scope.Data.Providers[addr]
-	if !ok {
-		panic(fmt.Sprintf("Unknown provider: %s in %s", addr, scope.Data.Addr))
-	}
-
-	provider, done, diags := providerConfig(self)
-	if diags.HasErrors() {
-		return nil, done, diags
-	}
-
-	mock := scope.EvalContext(self).(*tofu.MockEvalContext)
-	mock.ProviderProvider = provider
-	mock.ProviderSchemaSchema = provider.GetProviderSchema(ctx)
-
-	return mock, done, diags
-}
-
 func tofuNodeAbstractResource(addr addrs.ConfigResource, config *configs.Resource, scope *Scope) (tofu.NodeAbstractResource, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	abstract := tofu.NodeAbstractResource{
@@ -211,16 +183,10 @@ func tofuNodeAbstractResource(addr addrs.ConfigResource, config *configs.Resourc
 }
 
 func NewResourceInstance(ctx context.Context, addr addrs.AbsResourceInstance, config *configs.Resource, self executor, scope *Scope) (cty.Value, tfdiags.Diagnostics) {
-	// Wire in provider
-	evalCtx, done, diags := evalContextForProvider(ctx, scope, self, config)
-	if diags.HasErrors() {
-		return cty.NilVal, diags
-	}
-	defer done()
+	evalCtx := scope.EvalContext(self)
 
 	// Create pre-expansion node for embedding
-	abstract, abstractDiags := tofuNodeAbstractResource(addr.ConfigResource(), config, scope)
-	diags = diags.Append(abstractDiags)
+	abstract, diags := tofuNodeAbstractResource(addr.ConfigResource(), config, scope)
 	if diags.HasErrors() {
 		return cty.NilVal, diags
 	}
