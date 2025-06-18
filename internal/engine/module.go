@@ -128,7 +128,7 @@ func NewModule(ctx context.Context, addr addrs.ModuleInstance, config *configs.C
 		data.Resources[resAddr] = NewResource(ctx, resAddr.Absolute(addr), resource, scope)
 	}
 	for _, resource := range config.Module.DataResources {
-		resAddr := addrs.Resource{Name: resource.Name, Type: resource.Type, Mode: addrs.ManagedResourceMode}
+		resAddr := addrs.Resource{Name: resource.Name, Type: resource.Type, Mode: addrs.DataResourceMode}
 		data.Resources[resAddr] = NewResource(ctx, resAddr.Absolute(addr), resource, scope)
 	}
 	for _, call := range config.Module.ModuleCalls {
