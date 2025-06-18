@@ -192,8 +192,8 @@ func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *config
 	return ModuleCall{outputValue, expansion}
 }
 
-func (m ModuleCall) Expand(c *ConcurrencyPool) tfdiags.Diagnostics {
-	expanded, diags := m.instances.Value(nil)
+func (m ModuleCall) Expand(c *ConcurrencyPool, exec executor) tfdiags.Diagnostics {
+	expanded, diags := m.instances.Value(exec)
 
 	for _, mod := range expanded {
 		mod.Collect(c)

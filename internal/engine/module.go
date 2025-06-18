@@ -10,19 +10,37 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
+type Edge struct {
+	Requester any
+	Requestee any
+}
+
+type GraphCollector struct {
+	sync.Mutex
+	edges []Edge
+}
+
+func (e *GraphCollector) AddEdge(requester, requestee any) {
+	e.Lock()
+	e.edges = append(e.edges, Edge{Requester: requester, Requestee: requestee})
+	e.Unlock()
+}
+
 type ConcurrencyPool struct {
 	wg    sync.WaitGroup
 	lock  sync.Mutex
 	diags tfdiags.Diagnostics
-	pool  chan struct{}
+	pool  chan *Executor
+	graph *GraphCollector
 }
 
 func NewConcurrencyPool(size int) *ConcurrencyPool {
-	c := make(chan struct{}, size)
+	graph := &GraphCollector{}
+	c := make(chan *Executor, size)
 	for i := 0; i < size; i++ {
-		c <- struct{}{}
+		c <- NewExecutor(graph.AddEdge)
 	}
-	return &ConcurrencyPool{pool: c}
+	return &ConcurrencyPool{pool: c, graph: graph}
 }
 
 func (c *ConcurrencyPool) Add(p ValuePromise) {
@@ -30,7 +48,7 @@ func (c *ConcurrencyPool) Add(p ValuePromise) {
 	go func() {
 		defer c.wg.Done()
 		slot := <-c.pool
-		_, diags := p.Value(nil)
+		_, diags := p.Value(slot)
 		c.pool <- slot
 
 		c.lock.Lock()
@@ -43,16 +61,16 @@ func (c *ConcurrencyPool) Expand(e ExpandValuePromise) {
 	go func() {
 		defer c.wg.Done()
 
-		diags := e.Expand(c)
+		diags := e.Expand(c, NewExecutor(c.graph.AddEdge))
 		c.lock.Lock()
 		defer c.lock.Unlock()
 		c.diags = c.diags.Append(diags)
 	}()
 }
 
-func (c *ConcurrencyPool) Wait() tfdiags.Diagnostics {
+func (c *ConcurrencyPool) Wait() ([]Edge, tfdiags.Diagnostics) {
 	c.wg.Wait()
-	return c.diags
+	return c.graph.edges, c.diags
 }
 
 type ValuePromise interface {
@@ -61,7 +79,7 @@ type ValuePromise interface {
 
 type ExpandValuePromise interface {
 	ValuePromise
-	Expand(*ConcurrencyPool) tfdiags.Diagnostics // Could also return map[addrs.InstanceKey]*Scope for DependsOn
+	Expand(*ConcurrencyPool, executor) tfdiags.Diagnostics // Could also return map[addrs.InstanceKey]*Scope for DependsOn
 }
 
 type ModuleData struct {

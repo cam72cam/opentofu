@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs"
@@ -22,7 +23,10 @@ func WalkApply(ctx context.Context, config *configs.Config, plugins plugins.Mana
 
 	p := NewConcurrencyPool(10)
 	root.Collect(p)
-	return state, p.Wait()
+	edges, diags := p.Wait()
+	fmt.Printf("Detected %v edges", len(edges))
+	//spew.Dump(edges)
+	return state, diags
 }
 
 /*

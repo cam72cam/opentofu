@@ -5,18 +5,26 @@ import (
 )
 
 type executor interface {
+	Visit(any)
 	Execute(any, func())
 	Wait(any, executor, chan struct{}) error
 	WaitingOn() executor
 }
 
 type Executor struct {
+	recorder  func(any, any)
 	stack     []any
 	waitingOn executor
 }
 
-func NewExecutor() *Executor {
-	return &Executor{}
+func NewExecutor(recorder func(any, any)) *Executor {
+	return &Executor{recorder: recorder}
+}
+
+func (e *Executor) Visit(id any) {
+	if len(e.stack) != 0 {
+		e.recorder(e.stack[len(e.stack)-1], id)
+	}
 }
 
 func (e *Executor) Execute(id any, action func()) {

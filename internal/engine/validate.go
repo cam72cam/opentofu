@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/opentofu/opentofu/internal/addrs"
@@ -54,6 +55,9 @@ func WalkValidate(ctx context.Context, config *configs.Config, plugins plugins.M
 
 	p := NewConcurrencyPool(10)
 	root.Collect(p)
+	edges, diags := p.Wait()
+	//spew.Dump(edges)
+	fmt.Printf("Detected %v edges", len(edges))
 
-	return p.Wait()
+	return diags
 }

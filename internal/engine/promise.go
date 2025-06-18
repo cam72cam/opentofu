@@ -50,11 +50,7 @@ func NewPromise[T any](ident fmt.Stringer, resolve func(executor) (T, tfdiags.Di
 }
 
 func (p *Promise[T]) Value(exec executor) (T, tfdiags.Diagnostics) {
-	if exec == nil {
-		e := NewExecutor()
-		defer e.Close()
-		exec = e
-	}
+	exec.Visit(p)
 
 	// Quick attempt to return early
 	if p.status == PromiseStatusResolved {

@@ -127,11 +127,11 @@ func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Re
 	return Resource{outputValue, expansion}
 }
 
-func (m Resource) Expand(c *ConcurrencyPool) tfdiags.Diagnostics {
+func (m Resource) Expand(c *ConcurrencyPool, exec executor) tfdiags.Diagnostics {
 	if m.instances == nil {
 		return nil
 	}
-	expanded, diags := m.instances.Value(nil)
+	expanded, diags := m.instances.Value(exec)
 
 	for _, res := range expanded {
 		c.Add(res)
