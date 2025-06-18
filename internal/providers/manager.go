@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs/configschema"
 	"github.com/opentofu/opentofu/internal/tfdiags"
@@ -132,8 +131,6 @@ func (m *manager) ConfiguredProvider(addr addrs.Provider, cfg cty.Value) (Interf
 		Config: cfg,
 	}
 	m.instances[addr] = append(m.instances[addr], instance)
-
-	spew.Dump(cfg)
 
 	newI, err := m.NewProviderInstance(addr)
 	instance.Provider = newI
