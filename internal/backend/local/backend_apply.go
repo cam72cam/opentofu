@@ -128,6 +128,7 @@ func (b *Local) opApply(
 			lr.Config,
 			lr.Core.Schemas().(plugins.Manager),
 			lr.Core.Hooks(),
+			lr.Core.Workspace(),
 			lr.InputState,
 			engine.VariableInputs{}, //TODO
 		)
@@ -299,6 +300,7 @@ func (b *Local) opApply(
 			lr.Config,
 			lr.Core.Schemas().(plugins.Manager),
 			lr.Core.Hooks(),
+			lr.Core.Workspace(),
 			plan.Changes,
 			plan.PriorState,
 			engine.VariableInputs{}, //TODO

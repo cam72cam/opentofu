@@ -100,6 +100,10 @@ func (c *Context) Hooks() []Hook {
 	return c.hooks
 }
 
+func (c *Context) Workspace() string {
+	return c.meta.Env
+}
+
 // (additional methods on Context can be found in context_*.go files.)
 
 // NewContext creates a new Context structure.

@@ -66,6 +66,7 @@ type ExpandValuePromise interface {
 
 type ModuleData struct {
 	Addr      addrs.ModuleInstance
+	SourceDir string
 	Variables map[addrs.InputVariable]ValuePromise
 	Locals    map[addrs.LocalValue]ValuePromise
 	Resources map[addrs.Resource]ExpandValuePromise
@@ -73,9 +74,10 @@ type ModuleData struct {
 	Outputs   map[addrs.OutputValue]ValuePromise
 }
 
-func NewModuleData(addr addrs.ModuleInstance) ModuleData {
+func NewModuleData(addr addrs.ModuleInstance, sourceDir string) ModuleData {
 	return ModuleData{
 		Addr:      addr,
+		SourceDir: sourceDir,
 		Variables: map[addrs.InputVariable]ValuePromise{},
 		Locals:    map[addrs.LocalValue]ValuePromise{},
 		Resources: map[addrs.Resource]ExpandValuePromise{},
@@ -90,7 +92,7 @@ type Module struct {
 }
 
 func NewModule(ctx context.Context, addr addrs.ModuleInstance, config *configs.Config, inputs VariableInputs, parentScope *Scope) Module {
-	data := NewModuleData(addr)
+	data := NewModuleData(addr, config.Module.SourceDir)
 	scope := NewScope(addr, parentScope, data)
 
 	for _, variable := range config.Module.Variables {

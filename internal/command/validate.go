@@ -122,7 +122,7 @@ func (c *ValidateCommand) validate(ctx context.Context, dir, testDir string, noT
 		}
 
 		//return diags.Append(tfCtx.Validate(ctx, cfg))
-		return engine.WalkValidate(ctx, cfg, tfCtx.Schemas().(plugins.Manager), tfCtx.Hooks())
+		return engine.WalkValidate(ctx, cfg, tfCtx.Schemas().(plugins.Manager), tfCtx.Hooks(), tfCtx.Workspace())
 	}
 
 	diags = diags.Append(validate(cfg))

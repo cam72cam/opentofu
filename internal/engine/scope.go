@@ -15,11 +15,12 @@ import (
 )
 
 type Scope struct {
-	path     addrs.ModuleInstance
-	op       WalkOperation
-	expander *instances.Expander
-	hooks    []tofu.Hook
-	Plugins  plugins.Manager
+	path      addrs.ModuleInstance
+	op        WalkOperation
+	expander  *instances.Expander
+	hooks     []tofu.Hook
+	Plugins   plugins.Manager
+	workspace string
 
 	PrevRun *states.SyncState
 	Refresh *states.SyncState
@@ -29,18 +30,23 @@ type Scope struct {
 	Data ModuleData
 }
 
-func NewRootScope(op WalkOperation, pluginManager plugins.Manager, hooks []tofu.Hook,
+func NewRootScope(
+	op WalkOperation,
+	pluginManager plugins.Manager,
+	hooks []tofu.Hook,
+	workspace string,
 	prevRun *states.SyncState,
 	refresh *states.SyncState,
 	state *states.SyncState,
 	changes *plans.ChangesSync,
 ) *Scope {
 	return &Scope{
-		path:     addrs.RootModuleInstance,
-		op:       op,
-		expander: instances.NewExpander(),
-		hooks:    hooks,
-		Plugins:  pluginManager,
+		path:      addrs.RootModuleInstance,
+		op:        op,
+		expander:  instances.NewExpander(),
+		hooks:     hooks,
+		Plugins:   pluginManager,
+		workspace: workspace,
 
 		PrevRun: prevRun,
 		Refresh: refresh,
@@ -51,11 +57,12 @@ func NewRootScope(op WalkOperation, pluginManager plugins.Manager, hooks []tofu.
 
 func NewScope(path addrs.ModuleInstance, parent *Scope, data ModuleData) *Scope {
 	return &Scope{
-		path:     path,
-		op:       parent.op,
-		expander: parent.expander,
-		hooks:    parent.hooks,
-		Plugins:  parent.Plugins,
+		path:      path,
+		op:        parent.op,
+		expander:  parent.expander,
+		hooks:     parent.hooks,
+		Plugins:   parent.Plugins,
+		workspace: parent.workspace,
 
 		PrevRun: parent.PrevRun,
 		Refresh: parent.Refresh,
@@ -117,13 +124,14 @@ func (s *Scope) EvalContext(caller executor) tofu.EvalContext {
 				Data: &evalData{
 					caller,
 					keyData,
+					s.workspace,
 					s.Data,
 				},
-				ParseRef: addrs.ParseRef,
-				//SelfAddr:          self,
-				//SourceAddr:        source,
-				PureOnly: s.op != walkApply && s.op != walkDestroy && s.op != walkEval,
-				BaseDir:  ".", // Always current working directory for now.
+				ParseRef:   addrs.ParseRef,
+				SelfAddr:   self,
+				SourceAddr: source,
+				PureOnly:   s.op != walkApply && s.op != walkDestroy && s.op != walkEval,
+				BaseDir:    ".", // Always current working directory for now.
 				//PlanTimestamp:     e.PlanTimestamp,
 				//ProviderFunctions: functions,
 			}

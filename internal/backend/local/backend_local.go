@@ -140,7 +140,8 @@ func (b *Local) localRun(ctx context.Context, op *backend.Operation) (*backend.L
 		if b.OpValidation {
 			log.Printf("[TRACE] backend/local: running validation operation")
 			//validateDiags := ret.Core.Validate(ctx, ret.Config)
-			validateDiags := engine.WalkValidate(ctx, ret.Config, ret.Core.Schemas().(plugins.Manager), ret.Core.Hooks())
+			validateDiags := engine.WalkValidate(ctx, ret.Config, ret.Core.Schemas().(plugins.Manager), ret.Core.Hooks(), ret.Core.Workspace())
+
 			diags = diags.Append(validateDiags)
 		}
 	}

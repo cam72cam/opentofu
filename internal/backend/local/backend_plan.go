@@ -126,6 +126,7 @@ func (b *Local) opPlan(
 			lr.Config,
 			lr.Core.Schemas().(plugins.Manager),
 			lr.Core.Hooks(),
+			lr.Core.Workspace(),
 			lr.InputState,
 			engine.VariableInputs{}, //TODO
 		)

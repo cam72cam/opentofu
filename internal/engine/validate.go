@@ -33,8 +33,8 @@ func (s Validates) Collect() tfdiags.Diagnostics {
 	return diags
 }
 
-func WalkValidate(ctx context.Context, config *configs.Config, plugins plugins.Manager, hooks []tofu.Hook) tfdiags.Diagnostics {
-	scope := NewRootScope(walkValidate, plugins, hooks, states.NewState().SyncWrapper(), states.NewState().SyncWrapper(), states.NewState().SyncWrapper(), plans.NewChanges().SyncWrapper())
+func WalkValidate(ctx context.Context, config *configs.Config, plugins plugins.Manager, hooks []tofu.Hook, workspace string) tfdiags.Diagnostics {
+	scope := NewRootScope(walkValidate, plugins, hooks, workspace, states.NewState().SyncWrapper(), states.NewState().SyncWrapper(), states.NewState().SyncWrapper(), plans.NewChanges().SyncWrapper())
 	inputs := VariableInputs{}
 
 	// Mirrors tofu/context_validate.go
