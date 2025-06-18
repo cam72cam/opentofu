@@ -18,6 +18,15 @@ const (
 	PromiseStatusResolved
 )
 
+type Ident struct {
+	base   fmt.Stringer
+	suffix string
+}
+
+func (i Ident) String() string {
+	return fmt.Sprintf("%s %s", i.base, i.suffix)
+}
+
 type Promise[T any] struct {
 	ident   fmt.Stringer
 	resolve func(executor) (T, tfdiags.Diagnostics)
@@ -78,7 +87,7 @@ func (p *Promise[T]) Value(exec executor) (T, tfdiags.Diagnostics) {
 		fmt.Printf("Need Wait %v\n", exec)
 		p.lock.Unlock()
 		// Let the executor know to wait for the resolution or cycle
-		if err := exec.Wait(p.owner, p.resolved); err != nil {
+		if err := exec.Wait(p, p.owner, p.resolved); err != nil {
 			return p.cachedValue, p.cachedDiags.Append(err)
 		}
 	case PromiseStatusResolved:

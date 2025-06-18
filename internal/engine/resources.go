@@ -47,7 +47,7 @@ func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Re
 			return cty.DynamicVal, diags
 		})}
 	}
-	expansion := NewPromise(addr, func(self executor) (ResourceInstances, tfdiags.Diagnostics) {
+	expansion := NewPromise(Ident{addr, "(expand)"}, func(self executor) (ResourceInstances, tfdiags.Diagnostics) {
 		evalCtx := scope.EvalContext(self)
 
 		abstract, diags := tofuNodeAbstractResource(addr.Config(), config, scope)

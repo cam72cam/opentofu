@@ -119,7 +119,7 @@ func NewModule(ctx context.Context, addr addrs.ModuleInstance, config *configs.C
 	}
 
 	return Module{
-		NewPromise(addr, func(self executor) (cty.Value, tfdiags.Diagnostics) {
+		NewPromise(Ident{addr, "(outputs)"}, func(self executor) (cty.Value, tfdiags.Diagnostics) {
 			obj := map[string]cty.Value{}
 			var diags tfdiags.Diagnostics
 			for name := range config.Module.Outputs {

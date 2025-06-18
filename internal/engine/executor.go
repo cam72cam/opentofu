@@ -6,7 +6,7 @@ import (
 
 type executor interface {
 	Execute(any, func())
-	Wait(executor, chan struct{}) error
+	Wait(any, executor, chan struct{}) error
 	WaitingOn() executor
 }
 
@@ -33,17 +33,47 @@ func (e *Executor) WaitingOn() executor {
 	return e.waitingOn
 }
 
-func (e *Executor) Wait(waitingOn executor, wait chan struct{}) error {
+func (e *Executor) Wait(id any, waitingOn executor, wait chan struct{}) error {
 	e.waitingOn = waitingOn
 	defer func() {
 		e.waitingOn = nil
 	}()
 
 	// Cycle check
+	hasCycle := false
 	for w := waitingOn; w != nil; w = w.WaitingOn() {
 		if w == e {
-			return fmt.Errorf("TODO CYCLE")
+			hasCycle = true
+			break
 		}
+	}
+	if hasCycle {
+		// Create stack trace
+		var stack []any
+		for w := waitingOn; w != nil; w = w.WaitingOn() {
+			stack = append(stack, w.(*Executor).stack...)
+			if w == e {
+				break
+			}
+		}
+		stack = append(stack, id)
+
+		var msg string
+		foundCycleStart := false
+		for _, item := range stack {
+			if !foundCycleStart {
+				if item == id {
+					foundCycleStart = true
+					msg = fmt.Sprintf("Cycle Detected: %s", item)
+				}
+				continue
+			}
+			if foundCycleStart {
+				msg = fmt.Sprintf("%s -> %s", msg, item)
+			}
+
+		}
+		return fmt.Errorf(msg)
 	}
 
 	select {
