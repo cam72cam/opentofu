@@ -153,7 +153,7 @@ func (ctx *TestContext) evaluate(state *states.SyncState, changes *plans.Changes
 
 			provider := providerSupplier(pr.Type)
 
-			return evalContextProviderFunction(provider, walkPlan, pf, rng)
+			return EvalContextProviderFunction(provider, walkPlan, pf, rng)
 		},
 	}
 

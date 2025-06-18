@@ -12,8 +12,10 @@ import (
 	"github.com/opentofu/opentofu/internal/plugins"
 	"github.com/opentofu/opentofu/internal/providers"
 	"github.com/opentofu/opentofu/internal/states"
+	"github.com/opentofu/opentofu/internal/tfdiags"
 	"github.com/opentofu/opentofu/internal/tofu"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/function"
 )
 
 type Scope struct {
@@ -155,7 +157,17 @@ func (s *Scope) EvalContext(caller executor) tofu.EvalContext {
 				PureOnly:   s.op != walkApply && s.op != walkDestroy && s.op != walkEval,
 				BaseDir:    ".", // Always current working directory for now.
 				//PlanTimestamp:     e.PlanTimestamp,
-				//ProviderFunctions: functions,
+				ProviderFunctions: func(pf addrs.ProviderFunction, rng tfdiags.SourceRange) (*function.Function, tfdiags.Diagnostics) {
+					providerConfig := s.Data.Providers[addrs.LocalProviderConfig{
+						LocalName: pf.ProviderName,
+						Alias:     pf.ProviderAlias,
+					}]
+
+					// TODO manage scope of provider (if we care)
+					provider, _, _ := providerConfig(caller)
+
+					return tofu.EvalContextProviderFunction(provider, tofu.WalkOperation(s.op), pf, rng)
+				},
 			}
 		},
 
