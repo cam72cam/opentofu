@@ -46,8 +46,7 @@ func WalkValidate(ctx context.Context, config *configs.Config, plugins plugins.M
 			ty = cty.DynamicPseudoType
 		}
 		inputs[addrs.InputVariable{Name: name}] = VariableInput{
-			expr:  &hclsyntax.LiteralValueExpr{Val: cty.UnknownVal(ty)},
-			scope: scope,
+			expr: &hclsyntax.LiteralValueExpr{Val: cty.UnknownVal(ty)},
 		}
 	}
 

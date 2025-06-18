@@ -128,7 +128,7 @@ func (b *Local) opPlan(
 			lr.Core.Hooks(),
 			lr.Core.Workspace(),
 			lr.InputState,
-			engine.VariableInputs{}, //TODO
+			lr.PlanOpts.SetVariables,
 		)
 
 		plan = &plans.Plan{

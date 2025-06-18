@@ -69,8 +69,7 @@ func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *config
 			input := VariableInputs{}
 			for _, v := range moduleConfig.Module.Variables {
 				input[addrs.InputVariable{Name: v.Name}] = VariableInput{
-					expr:  exprs[v.Name], // TODO this differs from existing tofu logic
-					scope: scope,
+					expr: exprs[v.Name], // TODO this differs from existing tofu logic
 				}
 			}
 
@@ -115,8 +114,7 @@ func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *config
 			input := VariableInputs{}
 			for _, v := range moduleConfig.Module.Variables {
 				input[addrs.InputVariable{Name: v.Name}] = VariableInput{
-					expr:  exprs[v.Name],
-					scope: scope,
+					expr: exprs[v.Name],
 				}
 			}
 			key := modAddr[len(modAddr)-1].InstanceKey

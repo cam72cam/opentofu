@@ -97,7 +97,7 @@ func NewModule(ctx context.Context, addr addrs.ModuleInstance, config *configs.C
 
 	for _, variable := range config.Module.Variables {
 		varAddr := addrs.InputVariable{Name: variable.Name}
-		data.Variables[varAddr] = NewVariable(ctx, varAddr.Absolute(addr), variable, inputs[varAddr], scope)
+		data.Variables[varAddr] = NewVariable(ctx, varAddr.Absolute(addr), variable, inputs[varAddr], scope, parentScope)
 	}
 	for _, local := range config.Module.Locals {
 		localAddr := addrs.LocalValue{Name: local.Name}

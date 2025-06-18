@@ -130,7 +130,7 @@ func (b *Local) opApply(
 			lr.Core.Hooks(),
 			lr.Core.Workspace(),
 			lr.InputState,
-			engine.VariableInputs{}, //TODO
+			lr.PlanOpts.SetVariables,
 		)
 
 		plan = &plans.Plan{
@@ -293,7 +293,7 @@ func (b *Local) opApply(
 		defer panicHandler()
 		defer close(doneCh)
 		log.Printf("[INFO] backend/local: apply calling Apply")
-		//applyState, applyDiags = lr.Core.Apply(ctx, plan, lr.Config)
+		applyState, applyDiags = lr.Core.Apply(ctx, plan, lr.Config)
 
 		state, diags := engine.WalkApply(
 			ctx,
@@ -303,7 +303,7 @@ func (b *Local) opApply(
 			lr.Core.Workspace(),
 			plan.Changes,
 			plan.PriorState,
-			engine.VariableInputs{}, //TODO
+			lr.PlanOpts.SetVariables, // TODO this should probably come from the plan?
 		)
 		applyState = state
 		applyDiags = diags

@@ -113,6 +113,9 @@ func (s *Scope) EvalContext(caller executor) tofu.EvalContext {
 		SetModuleCallArgumentFunc: func(callAddr addrs.ModuleCallInstance, varAddr addrs.InputVariable, v cty.Value) {
 			varCache = v
 		},
+		SetRootModuleArgumentFunc: func(varAddr addrs.InputVariable, v cty.Value) {
+			varCache = v
+		},
 
 		// Evaluation
 		EvaluationScopeResultFunc: func(
