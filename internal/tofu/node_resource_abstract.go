@@ -496,7 +496,7 @@ func (n *NodeAbstractResource) DotNode(name string, opts *dag.DotOpts) *dag.DotN
 // in that case, allowing expression evaluation to see it as a zero-element list
 // rather than as not set at all.
 func (n *NodeAbstractResource) WriteResourceState(evalCtx EvalContext, addr addrs.AbsResource) (diags tfdiags.Diagnostics) {
-	state := evalCtx.State()
+	//state := evalCtx.State()
 
 	// We'll record our expansion decision in the shared "expander" object
 	// so that later operations (i.e. DynamicExpand and expression evaluation)
@@ -512,7 +512,7 @@ func (n *NodeAbstractResource) WriteResourceState(evalCtx EvalContext, addr addr
 			return diags
 		}
 
-		state.SetResourceProvider(addr, n.ResolvedProvider.ProviderConfig)
+		//state.SetResourceProvider(addr, n.ResolvedProvider.ProviderConfig)
 		expander.SetResourceCount(addr.Module, n.Addr.Resource, count)
 
 	case n.Config != nil && n.Config.ForEach != nil:
@@ -524,11 +524,11 @@ func (n *NodeAbstractResource) WriteResourceState(evalCtx EvalContext, addr addr
 
 		// This method takes care of all of the business logic of updating this
 		// while ensuring that any existing instances are preserved, etc.
-		state.SetResourceProvider(addr, n.ResolvedProvider.ProviderConfig)
+		//state.SetResourceProvider(addr, n.ResolvedProvider.ProviderConfig)
 		expander.SetResourceForEach(addr.Module, n.Addr.Resource, forEach)
 
 	default:
-		state.SetResourceProvider(addr, n.ResolvedProvider.ProviderConfig)
+		//state.SetResourceProvider(addr, n.ResolvedProvider.ProviderConfig)
 		expander.SetResourceSingle(addr.Module, n.Addr.Resource)
 	}
 

@@ -133,7 +133,6 @@ func (m *manager) ConfiguredProvider(addr addrs.Provider, cfg cty.Value) (Interf
 	}
 	m.instances[addr] = append(m.instances[addr], instance)
 
-	println("exec")
 	spew.Dump(cfg)
 
 	newI, err := m.NewProviderInstance(addr)
@@ -141,7 +140,6 @@ func (m *manager) ConfiguredProvider(addr addrs.Provider, cfg cty.Value) (Interf
 	instance.diags = tfdiags.Diagnostics{}.Append(err)
 
 	if err == nil && cfg != cty.NilVal {
-		println("with config")
 		// Try to configure
 		req := ConfigureProviderRequest{
 			TerraformVersion: version.String(),
