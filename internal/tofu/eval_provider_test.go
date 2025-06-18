@@ -36,7 +36,7 @@ func TestBuildProviderConfig(t *testing.T) {
 			"set_by_input": cty.StringVal("input"),
 		},
 	}
-	gotBody := buildProviderConfig(ctx, providerAddr, &configs.Provider{
+	gotBody := BuildProviderConfig(ctx, providerAddr, &configs.Provider{
 		Name:   "foo",
 		Config: configBody,
 	})

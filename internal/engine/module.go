@@ -72,6 +72,7 @@ type ModuleData struct {
 	Resources map[addrs.Resource]ExpandValuePromise
 	Calls     map[addrs.ModuleCall]ExpandValuePromise
 	Outputs   map[addrs.OutputValue]ValuePromise
+	Providers map[addrs.LocalProviderConfig]Provider
 }
 
 func NewModuleData(addr addrs.ModuleInstance, sourceDir string) ModuleData {
@@ -83,6 +84,7 @@ func NewModuleData(addr addrs.ModuleInstance, sourceDir string) ModuleData {
 		Resources: map[addrs.Resource]ExpandValuePromise{},
 		Calls:     map[addrs.ModuleCall]ExpandValuePromise{},
 		Outputs:   map[addrs.OutputValue]ValuePromise{},
+		Providers: map[addrs.LocalProviderConfig]Provider{},
 	}
 }
 
@@ -118,6 +120,37 @@ func NewModule(ctx context.Context, addr addrs.ModuleInstance, config *configs.C
 	for _, output := range config.Module.Outputs {
 		outputAddr := addrs.OutputValue{Name: output.Name}
 		data.Outputs[outputAddr] = NewOutput(ctx, outputAddr.Absolute(addr), output, scope)
+	}
+	// Copy in parent providers (legacy)
+	for addr, provider := range parentScope.Data.Providers {
+		data.Providers[addr] = provider
+	}
+	// Link in provider requirements
+	if addr.IsRoot() {
+		// Unconfigured providers
+		// TODO this does not handle local names well
+		reqs, _, _ := config.ProviderRequirements()
+		for provider := range reqs {
+			providerAddr := addrs.LocalProviderConfig{LocalName: provider.Type}
+			data.Providers[providerAddr] = NewProvider(ctx, AbsProviderConfig{Module: addr, Local: providerAddr}, provider, nil, scope)
+			// TODO if we are validating, create a stub
+		}
+	} else {
+		for _, provider := range config.Module.ProviderRequirements.RequiredProviders {
+			// Linked from parent call
+			linkParentProvider := func(alias string) {
+				//TODO
+			}
+			linkParentProvider("")
+			for _, alias := range provider.Aliases {
+				linkParentProvider(alias.Alias)
+			}
+		}
+	}
+	// Explicitly declared provider configs within this module
+	for _, provider := range config.Module.ProviderConfigs {
+		providerAddr := addrs.LocalProviderConfig{LocalName: provider.Name, Alias: provider.Alias}
+		data.Providers[providerAddr] = NewProvider(ctx, AbsProviderConfig{Module: addr, Local: providerAddr}, config.Module.ProviderForLocalConfig(providerAddr), provider, scope)
 	}
 
 	return Module{

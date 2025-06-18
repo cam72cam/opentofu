@@ -135,7 +135,7 @@ func (n *NodeApplyableProvider) ValidateProvider(ctx context.Context, evalCtx Ev
 	)
 	defer span.End()
 
-	configBody := buildProviderConfig(evalCtx, n.Addr, n.ProviderConfig())
+	configBody := BuildProviderConfig(evalCtx, n.Addr, n.ProviderConfig())
 
 	// if a provider config is empty (only an alias), return early and don't continue
 	// validation. validate doesn't need to fully configure the provider itself, so
@@ -203,7 +203,7 @@ func (n *NodeApplyableProvider) ConfigureProvider(ctx context.Context, evalCtx E
 
 	config := n.ProviderConfig()
 
-	configBody := buildProviderConfig(evalCtx, n.Addr, config)
+	configBody := BuildProviderConfig(evalCtx, n.Addr, config)
 
 	resp := provider.GetProviderSchema(ctx)
 	diags := resp.Diagnostics.InConfigBody(configBody, n.Addr.InstanceString(providerKey))

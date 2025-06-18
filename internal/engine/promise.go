@@ -84,9 +84,10 @@ func (p *Promise[T]) Value(exec executor) (T, tfdiags.Diagnostics) {
 		p.lock.Unlock()
 	case PromiseStatusResolving:
 		// Another executor is already handling this node, check for cycle and release executor for now
-		fmt.Printf("Need Wait %v\n", exec)
+		//fmt.Printf("Need Wait %v\n", exec)
 		p.lock.Unlock()
 		// Let the executor know to wait for the resolution or cycle
+		// TODO check select on closed channel
 		if err := exec.Wait(p, p.owner, p.resolved); err != nil {
 			return p.cachedValue, p.cachedDiags.Append(err)
 		}

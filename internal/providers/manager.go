@@ -1,25 +1,44 @@
 package providers
 
 import (
+	"context"
 	"fmt"
+	"sync"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs/configschema"
+	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/opentofu/opentofu/version"
+	"github.com/zclconf/go-cty/cty"
 )
 
 type Manager interface {
 	Schemas
 	NewProviderInstance(addr addrs.Provider) (Interface, error)
+	ConfiguredProvider(addrs.Provider, cty.Value) (Interface, func(), tfdiags.Diagnostics)
+}
+
+type providerInstance struct {
+	sync.Mutex
+	Config   cty.Value
+	Provider Interface
+	diags    tfdiags.Diagnostics
+	active   int
 }
 
 type manager struct {
 	factories map[addrs.Provider]Factory
 
-	// FUTURE: extend to take over responsibilities of managing provider interfaces from BuiltinEvalContext
+	lock      sync.Mutex
+	instances map[addrs.Provider][]*providerInstance
 }
 
 func NewManager(factories map[addrs.Provider]Factory) Manager {
-	return &manager{factories: factories}
+	return &manager{
+		factories: factories,
+		instances: map[addrs.Provider][]*providerInstance{},
+	}
 }
 
 func (m *manager) HasProvider(addr addrs.Provider) bool {
@@ -86,4 +105,56 @@ func (m *manager) ResourceTypeSchema(providerAddr addrs.Provider, resourceMode a
 
 	schema, version := providerSchema.SchemaForResourceType(resourceMode, resourceType)
 	return schema, version, nil
+}
+
+func (m *manager) ConfiguredProvider(addr addrs.Provider, cfg cty.Value) (Interface, func(), tfdiags.Diagnostics) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	// TODO make this smarter about starting a manager that shuts down providers when they are unused for a given time period
+	// This will require smarter locking / coordination
+
+	for _, instance := range m.instances[addr] {
+		if instance.Config.RawEquals(cfg) {
+			instance.Lock()
+			instance.active += 1
+			instance.Unlock()
+
+			return instance.Provider, func() {
+				instance.Lock()
+				instance.active -= 1
+				instance.Unlock()
+			}, instance.diags // TODO this could cause lots of additional warnings if not correctly handled
+		}
+	}
+
+	instance := &providerInstance{
+		Config: cfg,
+	}
+	m.instances[addr] = append(m.instances[addr], instance)
+
+	println("exec")
+	spew.Dump(cfg)
+
+	newI, err := m.NewProviderInstance(addr)
+	instance.Provider = newI
+	instance.diags = tfdiags.Diagnostics{}.Append(err)
+
+	if err == nil && cfg != cty.NilVal {
+		println("with config")
+		// Try to configure
+		req := ConfigureProviderRequest{
+			TerraformVersion: version.String(),
+			Config:           cfg,
+		}
+		resp := instance.Provider.ConfigureProvider(context.TODO(), req)
+		instance.diags = instance.diags.Append(resp.Diagnostics)
+	}
+
+	instance.active += 1
+	return instance.Provider, func() {
+		instance.Lock()
+		instance.active -= 1
+		instance.Unlock()
+	}, instance.diags // TODO this could cause lots of additional warnings if not correctly handled
 }
