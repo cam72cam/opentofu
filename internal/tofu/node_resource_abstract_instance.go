@@ -931,7 +931,7 @@ func (n *NodeAbstractResourceInstance) plan(
 	}
 
 	// Evaluate the configuration
-	forEach, _ := evaluateForEachExpression(n.Config.ForEach, evalCtx, n.Addr)
+	forEach, _ := EvaluateForEachExpression(n.Config.ForEach, evalCtx, n.Addr)
 
 	keyData = EvalDataForInstanceKey(n.ResourceInstanceAddr().Resource.Key, forEach)
 
@@ -1829,7 +1829,7 @@ func (n *NodeAbstractResourceInstance) planDataSource(ctx context.Context, evalC
 	objTy := schema.ImpliedType()
 	priorVal := cty.NullVal(objTy)
 
-	forEach, _ := evaluateForEachExpression(config.ForEach, evalCtx, n.Addr)
+	forEach, _ := EvaluateForEachExpression(config.ForEach, evalCtx, n.Addr)
 	keyData = EvalDataForInstanceKey(n.ResourceInstanceAddr().Resource.Key, forEach)
 
 	checkDiags := evalCheckRules(
@@ -2108,7 +2108,7 @@ func (n *NodeAbstractResourceInstance) applyDataSource(ctx context.Context, eval
 		return nil, keyData, diags
 	}
 
-	forEach, _ := evaluateForEachExpression(config.ForEach, evalCtx, n.Addr)
+	forEach, _ := EvaluateForEachExpression(config.ForEach, evalCtx, n.Addr)
 	keyData = EvalDataForInstanceKey(n.Addr.Resource.Key, forEach)
 
 	checkDiags := evalCheckRules(
@@ -2424,7 +2424,7 @@ func (n *NodeAbstractResourceInstance) applyProvisioners(_ context.Context, eval
 func (n *NodeAbstractResourceInstance) evalProvisionerConfig(evalCtx EvalContext, body hcl.Body, self cty.Value, schema *configschema.Block) (cty.Value, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
-	forEach, forEachDiags := evaluateForEachExpression(n.Config.ForEach, evalCtx, n.Addr)
+	forEach, forEachDiags := EvaluateForEachExpression(n.Config.ForEach, evalCtx, n.Addr)
 	diags = diags.Append(forEachDiags)
 
 	keyData := EvalDataForInstanceKey(n.ResourceInstanceAddr().Resource.Key, forEach)

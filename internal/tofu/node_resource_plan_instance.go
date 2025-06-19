@@ -426,7 +426,7 @@ func (n *NodePlannableResourceInstance) managedResourceExecute(ctx context.Conte
 		// values, which could result in a post-condition check relying on that
 		// value being inaccurate. Unless we decide to store the value of the
 		// for-each expression in state, this is unavoidable.
-		forEach, _ := evaluateForEachExpression(n.Config.ForEach, evalCtx, n.ResourceAddr())
+		forEach, _ := EvaluateForEachExpression(n.Config.ForEach, evalCtx, n.ResourceAddr())
 		repeatData := EvalDataForInstanceKey(n.ResourceInstanceAddr().Resource.Key, forEach)
 
 		checkDiags := evalCheckRules(

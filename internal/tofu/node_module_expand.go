@@ -124,7 +124,7 @@ func (n *NodeExpandModule) Execute(_ context.Context, evalCtx EvalContext, op Wa
 		evalCtx = evalCtx.WithPath(module)
 		switch {
 		case n.ModuleCall.Count != nil:
-			count, ctDiags := evaluateCountExpression(n.ModuleCall.Count, evalCtx, module)
+			count, ctDiags := EvaluateCountExpression(n.ModuleCall.Count, evalCtx, module)
 			diags = diags.Append(ctDiags)
 			if diags.HasErrors() {
 				return diags
@@ -132,7 +132,7 @@ func (n *NodeExpandModule) Execute(_ context.Context, evalCtx EvalContext, op Wa
 			expander.SetModuleCount(module, call, count)
 
 		case n.ModuleCall.ForEach != nil:
-			forEach, feDiags := evaluateForEachExpression(n.ModuleCall.ForEach, evalCtx, module)
+			forEach, feDiags := EvaluateForEachExpression(n.ModuleCall.ForEach, evalCtx, module)
 			diags = diags.Append(feDiags)
 			if diags.HasErrors() {
 				return diags

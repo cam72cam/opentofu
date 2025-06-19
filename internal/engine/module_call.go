@@ -98,18 +98,33 @@ func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *config
 
 	expansion := NewPromise(Ident{addr, "(expand)"}, func(self executor) (ModuleInstances, tfdiags.Diagnostics) {
 		evalCtx := scope.EvalContext(self)
+		var diags tfdiags.Diagnostics
+		ret := ModuleInstances{}
 
-		node := tofu.NodeExpandModule{
-			Addr:       append(addr.Module.Module(), config.Name),
-			Config:     moduleConfig.Module,
-			ModuleCall: config,
+		switch {
+		case config.Count != nil:
+			count, ctDiags := tofu.EvaluateCountExpression(config.Count, evalCtx, addr.Module)
+			diags = diags.Append(ctDiags)
+			if diags.HasErrors() {
+				return ret, diags
+			}
+			evalCtx.InstanceExpander().SetModuleCount(addr.Module, addr.Call, count)
+
+		case config.ForEach != nil:
+			forEach, feDiags := tofu.EvaluateForEachExpression(config.ForEach, evalCtx, addr.Module)
+			diags = diags.Append(feDiags)
+			if diags.HasErrors() {
+				return ret, diags
+			}
+			evalCtx.InstanceExpander().SetModuleForEach(addr.Module, addr.Call, forEach)
+
+		default:
+			evalCtx.InstanceExpander().SetModuleSingle(addr.Module, addr.Call)
 		}
-		diags := node.Execute(ctx, evalCtx, tofu.WalkOperation(walkPlan))
 
 		exprs, exprDiags := getModuleCallInputExpressions(config, moduleConfig)
 		diags = diags.Append(exprDiags)
 
-		ret := ModuleInstances{}
 		for _, modAddr := range evalCtx.InstanceExpander().ExpandAbsModuleCall(addr) {
 			input := VariableInputs{}
 			for _, v := range moduleConfig.Module.Variables {
