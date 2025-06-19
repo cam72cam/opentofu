@@ -39,7 +39,7 @@ func WalkPlan(ctx context.Context, config *configs.Config, plugins plugins.Manag
 
 	root := NewModule(ctx, addrs.RootModuleInstance, config, NewRootVariableInputs(inputs), scope)
 
-	p := NewConcurrencyPool(1)
+	p := NewConcurrencyPool(10)
 	root.Collect(p)
 	edges, diags := p.Wait()
 	//spew.Dump(edges)
