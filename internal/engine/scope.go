@@ -152,7 +152,6 @@ func (s *Scope) EvalContext(caller executor) tofu.EvalContext {
 			source addrs.Referenceable,
 			keyData tofu.InstanceKeyEvalData,
 		) *lang.Scope {
-			println(self)
 			return &lang.Scope{
 				Data: &evalData{
 					caller,

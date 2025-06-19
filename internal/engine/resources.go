@@ -47,10 +47,19 @@ func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Re
 
 		instances := ResourceInstances{}
 
+		configAddr := addr.Resource.InModule(addr.Module.Module())
+
 		// Some of the state manipulation here is doing pieces of states.Module.SetResourceInstanceCurrent
 		for _, resAddr := range evalCtx.InstanceExpander().ExpandResource(addr) {
 			resAddr := resAddr
 			key := resAddr.Resource.Key
+
+			if scope.op == walkPlan {
+				if checkState := evalCtx.Checks(); checkState.ConfigHasChecks(configAddr) {
+					scope.Checks.ReportCheckableObject(configAddr, resAddr)
+				}
+			}
+
 			instances[key] = NewPromise(resAddr, func(self executor) (cty.Value, tfdiags.Diagnostics) {
 				return NewResourceInstance(ctx, resAddr, config, self, scope)
 			})
