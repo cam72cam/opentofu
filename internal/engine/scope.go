@@ -85,7 +85,7 @@ func NewScope(path addrs.ModuleInstance, parent *Scope, data ModuleData) *Scope 
 	}
 }
 
-func (s *Scope) EvalContext(caller executor) tofu.EvalContext {
+func (s *Scope) EvalContext(caller executor, overrides ...DataOverride) tofu.EvalContext {
 	// I think this can be stupid?
 	// This is just a hack for the variable input passthrough from parent -> child in the variable nodes
 	var varCache cty.Value
@@ -157,6 +157,7 @@ func (s *Scope) EvalContext(caller executor) tofu.EvalContext {
 					caller,
 					keyData,
 					s.workspace,
+					overrides,
 					s.Data,
 				},
 				ParseRef:   addrs.ParseRef,

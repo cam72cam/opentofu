@@ -52,8 +52,21 @@ func NewVariable(ctx context.Context, addr addrs.AbsInputVariableInstance, confi
 			return cty.UnknownVal(config.Type), diags
 		}
 
-		evalCtx := scope.EvalContext(self)
 		var parentEvalCtx tofu.EvalContext
+
+		if scope.op == walkPlan {
+			configAddr := addr.Variable.InModule(addr.Module.Module())
+			if checkState := scope.Checks; checkState.ConfigHasChecks(configAddr) {
+				checkState.ReportCheckableObject(configAddr, addr)
+			}
+		}
+
+		evalCtx := scope.EvalContext(self, DataOverride{
+			addr: addr.Variable,
+			value: func() (cty.Value, tfdiags.Diagnostics) {
+				return parentEvalCtx.GetVariableValue(addr), nil
+			},
+		})
 
 		if addr.Module.IsRoot() {
 			parentEvalCtx = evalCtx

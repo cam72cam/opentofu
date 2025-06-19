@@ -13,10 +13,16 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
+type DataOverride struct {
+	addr  any
+	value func() (cty.Value, tfdiags.Diagnostics)
+}
+
 type evalData struct {
 	caller    executor
 	instance  instances.RepetitionData
 	workspace string
+	overrides []DataOverride
 
 	ModuleData
 }
@@ -38,6 +44,16 @@ func (d *evalData) GetForEachAttr(addr addrs.ForEachAttr, _ tfdiags.SourceRange)
 	default:
 		panic("impossible")
 	}
+}
+
+func (d *evalData) override(addr any) (bool, cty.Value, tfdiags.Diagnostics) {
+	for _, override := range d.overrides {
+		if override.addr == addr {
+			val, diags := override.value()
+			return true, val, diags
+		}
+	}
+	return false, cty.NilVal, nil
 }
 
 // Most of these functions pulled code from internal/tofu/evaluate for diagnostic consistency
@@ -62,6 +78,9 @@ func (d *evalData) GetResource(addr addrs.Resource, rng tfdiags.SourceRange) (ct
 			Subject:  rng.ToHCL().Ptr(),
 		})
 		return cty.DynamicVal, diags
+	}
+	if override, val, diags := d.override(addr); override {
+		return val, diags
 	}
 	return promise.Value(d.caller)
 }
@@ -206,6 +225,10 @@ func (d *evalData) GetInputVariable(addr addrs.InputVariable, rng tfdiags.Source
 			Subject:  rng.ToHCL().Ptr(),
 		})
 		return cty.DynamicVal, diags
+	}
+
+	if override, val, diags := d.override(addr); override {
+		return val, diags
 	}
 
 	return promise.Value(d.caller)
