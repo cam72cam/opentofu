@@ -18,6 +18,7 @@ import (
 	"github.com/opentofu/opentofu/internal/plans"
 	"github.com/opentofu/opentofu/internal/plans/planfile"
 	"github.com/opentofu/opentofu/internal/plugins"
+	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/states/statefile"
 	"github.com/opentofu/opentofu/internal/states/statemgr"
 	"github.com/opentofu/opentofu/internal/tfdiags"
@@ -139,7 +140,7 @@ func (b *Local) opPlan(
 			PriorState:   data.Refresh,
 			PlannedState: data.State,
 			//ExternalReferences: opts.ExternalReferences,
-			//Checks:             states.NewCheckResults(walker.Checks),
+			Checks: states.NewCheckResults(data.Checks),
 			//Timestamp:          timestamp,
 
 			// Other fields get populated by Context.Plan after we return

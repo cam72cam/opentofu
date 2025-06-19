@@ -141,7 +141,7 @@ func (b *Local) opApply(
 			PriorState:   data.Refresh,
 			PlannedState: data.State,
 			//ExternalReferences: opts.ExternalReferences,
-			//Checks:             states.NewCheckResults(walker.Checks),
+			Checks: states.NewCheckResults(data.Checks),
 			//Timestamp:          timestamp,
 
 			// Other fields get populated by Context.Plan after we return
@@ -303,6 +303,7 @@ func (b *Local) opApply(
 			lr.Core.Workspace(),
 			plan.Changes,
 			plan.PriorState,
+			plan.Checks,
 			lr.PlanOpts.SetVariables, // TODO this should probably come from the plan?
 		)
 		applyState = state

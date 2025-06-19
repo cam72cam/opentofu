@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/checks"
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/plans"
 	"github.com/opentofu/opentofu/internal/plugins"
@@ -18,6 +19,8 @@ type PlanOutput struct {
 	Refresh *states.State
 	State   *states.State
 	Changes *plans.Changes
+
+	Checks *checks.State
 }
 
 func WalkPlan(ctx context.Context, config *configs.Config, plugins plugins.Manager, hooks []tofu.Hook, workspace string, state *states.State, inputs tofu.InputValues) (PlanOutput, tfdiags.Diagnostics) {
@@ -41,5 +44,8 @@ func WalkPlan(ctx context.Context, config *configs.Config, plugins plugins.Manag
 	edges, diags := p.Wait()
 	//spew.Dump(edges)
 	fmt.Printf("Detected %v edges", len(edges))
+
+	out.Checks = scope.Checks
+
 	return out, diags
 }

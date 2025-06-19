@@ -13,12 +13,20 @@ import (
 	"github.com/opentofu/opentofu/internal/tofu"
 )
 
-func WalkApply(ctx context.Context, config *configs.Config, plugins plugins.Manager, hooks []tofu.Hook, workspace string, changes *plans.Changes, state *states.State, inputs tofu.InputValues) (*states.State, tfdiags.Diagnostics) {
+func WalkApply(ctx context.Context, config *configs.Config, plugins plugins.Manager, hooks []tofu.Hook, workspace string, changes *plans.Changes, state *states.State, checks *states.CheckResults, inputs tofu.InputValues) (*states.State, tfdiags.Diagnostics) {
 	if state == nil {
 		state = states.NewState()
 	}
 
 	scope := NewRootScope(walkApply, plugins, hooks, workspace, state.DeepCopy().SyncWrapper(), state.DeepCopy().SyncWrapper(), state.SyncWrapper(), changes.SyncWrapper(), config)
+
+	for _, configElem := range checks.ConfigResults.Elems {
+		if configElem.Value.ObjectAddrsKnown() {
+			configAddr := configElem.Key
+			scope.Checks.ReportCheckableObjects(configAddr, configElem.Value.ObjectResults.Keys())
+		}
+	}
+
 	root := NewModule(ctx, addrs.RootModuleInstance, config, NewRootVariableInputs(inputs), scope)
 
 	p := NewConcurrencyPool(10)
