@@ -46,6 +46,9 @@ func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Re
 		diags = diags.Append(writeDiags)
 
 		instances := ResourceInstances{}
+		if diags.HasErrors() {
+			return instances, diags
+		}
 
 		configAddr := addr.Resource.InModule(addr.Module.Module())
 

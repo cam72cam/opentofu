@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -81,7 +82,7 @@ func (e *Executor) Wait(id any, waitingOn executor, wait chan struct{}) error {
 			}
 
 		}
-		return fmt.Errorf(msg)
+		return errors.New(msg)
 	}
 
 	select {
