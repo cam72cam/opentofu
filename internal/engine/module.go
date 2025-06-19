@@ -60,8 +60,10 @@ func (c *ConcurrencyPool) Expand(e ExpandValuePromise) {
 	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
+		slot := <-c.pool
+		diags := e.Expand(c, slot)
+		c.pool <- slot
 
-		diags := e.Expand(c, NewExecutor(c.graph.AddEdge))
 		c.lock.Lock()
 		defer c.lock.Unlock()
 		c.diags = c.diags.Append(diags)
