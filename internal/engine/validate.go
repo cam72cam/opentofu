@@ -53,7 +53,7 @@ func WalkValidate(ctx context.Context, config *configs.Config, plugins plugins.M
 
 	root := NewModule(ctx, addrs.RootModuleInstance, config, inputs, scope)
 
-	p := NewConcurrencyPool(10)
+	p := NewConcurrencyPool(1)
 	root.Collect(p)
 	edges, diags := p.Wait()
 	//spew.Dump(edges)
