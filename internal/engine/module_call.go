@@ -78,6 +78,9 @@ func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *config
 
 		outputValue := NewPromise(Ident{addr, "(call)"}, func(self executor) (cty.Value, tfdiags.Diagnostics) {
 			expanded, diags := expansion.Value(self)
+			if diags.HasErrors() {
+				return cty.NilVal, diags
+			}
 			out, outDiags := expanded[addrs.NoKey].Value(self)
 			diags = diags.Append(outDiags)
 
