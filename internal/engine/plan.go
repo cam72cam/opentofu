@@ -32,7 +32,7 @@ func WalkPlan(ctx context.Context, config *configs.Config, plugins plugins.Manag
 		Changes: plans.NewChanges(),
 	}
 
-	scope := NewRootScope(walkPlan, plugins, hooks, workspace, out.PrevRun.SyncWrapper(), out.Refresh.SyncWrapper(), out.State.SyncWrapper(), out.Changes.SyncWrapper())
+	scope := NewRootScope(walkPlan, plugins, hooks, workspace, out.PrevRun.SyncWrapper(), out.Refresh.SyncWrapper(), out.State.SyncWrapper(), out.Changes.SyncWrapper(), config)
 
 	root := NewModule(ctx, addrs.RootModuleInstance, config, NewRootVariableInputs(inputs), scope)
 

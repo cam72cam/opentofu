@@ -6,6 +6,7 @@ import (
 
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/checks"
+	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/instances"
 	"github.com/opentofu/opentofu/internal/lang"
 	"github.com/opentofu/opentofu/internal/plans"
@@ -31,6 +32,8 @@ type Scope struct {
 	State   *states.SyncState
 	Changes *plans.ChangesSync
 
+	Checks *checks.State
+
 	Data ModuleData
 }
 
@@ -43,6 +46,7 @@ func NewRootScope(
 	refresh *states.SyncState,
 	state *states.SyncState,
 	changes *plans.ChangesSync,
+	cfg *configs.Config,
 ) *Scope {
 	return &Scope{
 		path:      addrs.RootModuleInstance,
@@ -51,6 +55,8 @@ func NewRootScope(
 		hooks:     hooks,
 		Plugins:   pluginManager,
 		workspace: workspace,
+
+		Checks: checks.NewState(cfg),
 
 		PrevRun: prevRun,
 		Refresh: refresh,
@@ -67,6 +73,8 @@ func NewScope(path addrs.ModuleInstance, parent *Scope, data ModuleData) *Scope 
 		hooks:     parent.hooks,
 		Plugins:   parent.Plugins,
 		workspace: parent.workspace,
+
+		Checks: parent.Checks,
 
 		PrevRun: parent.PrevRun,
 		Refresh: parent.Refresh,
@@ -88,7 +96,7 @@ func (s *Scope) EvalContext(caller executor) tofu.EvalContext {
 		StateState:        s.State,
 		RefreshStateState: s.Refresh,
 		PrevRunStateState: s.PrevRun,
-		ChecksState:       checks.NewState(nil),
+		ChecksState:       s.Checks,
 		HookFn: func(fn func(tofu.Hook) (tofu.HookAction, error)) error {
 			// Lifted from BuiltinEvalContext
 			for _, h := range s.hooks {
@@ -144,6 +152,7 @@ func (s *Scope) EvalContext(caller executor) tofu.EvalContext {
 			source addrs.Referenceable,
 			keyData tofu.InstanceKeyEvalData,
 		) *lang.Scope {
+			println(self)
 			return &lang.Scope{
 				Data: &evalData{
 					caller,

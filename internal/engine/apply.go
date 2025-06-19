@@ -18,7 +18,7 @@ func WalkApply(ctx context.Context, config *configs.Config, plugins plugins.Mana
 		state = states.NewState()
 	}
 
-	scope := NewRootScope(walkApply, plugins, hooks, workspace, state.DeepCopy().SyncWrapper(), state.DeepCopy().SyncWrapper(), state.SyncWrapper(), changes.SyncWrapper())
+	scope := NewRootScope(walkApply, plugins, hooks, workspace, state.DeepCopy().SyncWrapper(), state.DeepCopy().SyncWrapper(), state.SyncWrapper(), changes.SyncWrapper(), config)
 	root := NewModule(ctx, addrs.RootModuleInstance, config, NewRootVariableInputs(inputs), scope)
 
 	p := NewConcurrencyPool(10)

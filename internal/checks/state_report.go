@@ -57,6 +57,34 @@ func (c *State) ReportCheckableObjects(configAddr addrs.ConfigCheckable, objectA
 	}
 }
 
+func (c *State) ReportCheckableObject(configAddr addrs.ConfigCheckable, objectAddr addrs.Checkable) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	st, ok := c.statuses.GetOk(configAddr)
+	if !ok {
+		panic(fmt.Sprintf("checkable objects report for unknown configuration object %s", configAddr))
+	}
+	if st.objects.Elems == nil {
+		st.objects = addrs.MakeMap[addrs.Checkable, map[addrs.CheckRuleType][]Status]()
+	}
+
+	if gotConfigAddr := objectAddr.ConfigCheckable(); !addrs.Equivalent(configAddr, gotConfigAddr) {
+		// All of the given object addresses must belong to the specified configuration address
+		panic(fmt.Sprintf("%s belongs to %s, not %s", objectAddr, gotConfigAddr, configAddr))
+	}
+
+	checks := make(map[addrs.CheckRuleType][]Status, len(st.checkTypes))
+	for checkType, count := range st.checkTypes {
+		// NOTE: This is intentionally a slice of count of the zero value
+		// of Status, which is StatusUnknown to represent that we don't
+		// yet have a report for that particular check.
+		checks[checkType] = make([]Status, count)
+	}
+
+	st.objects.Put(objectAddr, checks)
+}
+
 // ReportCheckResult is the interface by which OpenTofu Core should tell the
 // State object the result of a specific check for an object that was
 // previously registered with ReportCheckableObjects.

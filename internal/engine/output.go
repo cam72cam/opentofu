@@ -14,13 +14,21 @@ func NewOutput(ctx context.Context, addr addrs.AbsOutputValue, config *configs.O
 	return NewPromise(addr, func(self executor) (cty.Value, tfdiags.Diagnostics) {
 		evalCtx := scope.EvalContext(self)
 
+		planning := scope.op != walkApply //TODO plan graph only
+		if planning {
+			configAddr := addr.OutputValue.InModule(addr.Module.Module())
+			if checkState := evalCtx.Checks(); checkState.ConfigHasChecks(configAddr) {
+				checkState.ReportCheckableObject(configAddr, addr)
+			}
+		}
+
 		// TODO NodeDestroyableOutput
 		node := &tofu.NodeApplyableOutput{
 			Addr:   addr,
 			Config: config,
 			//TODO RefreshOnly:  o.RefreshOnly,
 			DestroyApply: false, // TODO op == walkDestroy || op == walkPlanDestroy,
-			Planning:     true,  // Always true in the rest of the code base
+			Planning:     planning,
 		}
 		diags := node.Execute(ctx, evalCtx, tofu.WalkOperation(walkPlan))
 
