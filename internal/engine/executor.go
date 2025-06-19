@@ -1,11 +1,27 @@
 package engine
 
 import (
-	"errors"
 	"fmt"
+
+	"github.com/apparentlymart/go-workgraph/workgraph"
 )
 
-type executor interface {
+type executor *workgraph.Worker
+
+func NewExecutor(func(any, any)) executor {
+	return workgraph.NewWorker()
+}
+
+type Ident struct {
+	base   fmt.Stringer
+	suffix string
+}
+
+func (i Ident) String() string {
+	return fmt.Sprintf("%s %s", i.base, i.suffix)
+}
+
+/*
 	Visit(any)
 	Execute(any, func())
 	Wait(any, executor, chan struct{}) error
@@ -94,3 +110,4 @@ func (e *Executor) Wait(id any, waitingOn executor, wait chan struct{}) error {
 func (e *Executor) Close() {
 
 }
+*/

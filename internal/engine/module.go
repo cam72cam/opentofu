@@ -30,13 +30,13 @@ type ConcurrencyPool struct {
 	wg    sync.WaitGroup
 	lock  sync.Mutex
 	diags tfdiags.Diagnostics
-	pool  chan *Executor
+	pool  chan executor
 	graph *GraphCollector
 }
 
 func NewConcurrencyPool(size int) *ConcurrencyPool {
 	graph := &GraphCollector{}
-	c := make(chan *Executor, size)
+	c := make(chan executor, size)
 	for i := 0; i < size; i++ {
 		c <- NewExecutor(graph.AddEdge)
 	}
