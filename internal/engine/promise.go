@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 
@@ -81,10 +82,37 @@ func (p *Promise[T]) Value(exec executor) (T, tfdiags.Diagnostics) {
 	case PromiseStatusResolving:
 		// Another executor is already handling this node, check for cycle and release executor for now
 		//fmt.Printf("Need Wait %v\n", exec)
+		exec.(*Executor).lock.Lock()
+		//exec.(*Executor).waitingOn = p.owner
+		exec.(*Executor).lock.Unlock()
+		owner, resolved := p.owner, p.resolved
+		if stack := exec.(*Executor).CycleCheck(p.owner.(*Executor)); len(stack) > 0 {
+			p.lock.Unlock()
+
+			id := p
+			var msg string
+			foundCycleStart := false
+			stack = append(stack, p)
+			for _, item := range stack {
+				if !foundCycleStart {
+					if item == id {
+						foundCycleStart = true
+						msg = fmt.Sprintf("Cycle Detected: %s", item)
+					}
+					continue
+				}
+				if foundCycleStart {
+					msg = fmt.Sprintf("%s -> %s", msg, item)
+				}
+
+			}
+
+			return p.cachedValue, p.cachedDiags.Append(errors.New(msg))
+		}
 		p.lock.Unlock()
 		// Let the executor know to wait for the resolution or cycle
 		// TODO check select on closed channel
-		if err := exec.Wait(p, p.owner, p.resolved); err != nil {
+		if err := exec.Wait(p, owner, resolved); err != nil {
 			return p.cachedValue, p.cachedDiags.Append(err)
 		}
 	case PromiseStatusResolved:
