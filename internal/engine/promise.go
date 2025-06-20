@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/apparentlymart/go-workgraph/workgraph"
@@ -39,13 +40,12 @@ var mapping = map[workgraph.RequestID]string{}
 func (p *Promise[T]) Value(caller executor) (T, tfdiags.Diagnostics) {
 	p.lock.Lock()
 
-	prev := caller.current
-	if prev != nil {
-		caller.edge(prev, p)
+	if len(caller.stack) != 0 {
+		caller.edge(caller.stack[len(caller.stack)-1], p.ident.String())
 	}
-	caller.current = p
+	caller.stack = append(caller.stack, p.ident.String())
 	defer func() {
-		caller.current = prev
+		caller.stack = caller.stack[:len(caller.stack)-1]
 	}()
 
 	if !p.running {
@@ -73,8 +73,10 @@ func (p *Promise[T]) Value(caller executor) (T, tfdiags.Diagnostics) {
 		if errors.As(err, &selfErr) {
 			str := fmt.Sprintf("\nERROR!!!! Cycle Detected for %s: ", p.ident.String())
 			for _, req := range selfErr.RequestIDs {
-				str += " => " + mapping[req]
+				str += " " + mapping[req]
 			}
+			str += "\n Stack: " + strings.Join(caller.stack, " => ")
+
 			println(str)
 		}
 	}
