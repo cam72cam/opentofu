@@ -4,73 +4,96 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/apparentlymart/go-workgraph/workgraph"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
-var mainWorker = workgraph.NewWorker()
+type PromiseStatus int
+
+const (
+	// Has not yet started
+	PromiseStatusUnresolved PromiseStatus = iota
+	// An executor is resolving this
+	PromiseStatusResolving
+	// Discovered another executor is already resolving this node
+	PromiseStatusResolved
+)
+
+type Ident struct {
+	base   fmt.Stringer
+	suffix string
+}
+
+func (i Ident) String() string {
+	return fmt.Sprintf("%s %s", i.base, i.suffix)
+}
 
 type Promise[T any] struct {
-	ident    fmt.Stringer
-	promise  workgraph.Promise[T]
-	resolver workgraph.Resolver[T]
-	lock     sync.Mutex
-	running  bool
-	resolve  func(self executor) (T, tfdiags.Diagnostics)
+	ident   fmt.Stringer
+	resolve func(executor) (T, tfdiags.Diagnostics)
+
+	lock        sync.Mutex
+	status      PromiseStatus
+	cachedValue T
+	cachedDiags tfdiags.Diagnostics
+	resolved    chan struct{}
+	owner       executor
 }
 
-func NewPromise[T any](ident fmt.Stringer, resolve func(self executor) (T, tfdiags.Diagnostics)) *Promise[T] {
-
-	//fmt.Printf("New Promise %s => %s\n", ident.String(), resolver.RequestID())
-
-	/*workgraph.WithNewAsyncWorker(func(w *workgraph.Worker) {
-		//fmt.Printf("Resolve Promise %s => %s\n", ident.String(), resolver.RequestID())
-
-		t, diags := resolve(w)
-		err := diags.Err()
-		if err != nil {
-			resolver.ReportError(w, err)
-		} else {
-			resolver.ReportSuccess(w, t)
-		}
-
-		//fmt.Printf("Resolved Promise %s => %s\n", ident.String(), resolver.RequestID())
-	}, resolver)*/
-
-	p := &Promise[T]{
-		ident:   ident, // PTR for hashable
+func NewPromise[T any](ident fmt.Stringer, resolve func(executor) (T, tfdiags.Diagnostics)) *Promise[T] {
+	return &Promise[T]{
+		ident:   ident,
 		resolve: resolve,
+
+		status:   PromiseStatusUnresolved,
+		resolved: make(chan struct{}),
 	}
-
-	return p
 }
 
-func (p *Promise[T]) internalIdent() fmt.Stringer {
-	return p.ident
-}
+func (p *Promise[T]) Value(exec executor) (T, tfdiags.Diagnostics) {
+	exec.Visit(p)
 
-func (p *Promise[T]) Value(caller executor) (T, tfdiags.Diagnostics) {
-	if caller == nil {
-		caller = workgraph.NewWorker()
+	// Quick attempt to return early
+	if p.status == PromiseStatusResolved {
+		return p.cachedValue, p.cachedDiags
 	}
 
 	p.lock.Lock()
-	if !p.running {
-		p.resolver, p.promise = workgraph.NewRequest[T](caller)
-		p.running = true
+	switch p.status {
+	case PromiseStatusUnresolved:
+		// Move to resolving
+		p.status = PromiseStatusResolving
+		p.owner = exec
 		p.lock.Unlock()
 
-		t, diags := p.resolve(caller)
-		err := diags.Err()
-		if err != nil {
-			p.resolver.ReportError(caller, err)
-		} else {
-			p.resolver.ReportSuccess(caller, t)
+		// Use exec to run resolver
+		exec.Execute(p, func() {
+			p.cachedValue, p.cachedDiags = p.resolve(exec)
+		})
+
+		p.lock.Lock()
+		// Move to resolved
+		p.status = PromiseStatusResolved
+		// Notify waiters
+		close(p.resolved)
+		// Remove owner
+		p.owner = nil
+		p.lock.Unlock()
+	case PromiseStatusResolving:
+		// Another executor is already handling this node, check for cycle and release executor for now
+		//fmt.Printf("Need Wait %v\n", exec)
+		p.lock.Unlock()
+		// Let the executor know to wait for the resolution or cycle
+		// TODO check select on closed channel
+		if err := exec.Wait(p, p.owner, p.resolved); err != nil {
+			return p.cachedValue, p.cachedDiags.Append(err)
 		}
-	} else {
+	case PromiseStatusResolved:
 		p.lock.Unlock()
 	}
 
-	t, err := p.promise.Await(caller)
-	return t, tfdiags.Diagnostics{}.Append(err)
+	return p.cachedValue, p.cachedDiags
+}
+
+func (p *Promise[T]) String() string {
+	return p.ident.String()
 }
