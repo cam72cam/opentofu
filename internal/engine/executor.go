@@ -8,8 +8,8 @@ import (
 
 type executor struct {
 	*workgraph.Worker
-	edge  func(any, any)
-	stack []string
+	edge    func(any, any)
+	current any
 }
 
 func NewExecutor(edge func(any, any)) executor {

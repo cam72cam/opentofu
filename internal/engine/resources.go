@@ -72,7 +72,7 @@ func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Re
 		return instances, diags
 	})
 
-	outputValue := NewPromise(Ident{addr, "(instance)"}, func(self executor) (cty.Value, tfdiags.Diagnostics) {
+	outputValue := NewPromise(&addr, func(self executor) (cty.Value, tfdiags.Diagnostics) {
 		// expansion
 		expanded, diags := expansion.Value(self)
 
