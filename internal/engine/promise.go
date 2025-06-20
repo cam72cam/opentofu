@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 
@@ -18,7 +17,6 @@ type Promise[T any] struct {
 	lock     sync.Mutex
 	running  bool
 	resolve  func(self executor) (T, tfdiags.Diagnostics)
-	reported bool
 }
 
 func NewPromise[T any](ident fmt.Stringer, resolve func(self executor) (T, tfdiags.Diagnostics)) *Promise[T] {
@@ -34,8 +32,6 @@ func (p *Promise[T]) internalIdent() fmt.Stringer {
 	return p.ident
 }
 
-var mapping = map[workgraph.RequestID]string{}
-
 func (p *Promise[T]) Value(caller executor) (T, tfdiags.Diagnostics) {
 	p.lock.Lock()
 
@@ -50,7 +46,6 @@ func (p *Promise[T]) Value(caller executor) (T, tfdiags.Diagnostics) {
 
 	if !p.running {
 		p.resolver, p.promise = workgraph.NewRequest[T](caller.Worker)
-		mapping[p.resolver.RequestID()] = p.ident.String()
 		p.running = true
 		p.lock.Unlock()
 
@@ -66,18 +61,5 @@ func (p *Promise[T]) Value(caller executor) (T, tfdiags.Diagnostics) {
 	}
 
 	t, err := p.promise.Await(caller.Worker)
-	p.lock.Lock()
-	if !p.reported {
-		p.reported = true
-		var selfErr workgraph.ErrSelfDependency
-		if errors.As(err, &selfErr) {
-			str := fmt.Sprintf("\nERROR!!!! Cycle Detected for %s: ", p.ident.String())
-			for _, req := range selfErr.RequestIDs {
-				str += " => " + mapping[req]
-			}
-			println(str)
-		}
-	}
-	p.lock.Unlock()
 	return t, tfdiags.Diagnostics{}.Append(err)
 }
