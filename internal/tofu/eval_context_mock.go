@@ -83,11 +83,13 @@ type MockEvalContext struct {
 	ProvisionerCalled      bool
 	ProvisionerName        string
 	ProvisionerProvisioner provisioners.Interface
+	ProvisionerFn          func(n string) (provisioners.Interface, error)
 
 	ProvisionerSchemaCalled bool
 	ProvisionerSchemaName   string
 	ProvisionerSchemaSchema *configschema.Block
 	ProvisionerSchemaError  error
+	ProvisionerSchemaFn     func(n string) (*configschema.Block, error)
 
 	CloseProvisionersCalled bool
 
@@ -255,12 +257,18 @@ func (c *MockEvalContext) SetProviderInput(addr addrs.AbsProviderConfig, vals ma
 func (c *MockEvalContext) Provisioner(n string) (provisioners.Interface, error) {
 	c.ProvisionerCalled = true
 	c.ProvisionerName = n
+	if c.ProvisionerFn != nil {
+		return c.ProvisionerFn(n)
+	}
 	return c.ProvisionerProvisioner, nil
 }
 
 func (c *MockEvalContext) ProvisionerSchema(n string) (*configschema.Block, error) {
 	c.ProvisionerSchemaCalled = true
 	c.ProvisionerSchemaName = n
+	if c.ProvisionerSchemaFn != nil {
+		return c.ProvisionerSchemaFn(n)
+	}
 	return c.ProvisionerSchemaSchema, c.ProvisionerSchemaError
 }
 

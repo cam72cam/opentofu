@@ -2,6 +2,8 @@ package engine
 
 import (
 	"context"
+	"fmt"
+	"log"
 
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs"
@@ -187,7 +189,19 @@ func tofuNodeAbstractResource(addr addrs.ConfigResource, config *configs.Resourc
 
 	// TODO
 	// AttachProviderMetaConfigs(config.moduleConfig.Module.ProviderMetas)
-	// AttachProvisionerSchema
+	names := abstract.ProvisionedBy()
+	for _, name := range names {
+		schema, err := scope.Plugins.ProvisionerSchema(name)
+		if err != nil {
+			return abstract, diags.Append(fmt.Errorf("failed to read provisioner configuration schema for %q: %w", name, err))
+		}
+		if schema == nil {
+			log.Printf("[ERROR] AttachSchemaTransformer: No schema available for provisioner %q on %q", name, abstract.Name())
+			continue
+		}
+		log.Printf("[TRACE] AttachSchemaTransformer: attaching provisioner %q config schema to %s", name, abstract.Name())
+		abstract.AttachProvisionerSchema(name, schema)
+	}
 	// AttachDataResourceDependsOn
 
 	return abstract, diags
