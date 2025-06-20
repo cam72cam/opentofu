@@ -188,6 +188,14 @@ func NewModule(ctx context.Context, addr addrs.ModuleInstance, config *configs.C
 	}
 }
 
+func collectDiagnostics[T comparable](m map[T]ValuePromise) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	for _, p := range m {
+		_, newDiags := p.Value(nil)
+		diags = diags.Append(newDiags)
+	}
+	return diags
+}
 func (m *Module) Collect(c *ConcurrencyPool) {
 	//diags = diags.Append(collectDiagnostics(m.Variables))
 	//diags = diags.Append(collectDiagnostics(m.Locals))

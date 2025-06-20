@@ -6,14 +6,10 @@ import (
 	"github.com/apparentlymart/go-workgraph/workgraph"
 )
 
-type executor struct {
-	*workgraph.Worker
-	edge    func(any, any)
-	current any
-}
+type executor *workgraph.Worker
 
-func NewExecutor(edge func(any, any)) executor {
-	return executor{Worker: workgraph.NewWorker(), edge: edge}
+func NewExecutor(func(any, any)) executor {
+	return workgraph.NewWorker()
 }
 
 type Ident struct {

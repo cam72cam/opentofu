@@ -15,6 +15,25 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
+type Validate func() tfdiags.Diagnostics
+
+func ValidatePromise[T any](p *Promise[T]) Validate {
+	return func() tfdiags.Diagnostics {
+		_, diags := p.Value(nil)
+		return diags
+	}
+}
+
+type Validates []Validate
+
+func (s Validates) Collect() tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	for _, v := range s {
+		diags = diags.Append(v())
+	}
+	return diags
+}
+
 func WalkValidate(ctx context.Context, config *configs.Config, plugins plugins.Manager, hooks []tofu.Hook, workspace string) tfdiags.Diagnostics {
 	scope := NewRootScope(walkValidate, plugins, hooks, workspace, states.NewState().SyncWrapper(), states.NewState().SyncWrapper(), states.NewState().SyncWrapper(), plans.NewChanges().SyncWrapper(), config)
 	inputs := VariableInputs{}
