@@ -20,23 +20,6 @@ type Promise[T any] struct {
 }
 
 func NewPromise[T any](ident fmt.Stringer, resolve func(self executor) (T, tfdiags.Diagnostics)) *Promise[T] {
-
-	//fmt.Printf("New Promise %s => %s\n", ident.String(), resolver.RequestID())
-
-	/*workgraph.WithNewAsyncWorker(func(w *workgraph.Worker) {
-		//fmt.Printf("Resolve Promise %s => %s\n", ident.String(), resolver.RequestID())
-
-		t, diags := resolve(w)
-		err := diags.Err()
-		if err != nil {
-			resolver.ReportError(w, err)
-		} else {
-			resolver.ReportSuccess(w, t)
-		}
-
-		//fmt.Printf("Resolved Promise %s => %s\n", ident.String(), resolver.RequestID())
-	}, resolver)*/
-
 	p := &Promise[T]{
 		ident:   ident, // PTR for hashable
 		resolve: resolve,
@@ -50,27 +33,33 @@ func (p *Promise[T]) internalIdent() fmt.Stringer {
 }
 
 func (p *Promise[T]) Value(caller executor) (T, tfdiags.Diagnostics) {
-	if caller == nil {
-		caller = workgraph.NewWorker()
-	}
-
 	p.lock.Lock()
+
+	prev := caller.current
+	if prev != nil {
+		caller.edge(prev, p)
+	}
+	caller.current = p
+	defer func() {
+		caller.current = prev
+	}()
+
 	if !p.running {
-		p.resolver, p.promise = workgraph.NewRequest[T](caller)
+		p.resolver, p.promise = workgraph.NewRequest[T](caller.Worker)
 		p.running = true
 		p.lock.Unlock()
 
 		t, diags := p.resolve(caller)
 		err := diags.Err()
 		if err != nil {
-			p.resolver.ReportError(caller, err)
+			p.resolver.ReportError(caller.Worker, err)
 		} else {
-			p.resolver.ReportSuccess(caller, t)
+			p.resolver.ReportSuccess(caller.Worker, t)
 		}
 	} else {
 		p.lock.Unlock()
 	}
 
-	t, err := p.promise.Await(caller)
+	t, err := p.promise.Await(caller.Worker)
 	return t, tfdiags.Diagnostics{}.Append(err)
 }
