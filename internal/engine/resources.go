@@ -172,7 +172,7 @@ func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Re
 	return Resource{outputValue, expansion}
 }
 
-func (m Resource) Expand(c *ConcurrencyPool, exec *Executor) {
+func (m Resource) Expand(c *Manager, exec *Executor) {
 	if m.instances == nil {
 		return
 	}

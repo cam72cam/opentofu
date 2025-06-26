@@ -222,7 +222,7 @@ func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *config
 	return ModuleCall{outputValue, expansion}
 }
 
-func (m ModuleCall) Expand(c *ConcurrencyPool, exec *Executor) {
+func (m ModuleCall) Expand(c *Manager, exec *Executor) {
 	if m.instances == nil {
 		return
 	}

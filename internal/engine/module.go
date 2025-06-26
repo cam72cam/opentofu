@@ -122,7 +122,7 @@ func collectDiagnostics[T comparable](m map[T]ValuePromise) tfdiags.Diagnostics 
 	}
 	return diags
 }
-func (m *Module) Collect(c *ConcurrencyPool) {
+func (m *Module) Collect(c *Manager) {
 	//diags = diags.Append(collectDiagnostics(m.Variables))
 	//diags = diags.Append(collectDiagnostics(m.Locals))
 	for _, resource := range m.Resources {

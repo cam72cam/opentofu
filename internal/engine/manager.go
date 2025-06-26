@@ -8,54 +8,50 @@ import (
 )
 
 type Edge struct {
-	Requester any
-	Requestee any
+	Requester PoolEntry
+	Requestee PoolEntry
 }
 
-type ConcurrencyPool struct {
-	wg   sync.WaitGroup
-	pool chan struct{}
+type Manager struct {
+	wg sync.WaitGroup
 
 	backing *Pool
 }
 
-func NewConcurrencyPool(size int) *ConcurrencyPool {
-	c := make(chan struct{}, size)
-	for i := 0; i < size; i++ {
-		c <- struct{}{}
-	}
-	return &ConcurrencyPool{
-		pool: c,
+func NewManager() *Manager {
+	return &Manager{
 		backing: &Pool{
 			data: map[PoolEntry]*PoolData{},
 		},
 	}
 }
 
-func (c *ConcurrencyPool) Add(p ValuePromise) {
+func (c *Manager) Add(p ValuePromise) {
 	c.wg.Add(1)
-	// TODO run these in a limited set of routines
 	go func() {
 		defer c.wg.Done()
-		slot := <-c.pool
 		p.Value(NewExecutor(nil, c.backing))
-		c.pool <- slot
 	}()
 }
-func (c *ConcurrencyPool) Expand(e ExpandValuePromise) {
+func (c *Manager) Expand(e ExpandValuePromise) {
 	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
-		slot := <-c.pool
 		e.Expand(c, NewExecutor(nil, c.backing))
-		c.pool <- slot
 	}()
 }
 
-func (c *ConcurrencyPool) Wait() ([]Edge, tfdiags.Diagnostics) {
+func (c *Manager) Wait() ([]Edge, tfdiags.Diagnostics) {
 	c.wg.Wait()
-	// TODO collect edges
-	return nil, c.backing.diags
+
+	var edges []Edge
+	for key, entry := range c.backing.data {
+		for _, visit := range entry.visited {
+			edges = append(edges, Edge{key, visit})
+		}
+	}
+
+	return edges, c.backing.diags
 }
 
 type ValuePromise interface {
@@ -64,5 +60,5 @@ type ValuePromise interface {
 
 type ExpandValuePromise interface {
 	ValuePromise
-	Expand(*ConcurrencyPool, *Executor) // Could also return map[addrs.InstanceKey]*Scope for DependsOn
+	Expand(*Manager, *Executor) // Could also return map[addrs.InstanceKey]*Scope for DependsOn
 }
