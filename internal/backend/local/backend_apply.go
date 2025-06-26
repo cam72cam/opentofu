@@ -131,6 +131,7 @@ func (b *Local) opApply(
 			lr.Core.Workspace(),
 			lr.InputState,
 			lr.PlanOpts.SetVariables,
+			lr.Core.Semaphore(),
 		)
 
 		plan = &plans.Plan{
@@ -305,6 +306,7 @@ func (b *Local) opApply(
 			plan.PriorState,
 			plan.Checks,
 			lr.PlanOpts.SetVariables, // TODO this should probably come from the plan?
+			lr.Core.Semaphore(),
 		)
 		applyState = state
 		applyDiags = diags

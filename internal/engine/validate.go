@@ -15,8 +15,8 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-func WalkValidate(ctx context.Context, config *configs.Config, plugins plugins.Manager, hooks []tofu.Hook, workspace string) tfdiags.Diagnostics {
-	scope := NewRootScope(walkValidate, plugins, hooks, workspace, states.NewState().SyncWrapper(), states.NewState().SyncWrapper(), states.NewState().SyncWrapper(), plans.NewChanges().SyncWrapper(), config)
+func WalkValidate(ctx context.Context, config *configs.Config, plugins plugins.Manager, hooks []tofu.Hook, workspace string, sem tofu.Semaphore) tfdiags.Diagnostics {
+	scope := NewRootScope(walkValidate, plugins, hooks, workspace, states.NewState().SyncWrapper(), states.NewState().SyncWrapper(), states.NewState().SyncWrapper(), plans.NewChanges().SyncWrapper(), config, sem)
 	inputs := VariableInputs{}
 
 	// Mirrors tofu/context_validate.go

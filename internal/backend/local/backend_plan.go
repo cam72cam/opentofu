@@ -130,6 +130,7 @@ func (b *Local) opPlan(
 			lr.Core.Workspace(),
 			lr.InputState,
 			lr.PlanOpts.SetVariables,
+			lr.Core.Semaphore(),
 		)
 
 		plan = &plans.Plan{

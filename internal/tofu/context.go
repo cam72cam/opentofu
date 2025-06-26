@@ -173,6 +173,10 @@ func NewContext(opts *ContextOpts, config *configs.Config, state *states.State) 
 	}, diags
 }
 
+func (c *Context) Semaphore() Semaphore {
+	return c.parallelSem
+}
+
 func (c *Context) Schemas() plugins.Schemas {
 	return c.plugins
 }

@@ -23,7 +23,7 @@ type PlanOutput struct {
 	Checks *checks.State
 }
 
-func WalkPlan(ctx context.Context, config *configs.Config, plugins plugins.Manager, hooks []tofu.Hook, workspace string, state *states.State, inputs tofu.InputValues) (PlanOutput, tfdiags.Diagnostics) {
+func WalkPlan(ctx context.Context, config *configs.Config, plugins plugins.Manager, hooks []tofu.Hook, workspace string, state *states.State, inputs tofu.InputValues, sem tofu.Semaphore) (PlanOutput, tfdiags.Diagnostics) {
 	if state == nil {
 		state = states.NewState()
 	}
@@ -35,7 +35,7 @@ func WalkPlan(ctx context.Context, config *configs.Config, plugins plugins.Manag
 		Changes: plans.NewChanges(),
 	}
 
-	scope := NewRootScope(walkPlan, plugins, hooks, workspace, out.PrevRun.SyncWrapper(), out.Refresh.SyncWrapper(), out.State.SyncWrapper(), out.Changes.SyncWrapper(), config)
+	scope := NewRootScope(walkPlan, plugins, hooks, workspace, out.PrevRun.SyncWrapper(), out.Refresh.SyncWrapper(), out.State.SyncWrapper(), out.Changes.SyncWrapper(), config, sem)
 
 	root := NewModule(ctx, addrs.RootModuleInstance, config, NewRootVariableInputs(inputs), scope)
 

@@ -37,6 +37,8 @@ type Scope struct {
 	Checks *checks.State
 
 	Data ModuleData
+
+	Semaphore tofu.Semaphore
 }
 
 func NewRootScope(
@@ -49,6 +51,7 @@ func NewRootScope(
 	state *states.SyncState,
 	changes *plans.ChangesSync,
 	cfg *configs.Config,
+	sem tofu.Semaphore,
 ) *Scope {
 	return &Scope{
 		path:      addrs.RootModuleInstance,
@@ -64,6 +67,8 @@ func NewRootScope(
 		Refresh: refresh,
 		State:   state,
 		Changes: changes,
+
+		Semaphore: sem,
 	}
 }
 
@@ -84,6 +89,8 @@ func NewScope(path addrs.ModuleInstance, parent *Scope, data ModuleData) *Scope 
 		Changes: parent.Changes,
 
 		Data: data,
+
+		Semaphore: parent.Semaphore,
 	}
 }
 
@@ -117,6 +124,9 @@ func (s *Scope) LegacyExecute(ctx context.Context, caller *Executor, node tofu.G
 			return nil, diags
 		}
 	}
+
+	s.Semaphore.Acquire()
+	defer s.Semaphore.Release()
 
 	diags := node.Execute(ctx, evalCtx, tofu.WalkOperation(s.op))
 	return evalCtx, diags

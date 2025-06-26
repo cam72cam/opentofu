@@ -13,12 +13,12 @@ import (
 	"github.com/opentofu/opentofu/internal/tofu"
 )
 
-func WalkApply(ctx context.Context, config *configs.Config, plugins plugins.Manager, hooks []tofu.Hook, workspace string, changes *plans.Changes, state *states.State, checks *states.CheckResults, inputs tofu.InputValues) (*states.State, tfdiags.Diagnostics) {
+func WalkApply(ctx context.Context, config *configs.Config, plugins plugins.Manager, hooks []tofu.Hook, workspace string, changes *plans.Changes, state *states.State, checks *states.CheckResults, inputs tofu.InputValues, sem tofu.Semaphore) (*states.State, tfdiags.Diagnostics) {
 	if state == nil {
 		state = states.NewState()
 	}
 
-	scope := NewRootScope(walkApply, plugins, hooks, workspace, state.DeepCopy().SyncWrapper(), state.DeepCopy().SyncWrapper(), state.SyncWrapper(), changes.SyncWrapper(), config)
+	scope := NewRootScope(walkApply, plugins, hooks, workspace, state.DeepCopy().SyncWrapper(), state.DeepCopy().SyncWrapper(), state.SyncWrapper(), changes.SyncWrapper(), config, sem)
 
 	for _, configElem := range checks.ConfigResults.Elems {
 		if configElem.Value.ObjectAddrsKnown() {
