@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/states"
@@ -344,10 +345,103 @@ func NewResourceInstance(ctx context.Context, addr addrs.AbsResourceInstance, co
 
 	if src := scope.State.ResourceInstanceObject(addr, states.CurrentGen); src != nil {
 		ty := abstract.Schema.ImpliedType()
+
+		if src.Status == states.ObjectPlanned {
+			// TODO make this match tofu/evaluate.go much more closely
+			change := scope.Changes.GetResourceInstanceChange(addr, states.CurrentGen)
+			if change == nil {
+				// If the object is in planned status then we should not get
+				// here, since we should have found a pending value in the plan
+				// above instead.
+				diags = diags.Append(&hcl.Diagnostic{
+					Severity: hcl.DiagError,
+					Summary:  "Missing pending object in plan",
+					Detail:   fmt.Sprintf("Instance %s is marked as having a change pending but that change is not recorded in the plan. This is a bug in OpenTofu; please report it.", addr),
+					Subject:  &config.DeclRange,
+				})
+				return cty.NilVal, diags
+			}
+
+			val, err := change.After.Decode(ty)
+			if err != nil {
+				diags = diags.Append(&hcl.Diagnostic{
+					Severity: hcl.DiagError,
+					Summary:  "Invalid resource instance data in plan",
+					Detail:   fmt.Sprintf("Instance %s data could not be decoded from the plan: %s.", addr, err),
+					Subject:  &config.DeclRange,
+				})
+				return cty.NilVal, diags
+			}
+
+			afterMarks := change.AfterValMarks
+			if abstract.Schema.ContainsSensitive() {
+				// Now that we know that the schema contains sensitive marks,
+				// Combine those marks together to ensure that the value is marked correctly but not double marked
+				schemaMarks := abstract.Schema.ValueMarks(val, nil)
+				afterMarks = combinePathValueMarks(afterMarks, schemaMarks)
+			}
+
+			return val.MarkWithPaths(afterMarks), diags
+		}
 		val, valDiags := src.Decode(ty)
 		diags = diags.Append(valDiags)
 		return val.Value, diags
 	}
 
 	return cty.NilVal, diags
+}
+
+// From tofu
+
+func copyPathValueMarks(marks cty.PathValueMarks) cty.PathValueMarks {
+	newMarks := make(cty.ValueMarks, len(marks.Marks))
+	result := cty.PathValueMarks{Path: marks.Path}
+	for k, v := range marks.Marks {
+		newMarks[k] = v
+	}
+	result.Marks = newMarks
+	return result
+}
+
+// combinePathValueMarks will combine the marks from two sets of marks with paths, ensuring that we don't duplicate marks
+// for the same path, but instead combine the marks for the same path
+// This ensures that we don't lose user marks when combining 2 different sets of marks for the same path
+func combinePathValueMarks(marks []cty.PathValueMarks, other []cty.PathValueMarks) []cty.PathValueMarks {
+	// skip some work if we don't have any marks in either of the lists
+	if len(marks) == 0 {
+		return other
+	}
+	if len(other) == 0 {
+		return marks
+	}
+
+	combined := make([]cty.PathValueMarks, 0, len(marks))
+	// construct the initial set of marks
+	combined = append(combined, marks...)
+
+	// check if we've already inserted this by looping over and calling .Equals().
+	// This isn't so nice but there is no nice comparison for cty.PathValueMarks
+	// so we have to do it this way
+	for _, mark := range other {
+		exists := false
+		for i, existing := range combined {
+			if mark.Path.Equals(existing.Path) {
+				// if we found a matching path, we should combine the marks and update the existing item
+				dupe := copyPathValueMarks(existing)
+				for k, v := range mark.Marks {
+					dupe.Marks[k] = v
+				}
+				combined[i] = dupe
+				exists = true
+				break
+			}
+		}
+		// Otherwise we haven't seen this path before, so we should add it to the list
+		// no merging required
+		if !exists {
+			combined = append(combined, mark)
+		}
+	}
+
+	return combined
 }
