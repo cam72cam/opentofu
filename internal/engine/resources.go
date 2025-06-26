@@ -173,6 +173,8 @@ func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Re
 }
 
 func (m Resource) Expand(c *Manager, exec *Executor) {
+	c.Add(m)
+
 	if m.instances == nil {
 		return
 	}
