@@ -44,18 +44,19 @@ func (p *Pool) Visited(root PoolEntry) []PoolEntry {
 	// DFS walk
 	p.Lock()
 	defer p.Unlock()
-	var down func(PoolEntry) []PoolEntry
-	down = func(entry PoolEntry) []PoolEntry {
-		var result []PoolEntry
+
+	var entries []PoolEntry
+
+	var down func(PoolEntry)
+	down = func(entry PoolEntry) {
 		for _, visit := range p.data[entry].visited {
-			result = append(result, visit)
-			result = append(result, down(visit)...)
+			entries = append(entries, visit)
 
 		}
-		return result
 	}
+	down(root)
 
-	return down(root)
+	return entries
 }
 
 type Executor struct {
