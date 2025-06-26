@@ -8,7 +8,6 @@ import (
 	"github.com/opentofu/opentofu/internal/checks"
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/plans"
-	"github.com/opentofu/opentofu/internal/plugins"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 	"github.com/opentofu/opentofu/internal/tofu"
@@ -23,7 +22,7 @@ type PlanOutput struct {
 	Checks *checks.State
 }
 
-func WalkPlan(ctx context.Context, config *configs.Config, plugins plugins.Manager, hooks []tofu.Hook, workspace string, state *states.State, inputs tofu.InputValues, sem tofu.Semaphore) (PlanOutput, tfdiags.Diagnostics) {
+func WalkPlan(ctx context.Context, config *configs.Config, tofuCtx *tofu.Context, state *states.State, inputs tofu.InputValues) (PlanOutput, tfdiags.Diagnostics) {
 	if state == nil {
 		state = states.NewState()
 	}
@@ -35,7 +34,7 @@ func WalkPlan(ctx context.Context, config *configs.Config, plugins plugins.Manag
 		Changes: plans.NewChanges(),
 	}
 
-	scope := NewRootScope(walkPlan, plugins, hooks, workspace, out.PrevRun.SyncWrapper(), out.Refresh.SyncWrapper(), out.State.SyncWrapper(), out.Changes.SyncWrapper(), config, sem)
+	scope := NewRootScope(walkPlan, tofuCtx, out.PrevRun.SyncWrapper(), out.Refresh.SyncWrapper(), out.State.SyncWrapper(), out.Changes.SyncWrapper(), config)
 
 	root := NewModule(ctx, addrs.RootModuleInstance, config, NewRootVariableInputs(inputs), scope)
 

@@ -17,7 +17,6 @@ import (
 	"github.com/opentofu/opentofu/internal/logging"
 	"github.com/opentofu/opentofu/internal/plans"
 	"github.com/opentofu/opentofu/internal/plans/planfile"
-	"github.com/opentofu/opentofu/internal/plugins"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/states/statefile"
 	"github.com/opentofu/opentofu/internal/states/statemgr"
@@ -125,12 +124,9 @@ func (b *Local) opPlan(
 		data, diags := engine.WalkPlan(
 			ctx,
 			lr.Config,
-			lr.Core.Schemas().(plugins.Manager),
-			lr.Core.Hooks(),
-			lr.Core.Workspace(),
+			lr.Core,
 			lr.InputState,
 			lr.PlanOpts.SetVariables,
-			lr.Core.Semaphore(),
 		)
 
 		plan = &plans.Plan{

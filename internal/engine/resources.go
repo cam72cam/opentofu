@@ -212,7 +212,7 @@ func tofuNodeAbstractResource(addr addrs.ConfigResource, config *configs.Resourc
 	abstract.AttachResourceConfig(config)
 
 	// AttachSchemaTransformer
-	schema, schemaVersion, err := scope.Plugins.ResourceTypeSchema(abstract.Provider(), addr.Resource.Mode, addr.Resource.Type)
+	schema, schemaVersion, err := scope.Plugins().ResourceTypeSchema(abstract.Provider(), addr.Resource.Mode, addr.Resource.Type)
 	if err != nil {
 		diags = diags.Append(err)
 	}
@@ -222,7 +222,7 @@ func tofuNodeAbstractResource(addr addrs.ConfigResource, config *configs.Resourc
 	// AttachProviderMetaConfigs(config.moduleConfig.Module.ProviderMetas)
 	names := abstract.ProvisionedBy()
 	for _, name := range names {
-		schema, err := scope.Plugins.ProvisionerSchema(name)
+		schema, err := scope.Plugins().ProvisionerSchema(name)
 		if err != nil {
 			return abstract, diags.Append(fmt.Errorf("failed to read provisioner configuration schema for %q: %w", name, err))
 		}

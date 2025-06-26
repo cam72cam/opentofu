@@ -23,11 +23,9 @@ import (
 )
 
 type Scope struct {
-	op        WalkOperation
-	expander  *instances.Expander
-	hooks     []tofu.Hook
-	Plugins   plugins.Manager
-	workspace string
+	op       WalkOperation
+	expander *instances.Expander
+	tofuCtx  *tofu.Context
 
 	PrevRun *states.SyncState
 	Refresh *states.SyncState
@@ -37,28 +35,22 @@ type Scope struct {
 	Checks *checks.State
 
 	Data ModuleData
-
-	Semaphore tofu.Semaphore
 }
 
 func NewRootScope(
 	op WalkOperation,
-	pluginManager plugins.Manager,
-	hooks []tofu.Hook,
-	workspace string,
+	tofuCtx *tofu.Context,
 	prevRun *states.SyncState,
 	refresh *states.SyncState,
 	state *states.SyncState,
 	changes *plans.ChangesSync,
 	cfg *configs.Config,
-	sem tofu.Semaphore,
 ) *Scope {
 	return &Scope{
-		op:        op,
-		expander:  instances.NewExpander(),
-		hooks:     hooks,
-		Plugins:   pluginManager,
-		workspace: workspace,
+		op:       op,
+		expander: instances.NewExpander(),
+
+		tofuCtx: tofuCtx,
 
 		Checks: checks.NewState(cfg),
 
@@ -66,18 +58,14 @@ func NewRootScope(
 		Refresh: refresh,
 		State:   state,
 		Changes: changes,
-
-		Semaphore: sem,
 	}
 }
 
 func NewScope(path addrs.ModuleInstance, parent *Scope, data ModuleData) *Scope {
 	return &Scope{
-		op:        parent.op,
-		expander:  parent.expander,
-		hooks:     parent.hooks,
-		Plugins:   parent.Plugins,
-		workspace: parent.workspace,
+		op:       parent.op,
+		expander: parent.expander,
+		tofuCtx:  parent.tofuCtx,
 
 		Checks: parent.Checks,
 
@@ -87,9 +75,11 @@ func NewScope(path addrs.ModuleInstance, parent *Scope, data ModuleData) *Scope 
 		Changes: parent.Changes,
 
 		Data: data,
-
-		Semaphore: parent.Semaphore,
 	}
+}
+
+func (s *Scope) Plugins() plugins.Manager {
+	return s.tofuCtx.Schemas().(plugins.Manager)
 }
 
 // From tofu
@@ -159,8 +149,8 @@ func (s *Scope) LegacyExecute(ctx context.Context, caller *Executor, node tofu.G
 		}
 	}
 
-	s.Semaphore.Acquire()
-	defer s.Semaphore.Release()
+	s.tofuCtx.Semaphore().Acquire()
+	defer s.tofuCtx.Semaphore().Release()
 
 	diags := node.Execute(ctx, evalCtx, tofu.WalkOperation(s.op))
 	return evalCtx, diags
@@ -180,7 +170,7 @@ func (s *Scope) EvalContext(caller *Executor, overrides ...DataOverride) tofu.Ev
 		ChecksState:       s.Checks,
 		HookFn: func(fn func(tofu.Hook) (tofu.HookAction, error)) error {
 			// Lifted from BuiltinEvalContext
-			for _, h := range s.hooks {
+			for _, h := range s.tofuCtx.Hooks() {
 				action, err := fn(h)
 				if err != nil {
 					return err
@@ -213,15 +203,15 @@ func (s *Scope) EvalContext(caller *Executor, overrides ...DataOverride) tofu.Ev
 			return provider
 		},
 		ProviderSchemaFn: func(_ context.Context, addr addrs.AbsProviderConfig) (providers.ProviderSchema, error) {
-			return s.Plugins.ProviderSchema(addr.Provider)
+			return s.Plugins().ProviderSchema(addr.Provider)
 		},
 
 		// Provisioners
 		ProvisionerFn: func(n string) (provisioners.Interface, error) {
-			return s.Plugins.NewProvisionerInstance(n)
+			return s.Plugins().NewProvisionerInstance(n)
 		},
 		ProvisionerSchemaFn: func(n string) (*configschema.Block, error) {
-			return s.Plugins.ProvisionerSchema(n)
+			return s.Plugins().ProvisionerSchema(n)
 		},
 
 		// Variables
@@ -245,7 +235,7 @@ func (s *Scope) EvalContext(caller *Executor, overrides ...DataOverride) tofu.Ev
 				Data: &evalData{
 					caller,
 					keyData,
-					s.workspace,
+					s.tofuCtx.Workspace(),
 					overrides,
 					s.Data,
 				},

@@ -36,7 +36,7 @@ func NewProvider(ctx context.Context, addr AbsProviderConfig, providerType addrs
 
 		configBody := tofu.BuildProviderConfig(&tofu.MockEvalContext{}, addrs.AbsProviderConfig{Provider: providerType, Module: addr.Module.Module(), Alias: addr.Local.Alias}, config)
 
-		provider, done, diags := scope.Plugins.ConfiguredProvider(providerType, cty.NilVal)
+		provider, done, diags := scope.Plugins().ConfiguredProvider(providerType, cty.NilVal)
 		defer done()
 
 		resp := provider.GetProviderSchema(ctx)
@@ -128,10 +128,10 @@ func NewProvider(ctx context.Context, addr AbsProviderConfig, providerType addrs
 		}
 
 		if scope.op == walkValidate {
-			p, done, diags := scope.Plugins.ConfiguredProvider(providerType, cty.NilVal)
+			p, done, diags := scope.Plugins().ConfiguredProvider(providerType, cty.NilVal)
 			return p, done, diags
 		} else {
-			p, done, diags := scope.Plugins.ConfiguredProvider(providerType, cfg)
+			p, done, diags := scope.Plugins().ConfiguredProvider(providerType, cfg)
 			return p, done, diags
 		}
 	}

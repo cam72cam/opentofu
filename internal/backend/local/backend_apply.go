@@ -20,7 +20,6 @@ import (
 	"github.com/opentofu/opentofu/internal/engine"
 	"github.com/opentofu/opentofu/internal/logging"
 	"github.com/opentofu/opentofu/internal/plans"
-	"github.com/opentofu/opentofu/internal/plugins"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/states/statefile"
 	"github.com/opentofu/opentofu/internal/states/statemgr"
@@ -126,12 +125,9 @@ func (b *Local) opApply(
 		data, moreDiags := engine.WalkPlan(
 			ctx,
 			lr.Config,
-			lr.Core.Schemas().(plugins.Manager),
-			lr.Core.Hooks(),
-			lr.Core.Workspace(),
+			lr.Core,
 			lr.InputState,
 			lr.PlanOpts.SetVariables,
-			lr.Core.Semaphore(),
 		)
 
 		plan = &plans.Plan{
@@ -299,14 +295,9 @@ func (b *Local) opApply(
 		state, diags := engine.WalkApply(
 			ctx,
 			lr.Config,
-			lr.Core.Schemas().(plugins.Manager),
-			lr.Core.Hooks(),
-			lr.Core.Workspace(),
-			plan.Changes,
-			plan.PriorState,
-			plan.Checks,
+			lr.Core,
+			plan,
 			lr.PlanOpts.SetVariables, // TODO this should probably come from the plan?
-			lr.Core.Semaphore(),
 		)
 		applyState = state
 		applyDiags = diags

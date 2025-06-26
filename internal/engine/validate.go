@@ -8,15 +8,14 @@ import (
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/plans"
-	"github.com/opentofu/opentofu/internal/plugins"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 	"github.com/opentofu/opentofu/internal/tofu"
 	"github.com/zclconf/go-cty/cty"
 )
 
-func WalkValidate(ctx context.Context, config *configs.Config, plugins plugins.Manager, hooks []tofu.Hook, workspace string, sem tofu.Semaphore) tfdiags.Diagnostics {
-	scope := NewRootScope(walkValidate, plugins, hooks, workspace, states.NewState().SyncWrapper(), states.NewState().SyncWrapper(), states.NewState().SyncWrapper(), plans.NewChanges().SyncWrapper(), config, sem)
+func WalkValidate(ctx context.Context, config *configs.Config, tofuCtx *tofu.Context) tfdiags.Diagnostics {
+	scope := NewRootScope(walkValidate, tofuCtx, states.NewState().SyncWrapper(), states.NewState().SyncWrapper(), states.NewState().SyncWrapper(), plans.NewChanges().SyncWrapper(), config)
 	inputs := VariableInputs{}
 
 	// Mirrors tofu/context_validate.go

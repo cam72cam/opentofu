@@ -7,20 +7,20 @@ import (
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/plans"
-	"github.com/opentofu/opentofu/internal/plugins"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 	"github.com/opentofu/opentofu/internal/tofu"
 )
 
-func WalkApply(ctx context.Context, config *configs.Config, plugins plugins.Manager, hooks []tofu.Hook, workspace string, changes *plans.Changes, state *states.State, checks *states.CheckResults, inputs tofu.InputValues, sem tofu.Semaphore) (*states.State, tfdiags.Diagnostics) {
+func WalkApply(ctx context.Context, config *configs.Config, tofuCtx *tofu.Context, plan *plans.Plan, inputs tofu.InputValues) (*states.State, tfdiags.Diagnostics) {
+	state := plan.PriorState
 	if state == nil {
 		state = states.NewState()
 	}
 
-	scope := NewRootScope(walkApply, plugins, hooks, workspace, state.DeepCopy().SyncWrapper(), state.DeepCopy().SyncWrapper(), state.SyncWrapper(), changes.SyncWrapper(), config, sem)
+	scope := NewRootScope(walkApply, tofuCtx, state.DeepCopy().SyncWrapper(), state.DeepCopy().SyncWrapper(), state.SyncWrapper(), plan.Changes.SyncWrapper(), config)
 
-	for _, configElem := range checks.ConfigResults.Elems {
+	for _, configElem := range plan.Checks.ConfigResults.Elems {
 		if configElem.Value.ObjectAddrsKnown() {
 			configAddr := configElem.Key
 			scope.Checks.ReportCheckableObjects(configAddr, configElem.Value.ObjectResults.Keys())
