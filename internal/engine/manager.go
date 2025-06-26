@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/tofu"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -16,20 +17,26 @@ type Manager struct {
 	wg sync.WaitGroup
 
 	backing *Pool
+
+	sem tofu.Semaphore
 }
 
-func NewManager() *Manager {
+func NewManager(sem tofu.Semaphore) *Manager {
 	return &Manager{
 		backing: &Pool{
 			data: map[PoolEntry]*PoolData{},
+			sem:  sem,
 		},
+		sem: sem,
 	}
 }
 
 func (c *Manager) Add(p ValuePromise) {
 	c.wg.Add(1)
+	c.sem.Acquire()
 	go func() {
 		defer c.wg.Done()
+		defer c.sem.Release()
 		p.Value(NewExecutor(nil, c.backing))
 	}()
 }

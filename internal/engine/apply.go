@@ -29,7 +29,7 @@ func WalkApply(ctx context.Context, config *configs.Config, tofuCtx *tofu.Contex
 
 	root := NewModule(ctx, addrs.RootModuleInstance, config, NewRootVariableInputs(inputs), scope)
 
-	p := NewManager()
+	p := NewManager(tofuCtx.Semaphore())
 	root.Collect(p)
 	edges, diags := p.Wait()
 	fmt.Printf("Detected %v edges", len(edges))

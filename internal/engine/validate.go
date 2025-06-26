@@ -33,7 +33,7 @@ func WalkValidate(ctx context.Context, config *configs.Config, tofuCtx *tofu.Con
 
 	root := NewModule(ctx, addrs.RootModuleInstance, config, inputs, scope)
 
-	p := NewManager()
+	p := NewManager(tofuCtx.Semaphore())
 	root.Collect(p)
 	edges, diags := p.Wait()
 	//spew.Dump(edges)

@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/tofu"
 )
 
 type PoolEntryStatus int
@@ -35,6 +36,8 @@ type Pool struct {
 	data map[PoolEntry]*PoolData
 
 	diags tfdiags.Diagnostics
+
+	sem tofu.Semaphore
 }
 
 func (p *Pool) Visited(root PoolEntry) []PoolEntry {
@@ -114,6 +117,10 @@ func (e *Executor) Execute(p PoolEntry, resolve func(*Executor) tfdiags.Diagnost
 	case PoolEntryStatusResolving:
 		// Check for cycle
 		entry.Unlock()
+
+		// We are not executing, free up a slot until the wait is over
+		//e.pool.sem.Release()
+		//defer e.pool.sem.Acquire()
 
 		// Conservative lock
 		e.pool.Lock()

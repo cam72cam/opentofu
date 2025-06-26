@@ -134,7 +134,7 @@ func (s *Scope) LegacyExecute(ctx context.Context, caller *Executor, node tofu.G
 				case addrs.ConfigResource:
 					addr = v
 				default:
-					fmt.Printf("%T = %s\n", v, v)
+					//fmt.Printf("%T = %s\n", v, v)
 					continue
 				}
 
@@ -144,13 +144,10 @@ func (s *Scope) LegacyExecute(ctx context.Context, caller *Executor, node tofu.G
 				resources = append(resources, addr)
 			}
 
-			fmt.Printf("%s: %v\n", caller.caller, resources)
+			//fmt.Printf("%s: %v\n", caller.caller, resources)
 			gnad.AttachDependencies(resources)
 		}
 	}
-
-	s.tofuCtx.Semaphore().Acquire()
-	defer s.tofuCtx.Semaphore().Release()
 
 	diags := node.Execute(ctx, evalCtx, tofu.WalkOperation(s.op))
 	return evalCtx, diags
