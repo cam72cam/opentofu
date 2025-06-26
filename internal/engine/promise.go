@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/opentofu/opentofu/internal/tfdiags"
 )
@@ -32,8 +33,10 @@ func NewPromise[T any](ident fmt.Stringer, resolve func(*Executor) (T, tfdiags.D
 func (p *Promise[T]) Value(exec *Executor) (T, tfdiags.Diagnostics) {
 	// Use exec to run resolver
 	diags := exec.Execute(p, func(inner *Executor) tfdiags.Diagnostics {
+		log.Printf("[DEBUG] Resolving promise %s", p)
 		var diags tfdiags.Diagnostics
 		p.cachedValue, diags = p.resolve(inner)
+		log.Printf("[DEBUG] Resolved promise %s", p)
 		return diags
 	})
 	return p.cachedValue, diags
