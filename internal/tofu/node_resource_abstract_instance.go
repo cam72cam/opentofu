@@ -118,6 +118,10 @@ func (n *NodeAbstractResourceInstance) ReferenceableAddrs() []addrs.Referenceabl
 	}
 }
 
+func (n *NodeAbstractResourceInstance) AttachDependencies(deps []addrs.ConfigResource) {
+	n.Dependencies = deps
+}
+
 // GraphNodeReferencer
 func (n *NodeAbstractResourceInstance) References() []*addrs.Reference {
 	// If we have a configuration attached then we'll delegate to our

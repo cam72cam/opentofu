@@ -37,6 +37,24 @@ type Pool struct {
 	diags tfdiags.Diagnostics
 }
 
+func (p *Pool) Visited(root PoolEntry) []PoolEntry {
+	// DFS walk
+	p.Lock()
+	defer p.Unlock()
+	var down func(PoolEntry) []PoolEntry
+	down = func(entry PoolEntry) []PoolEntry {
+		var result []PoolEntry
+		for _, visit := range p.data[entry].visited {
+			result = append(result, visit)
+			result = append(result, down(visit)...)
+
+		}
+		return result
+	}
+
+	return down(root)
+}
+
 type Executor struct {
 	caller PoolEntry
 	pool   *Pool

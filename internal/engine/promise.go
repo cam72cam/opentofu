@@ -45,3 +45,10 @@ func (p *Promise[T]) Value(exec *Executor) (T, tfdiags.Diagnostics) {
 func (p *Promise[T]) String() string {
 	return p.ident.String()
 }
+
+func (p *Promise[T]) Addr() fmt.Stringer {
+	if id, ok := p.ident.(Ident); ok {
+		return id.base
+	}
+	return p.ident
+}

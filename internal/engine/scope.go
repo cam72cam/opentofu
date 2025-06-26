@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/opentofu/opentofu/internal/addrs"
@@ -94,9 +95,10 @@ func NewScope(path addrs.ModuleInstance, parent *Scope, data ModuleData) *Scope 
 	}
 }
 
-type LegacyExecutable interface {
-	tofu.GraphNodeReferencer
-}
+// From tofu
+/*type graphNodeAttachDataResourceDependsOn interface {
+	AttachDataResourceDependsOn(deps []addrs.ConfigResource, force bool)
+}*/
 
 func (s *Scope) LegacyExecute(ctx context.Context, caller *Executor, node tofu.GraphNodeExecutable) (tofu.EvalContext, tfdiags.Diagnostics) {
 	evalCtx := s.EvalContext(caller)
@@ -122,6 +124,41 @@ func (s *Scope) LegacyExecute(ctx context.Context, caller *Executor, node tofu.G
 		_, diags := scope.EvalContext(refs)
 		if diags.HasErrors() {
 			return nil, diags
+		}
+
+		// This is similar to
+		// TODO graphNodeAttachDataResourceDependsOn
+		if gnad, ok := node.(tofu.GraphNodeAttachDependencies); ok {
+			// Find dependencies to attach
+			visited := caller.pool.Visited(caller.caller)
+
+			var resources []addrs.ConfigResource
+			for _, raw := range visited {
+				// Hack for now
+				type addrable interface {
+					Addr() fmt.Stringer
+				}
+				raw = raw.(addrable).Addr()
+
+				var addr addrs.ConfigResource
+				switch v := raw.(type) {
+				case addrs.AbsResourceInstance:
+					addr = v.ContainingResource().Config()
+				case addrs.ConfigResource:
+					addr = v
+				default:
+					fmt.Printf("%T = %s\n", v, v)
+					continue
+				}
+
+				// TODO self addr check
+
+				// TODO dedup
+				resources = append(resources, addr)
+			}
+
+			fmt.Printf("%s: %v\n", caller.caller, resources)
+			gnad.AttachDependencies(resources)
 		}
 	}
 
