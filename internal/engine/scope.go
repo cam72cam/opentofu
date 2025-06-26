@@ -23,7 +23,6 @@ import (
 )
 
 type Scope struct {
-	path      addrs.ModuleInstance
 	op        WalkOperation
 	expander  *instances.Expander
 	hooks     []tofu.Hook
@@ -55,7 +54,6 @@ func NewRootScope(
 	sem tofu.Semaphore,
 ) *Scope {
 	return &Scope{
-		path:      addrs.RootModuleInstance,
 		op:        op,
 		expander:  instances.NewExpander(),
 		hooks:     hooks,
@@ -75,7 +73,6 @@ func NewRootScope(
 
 func NewScope(path addrs.ModuleInstance, parent *Scope, data ModuleData) *Scope {
 	return &Scope{
-		path:      path,
 		op:        parent.op,
 		expander:  parent.expander,
 		hooks:     parent.hooks,
@@ -175,7 +172,7 @@ func (s *Scope) EvalContext(caller *Executor, overrides ...DataOverride) tofu.Ev
 	var varCache cty.Value
 
 	evalCtx := &tofu.MockEvalContext{
-		PathPath:          s.path,
+		PathPath:          s.Data.Addr,
 		ChangesChanges:    s.Changes,
 		StateState:        s.State,
 		RefreshStateState: s.Refresh,
