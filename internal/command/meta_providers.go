@@ -295,7 +295,11 @@ func (m *Meta) providerFactories(ctx context.Context, cfg *configs.Config, state
 	for name, factory := range internalFactories {
 		factories[addrs.NewBuiltInProvider(name)] = factory
 	}
+
+	var factoryLock sync.Mutex
 	reportError := func(provider addrs.Provider, thisErr error) {
+		factoryLock.Lock()
+		defer factoryLock.Unlock()
 		errs[provider] = thisErr
 		// We'll populate a provider factory that just echoes our error
 		// again if called, which allows us to still report a helpful
@@ -345,7 +349,9 @@ func (m *Meta) providerFactories(ctx context.Context, cfg *configs.Config, state
 				}
 			}
 			var err error
+			factoryLock.Lock()
 			factories[provider], err = cachedProviderFactory(ctx, cached, reqs[provider])
+			factoryLock.Unlock()
 			if err != nil {
 				reportError(provider, err)
 			}
