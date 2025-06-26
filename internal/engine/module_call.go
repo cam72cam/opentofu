@@ -53,15 +53,16 @@ type ModuleCall struct {
 func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *configs.ModuleCall, moduleConfig *configs.Config, scope *Scope) ModuleCall {
 	if scope.op == walkValidate {
 		// Validate only ever does a single expansion
-		expansion := NewPromise(Ident{addr, "(expand)"}, func(self executor) (ModuleInstances, tfdiags.Diagnostics) {
-			evalCtx := scope.EvalContext(self)
-
-			node := tofu.NodeValidateModule{tofu.NodeExpandModule{
+		expansion := NewPromise(Ident{addr, "(expand)"}, func(self *Executor) (ModuleInstances, tfdiags.Diagnostics) {
+			node := &tofu.NodeValidateModule{tofu.NodeExpandModule{
 				Addr:       append(addr.Module.Module(), config.Name),
 				Config:     moduleConfig.Module,
 				ModuleCall: config,
 			}}
-			diags := node.Execute(ctx, evalCtx, tofu.WalkOperation(walkValidate))
+			_, diags := scope.LegacyExecute(ctx, self, node)
+			if diags.HasErrors() {
+				return nil, diags
+			}
 
 			exprs, exprDiags := getModuleCallInputExpressions(config, moduleConfig)
 			diags = diags.Append(exprDiags)
@@ -76,59 +77,68 @@ func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *config
 			return ModuleInstances{addrs.NoKey: NewModule(ctx, addr.Instance(addrs.NoKey), moduleConfig, input, scope)}, diags
 		})
 
-		outputValue := NewPromise(Ident{addr, "(call)"}, func(self executor) (cty.Value, tfdiags.Diagnostics) {
+		outputValue := NewPromise(Ident{addr, "(call)"}, func(self *Executor) (cty.Value, tfdiags.Diagnostics) {
 			expanded, diags := expansion.Value(self)
 			if diags.HasErrors() {
 				return cty.NilVal, diags
 			}
-			out, outDiags := expanded[addrs.NoKey].Value(self)
-			diags = diags.Append(outDiags)
+			out, diags := expanded[addrs.NoKey].Value(self)
+			if diags.HasErrors() {
+				return cty.NilVal, diags
+			}
 
 			// FROM: tofu/evaluate.go
 			ty := out.Type()
 			switch {
 			case config.Count != nil:
-				return cty.UnknownVal(cty.List(ty)), diags
+				return cty.UnknownVal(cty.List(ty)), nil
 			case config.ForEach != nil:
-				return cty.UnknownVal(cty.Map(ty)), diags
+				return cty.UnknownVal(cty.Map(ty)), nil
 			default:
-				return cty.UnknownVal(ty), diags
+				return cty.UnknownVal(ty), nil
 			}
 		})
 
 		return ModuleCall{outputValue, expansion}
 	}
 
-	expansion := NewPromise(Ident{addr, "(expand)"}, func(self executor) (ModuleInstances, tfdiags.Diagnostics) {
-		evalCtx := scope.EvalContext(self)
+	expansion := NewPromise(Ident{addr, "(expand)"}, func(self *Executor) (ModuleInstances, tfdiags.Diagnostics) {
 		var diags tfdiags.Diagnostics
-		ret := ModuleInstances{}
 
 		switch {
 		case config.Count != nil:
+			evalCtx := scope.EvalContext(self)
+			if diags.HasErrors() {
+				return nil, diags
+			}
 			count, ctDiags := tofu.EvaluateCountExpression(config.Count, evalCtx, addr.Module)
 			diags = diags.Append(ctDiags)
 			if diags.HasErrors() {
-				return ret, diags
+				return nil, diags
 			}
-			evalCtx.InstanceExpander().SetModuleCount(addr.Module, addr.Call, count)
+			scope.expander.SetModuleCount(addr.Module, addr.Call, count)
 
 		case config.ForEach != nil:
+			evalCtx := scope.EvalContext(self)
 			forEach, feDiags := tofu.EvaluateForEachExpression(config.ForEach, evalCtx, addr.Module)
 			diags = diags.Append(feDiags)
 			if diags.HasErrors() {
-				return ret, diags
+				return nil, diags
 			}
-			evalCtx.InstanceExpander().SetModuleForEach(addr.Module, addr.Call, forEach)
+			scope.expander.SetModuleForEach(addr.Module, addr.Call, forEach)
 
 		default:
-			evalCtx.InstanceExpander().SetModuleSingle(addr.Module, addr.Call)
+			scope.expander.SetModuleSingle(addr.Module, addr.Call)
 		}
 
 		exprs, exprDiags := getModuleCallInputExpressions(config, moduleConfig)
 		diags = diags.Append(exprDiags)
+		if diags.HasErrors() {
+			return nil, diags
+		}
 
-		for _, modAddr := range evalCtx.InstanceExpander().ExpandAbsModuleCall(addr) {
+		ret := ModuleInstances{}
+		for _, modAddr := range scope.expander.ExpandAbsModuleCall(addr) {
 			input := VariableInputs{}
 			for _, v := range moduleConfig.Module.Variables {
 				input[addrs.InputVariable{Name: v.Name}] = VariableInput{
@@ -142,18 +152,19 @@ func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *config
 		return ret, diags
 	})
 
-	outputValue := NewPromise(Ident{addr, "(call)"}, func(self executor) (cty.Value, tfdiags.Diagnostics) {
+	outputValue := NewPromise(Ident{addr, "(call)"}, func(self *Executor) (cty.Value, tfdiags.Diagnostics) {
 		// expansion
 		expanded, diags := expansion.Value(self)
+		if diags.HasErrors() {
+			return cty.NilVal, diags
+		}
 
 		instances := make(map[addrs.InstanceKey]cty.Value)
 		for key, mod := range expanded {
-			var modDiags tfdiags.Diagnostics
-			instances[key], modDiags = mod.Value(self)
-			diags = diags.Append(modDiags)
-		}
-		if diags.HasErrors() {
-			return cty.NilVal, diags
+			instances[key], diags = mod.Value(self)
+			if diags.HasErrors() {
+				return cty.NilVal, diags
+			}
 		}
 
 		// Lifted from tofu/evaluate.go
@@ -173,7 +184,8 @@ func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *config
 			}
 
 			if length <= 0 {
-				return cty.EmptyTupleVal, diags
+				return cty.EmptyTupleVal, nil
+
 			}
 			vals := make([]cty.Value, length)
 			for key, instance := range instances {
@@ -193,7 +205,7 @@ func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *config
 					continue
 				}
 			}
-			return cty.TupleVal(vals), diags
+			return cty.TupleVal(vals), nil
 
 		case config.ForEach != nil:
 			instanceMap := make(map[string]cty.Value)
@@ -201,20 +213,21 @@ func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *config
 				sk := key.(addrs.StringKey)
 				instanceMap[string(sk)] = mod
 			}
-			return cty.ObjectVal(instanceMap), diags
+			return cty.ObjectVal(instanceMap), nil
 		default:
-			return instances[addrs.NoKey], diags
+			return instances[addrs.NoKey], nil
 		}
 	})
 
 	return ModuleCall{outputValue, expansion}
 }
 
-func (m ModuleCall) Expand(c *ConcurrencyPool, exec executor) tfdiags.Diagnostics {
-	expanded, diags := m.instances.Value(exec)
-
+func (m ModuleCall) Expand(c *ConcurrencyPool, exec *Executor) {
+	if m.instances == nil {
+		return
+	}
+	expanded, _ := m.instances.Value(exec)
 	for _, mod := range expanded {
 		mod.Collect(c)
 	}
-	return diags
 }

@@ -21,11 +21,12 @@ type Resource struct {
 
 func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Resource, scope *Scope) Resource {
 	if scope.op == walkValidate {
-		return Resource{ValuePromise: NewPromise(addr, func(self executor) (cty.Value, tfdiags.Diagnostics) {
-			evalCtx := scope.EvalContext(self)
-
+		return Resource{ValuePromise: NewPromise(addr, func(self *Executor) (cty.Value, tfdiags.Diagnostics) {
 			abstract, diags := tofuNodeAbstractResource(addr.Config(), config, scope)
-			node := tofu.NodeValidatableResource{&abstract}
+			if diags.HasErrors() {
+				return cty.NilVal, diags
+			}
+			node := &tofu.NodeValidatableResource{&abstract}
 
 			resolvedProvider := tofu.ResolvedProvider{
 				// For validate, we can just depend on the unconfigured root instance
@@ -33,57 +34,87 @@ func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Re
 			}
 			abstract.SetProvider(resolvedProvider)
 
-			execDiags := node.Execute(ctx, evalCtx, tofu.WalkOperation(walkValidate))
+			_, execDiags := scope.LegacyExecute(ctx, self, node)
 			diags = diags.Append(execDiags)
 
 			// TODO this mirrors tofu/evaluate.go, but should be made a *lot* smarter as we know the output schema + if there are any count/for_each wrappers applied
 			return cty.DynamicVal, diags
 		})}
 	}
-	expansion := NewPromise(Ident{addr, "(expand)"}, func(self executor) (ResourceInstances, tfdiags.Diagnostics) {
-		evalCtx := scope.EvalContext(self)
-
-		abstract, diags := tofuNodeAbstractResource(addr.Config(), config, scope)
-		writeDiags := abstract.WriteResourceState(evalCtx, addr) // Oddly named, but this performs the expansion (for now)
-		diags = diags.Append(writeDiags)
-
+	expansion := NewPromise(Ident{addr, "(expand)"}, func(self *Executor) (ResourceInstances, tfdiags.Diagnostics) {
+		var diags tfdiags.Diagnostics
 		instances := ResourceInstances{}
-		if diags.HasErrors() {
-			return instances, diags
+
+		// From NodeResourceAbstract
+		// We'll record our expansion decision in the shared "expander" object
+		// so that later operations (i.e. DynamicExpand and expression evaluation)
+		// can refer to it. Since this node represents the abstract module, we need
+		// to expand the module here to create all resources.
+		expander := scope.expander
+
+		switch {
+		case config != nil && config.Count != nil:
+			evalCtx := scope.EvalContext(self)
+			count, cDiags := tofu.EvaluateCountExpression(config.Count, evalCtx, addr)
+			diags = diags.Append(cDiags)
+			if diags.HasErrors() {
+				return instances, diags
+			}
+
+			// TODO state.SetResourceProvider(addr, n.ResolvedProvider.ProviderConfig)
+			expander.SetResourceCount(addr.Module, addr.Resource, count)
+
+		case config != nil && config.ForEach != nil:
+			evalCtx := scope.EvalContext(self)
+			forEach, feDiags := tofu.EvaluateForEachExpression(config.ForEach, evalCtx, addr)
+			diags = diags.Append(feDiags)
+			if diags.HasErrors() {
+				return instances, diags
+			}
+
+			// This method takes care of all of the business logic of updating this
+			// while ensuring that any existing instances are preserved, etc.
+			// TODO state.SetResourceProvider(addr, n.ResolvedProvider.ProviderConfig)
+			expander.SetResourceForEach(addr.Module, addr.Resource, forEach)
+
+		default:
+			// TODO state.SetResourceProvider(addr, n.ResolvedProvider.ProviderConfig)
+			expander.SetResourceSingle(addr.Module, addr.Resource)
 		}
 
 		configAddr := addr.Resource.InModule(addr.Module.Module())
 
 		// Some of the state manipulation here is doing pieces of states.Module.SetResourceInstanceCurrent
-		for _, resAddr := range evalCtx.InstanceExpander().ExpandResource(addr) {
+		for _, resAddr := range scope.expander.ExpandResource(addr) {
 			resAddr := resAddr
 			key := resAddr.Resource.Key
 
 			if scope.op == walkPlan {
-				if checkState := evalCtx.Checks(); checkState.ConfigHasChecks(configAddr) {
+				if checkState := scope.Checks; checkState.ConfigHasChecks(configAddr) {
 					scope.Checks.ReportCheckableObject(configAddr, resAddr)
 				}
 			}
 
-			instances[key] = NewPromise(Ident{resAddr, "(instance)"}, func(self executor) (cty.Value, tfdiags.Diagnostics) {
+			instances[key] = NewPromise(Ident{resAddr, "(instance)"}, func(self *Executor) (cty.Value, tfdiags.Diagnostics) {
 				return NewResourceInstance(ctx, resAddr, config, self, scope)
 			})
 		}
 		return instances, diags
 	})
 
-	outputValue := NewPromise(Ident{addr, "(value)"}, func(self executor) (cty.Value, tfdiags.Diagnostics) {
+	outputValue := NewPromise(Ident{addr, "(value)"}, func(self *Executor) (cty.Value, tfdiags.Diagnostics) {
 		// expansion
 		expanded, diags := expansion.Value(self)
+		if diags.HasErrors() {
+			return cty.NilVal, diags
+		}
 
 		instances := make(map[addrs.InstanceKey]cty.Value)
 		for key, mod := range expanded {
-			var modDiags tfdiags.Diagnostics
-			instances[key], modDiags = mod.Value(self)
-			diags = diags.Append(modDiags)
-		}
-		if diags.HasErrors() {
-			return cty.NilVal, diags
+			instances[key], diags = mod.Value(self)
+			if diags.HasErrors() {
+				return cty.NilVal, diags
+			}
 		}
 
 		// Lifted from tofu/evaluate.go
@@ -103,7 +134,7 @@ func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Re
 			}
 
 			if length <= 0 {
-				return cty.EmptyTupleVal, diags
+				return cty.EmptyTupleVal, nil
 			}
 			vals := make([]cty.Value, length)
 
@@ -124,7 +155,7 @@ func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Re
 					continue
 				}
 			}
-			return cty.TupleVal(vals), diags
+			return cty.TupleVal(vals), nil
 
 		case config.ForEach != nil:
 			instanceMap := make(map[string]cty.Value)
@@ -132,25 +163,23 @@ func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Re
 				sk := key.(addrs.StringKey)
 				instanceMap[string(sk)] = mod
 			}
-			return cty.ObjectVal(instanceMap), diags
+			return cty.ObjectVal(instanceMap), nil
 		default:
-			return instances[addrs.NoKey], diags
+			return instances[addrs.NoKey], nil
 		}
 	})
 
 	return Resource{outputValue, expansion}
 }
 
-func (m Resource) Expand(c *ConcurrencyPool, exec executor) tfdiags.Diagnostics {
+func (m Resource) Expand(c *ConcurrencyPool, exec *Executor) {
 	if m.instances == nil {
-		return nil
+		return
 	}
-	expanded, diags := m.instances.Value(exec)
-
+	expanded, _ := m.instances.Value(exec)
 	for _, res := range expanded {
 		c.Add(res)
 	}
-	return diags
 }
 
 func tofuNodeAbstractResource(addr addrs.ConfigResource, config *configs.Resource, scope *Scope) (tofu.NodeAbstractResource, tfdiags.Diagnostics) {
@@ -208,9 +237,7 @@ func tofuNodeAbstractResource(addr addrs.ConfigResource, config *configs.Resourc
 
 }
 
-func NewResourceInstance(ctx context.Context, addr addrs.AbsResourceInstance, config *configs.Resource, self executor, scope *Scope) (cty.Value, tfdiags.Diagnostics) {
-	evalCtx := scope.EvalContext(self)
-
+func NewResourceInstance(ctx context.Context, addr addrs.AbsResourceInstance, config *configs.Resource, self *Executor, scope *Scope) (cty.Value, tfdiags.Diagnostics) {
 	// Create pre-expansion node for embedding
 	abstract, diags := tofuNodeAbstractResource(addr.ConfigResource(), config, scope)
 	if diags.HasErrors() {
@@ -229,7 +256,7 @@ func NewResourceInstance(ctx context.Context, addr addrs.AbsResourceInstance, co
 		//TODO generatedConfigHCL string
 	}
 
-	if state := evalCtx.PrevRunState().Resource(addr.ContainingResource()); state != nil && state.Instance(addr.Resource.Key) != nil {
+	if state := scope.PrevRun.Resource(addr.ContainingResource()); state != nil && state.Instance(addr.Resource.Key) != nil {
 		abstractInstance.AttachResourceState(state)
 	}
 
@@ -254,7 +281,7 @@ func NewResourceInstance(ctx context.Context, addr addrs.AbsResourceInstance, co
 
 	// Execute
 	if scope.op == walkPlan {
-		node := tofu.NodePlannableResourceInstance{
+		node := &tofu.NodePlannableResourceInstance{
 			NodeAbstractResourceInstance: abstractInstance,
 			//TODO ForceCreateBeforeDestroy bool
 
@@ -279,10 +306,12 @@ func NewResourceInstance(ctx context.Context, addr addrs.AbsResourceInstance, co
 			// an import of this resource.
 			//TODO importTarget EvaluatedConfigImportTarget
 		}
-		diags = diags.Append(node.Execute(ctx, evalCtx, tofu.WalkOperation(scope.op)))
+		_, nodeDiags := scope.LegacyExecute(ctx, self, node)
+		diags = diags.Append(nodeDiags)
+
 	}
 	if scope.op == walkApply {
-		node := tofu.NodeApplyableResourceInstance{
+		node := &tofu.NodeApplyableResourceInstance{
 			NodeAbstractResourceInstance: abstractInstance,
 			//TODO ForceCreateBeforeDestroy bool
 
@@ -307,10 +336,11 @@ func NewResourceInstance(ctx context.Context, addr addrs.AbsResourceInstance, co
 			// an import of this resource.
 			//TODO importTarget EvaluatedConfigImportTarget
 		}
-		diags = diags.Append(node.Execute(ctx, evalCtx, tofu.WalkOperation(scope.op)))
+		_, nodeDiags := scope.LegacyExecute(ctx, self, node)
+		diags = diags.Append(nodeDiags)
 	}
 
-	if src := evalCtx.State().ResourceInstanceObject(addr, states.CurrentGen); src != nil {
+	if src := scope.State.ResourceInstanceObject(addr, states.CurrentGen); src != nil {
 		ty := abstract.Schema.ImpliedType()
 		val, valDiags := src.Decode(ty)
 		diags = diags.Append(valDiags)

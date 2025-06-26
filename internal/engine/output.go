@@ -11,13 +11,11 @@ import (
 )
 
 func NewOutput(ctx context.Context, addr addrs.AbsOutputValue, config *configs.Output, scope *Scope) ValuePromise {
-	return NewPromise(addr, func(self executor) (cty.Value, tfdiags.Diagnostics) {
-		evalCtx := scope.EvalContext(self)
-
+	return NewPromise(addr, func(self *Executor) (cty.Value, tfdiags.Diagnostics) {
 		planning := scope.op != walkApply //TODO plan graph only
 		if planning {
 			configAddr := addr.OutputValue.InModule(addr.Module.Module())
-			if checkState := evalCtx.Checks(); checkState.ConfigHasChecks(configAddr) {
+			if checkState := scope.Checks; checkState.ConfigHasChecks(configAddr) {
 				checkState.ReportCheckableObject(configAddr, addr)
 			}
 		}
@@ -30,7 +28,10 @@ func NewOutput(ctx context.Context, addr addrs.AbsOutputValue, config *configs.O
 			DestroyApply: false, // TODO op == walkDestroy || op == walkPlanDestroy,
 			Planning:     planning,
 		}
-		diags := node.Execute(ctx, evalCtx, tofu.WalkOperation(walkPlan))
+		evalCtx, diags := scope.LegacyExecute(ctx, self, node)
+		if diags.HasErrors() {
+			return cty.NilVal, diags
+		}
 
 		val := evalCtx.State().OutputValue(node.Addr)
 		if val == nil {

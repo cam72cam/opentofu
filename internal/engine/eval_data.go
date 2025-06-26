@@ -19,7 +19,7 @@ type DataOverride struct {
 }
 
 type evalData struct {
-	caller    executor
+	caller    *Executor
 	instance  instances.RepetitionData
 	workspace string
 	overrides []DataOverride
@@ -67,6 +67,11 @@ func moduleDisplayAddr(addr addrs.ModuleInstance) string {
 	}
 }
 
+func (d *evalData) value(promise ValuePromise) (cty.Value, tfdiags.Diagnostics) {
+	val, err := promise.Value(d.caller)
+	return val, tfdiags.Diagnostics{}.Append(err)
+}
+
 func (d *evalData) GetResource(addr addrs.Resource, rng tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	promise := d.Resources[addr]
@@ -82,7 +87,7 @@ func (d *evalData) GetResource(addr addrs.Resource, rng tfdiags.SourceRange) (ct
 	if override, val, diags := d.override(addr); override {
 		return val, diags
 	}
-	return promise.Value(d.caller)
+	return d.value(promise)
 }
 func (d *evalData) GetLocalValue(addr addrs.LocalValue, rng tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
@@ -108,7 +113,7 @@ func (d *evalData) GetLocalValue(addr addrs.LocalValue, rng tfdiags.SourceRange)
 		return cty.DynamicVal, diags
 	}
 
-	return promise.Value(d.caller)
+	return d.value(promise)
 }
 func (d *evalData) GetModule(addr addrs.ModuleCall, rng tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
@@ -124,7 +129,7 @@ func (d *evalData) GetModule(addr addrs.ModuleCall, rng tfdiags.SourceRange) (ct
 		return cty.DynamicVal, diags
 	}
 
-	return promise.Value(d.caller)
+	return d.value(promise)
 }
 func (d *evalData) GetPathAttr(addr addrs.PathAttr, rng tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
@@ -231,7 +236,7 @@ func (d *evalData) GetInputVariable(addr addrs.InputVariable, rng tfdiags.Source
 		return val, diags
 	}
 
-	return promise.Value(d.caller)
+	return d.value(promise)
 }
 func (d *evalData) GetOutput(addr addrs.OutputValue, rng tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
@@ -255,7 +260,7 @@ func (d *evalData) GetOutput(addr addrs.OutputValue, rng tfdiags.SourceRange) (c
 		})
 		return cty.DynamicVal, diags
 	}
-	return promise.Value(d.caller)
+	return d.value(promise)
 }
 func (d *evalData) GetCheckBlock(addr addrs.Check, _ tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
 	// TODO

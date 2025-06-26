@@ -26,10 +26,10 @@ func TestSimpleValid(t *testing.T) {
 	var q *Promise[cty.Value]
 	var p *Promise[cty.Value]
 
-	p = NewPromise[cty.Value](stringer("var.foo"), func(e executor) (cty.Value, tfdiags.Diagnostics) {
+	p = NewPromise[cty.Value](stringer("var.foo"), func(e *Executor) (cty.Value, tfdiags.Diagnostics) {
 		return cty.StringVal("Hello World"), nil
 	})
-	q = NewPromise[cty.Value](stringer("local.val"), func(e executor) (cty.Value, tfdiags.Diagnostics) {
+	q = NewPromise[cty.Value](stringer("local.val"), func(e *Executor) (cty.Value, tfdiags.Diagnostics) {
 		return p.Value(e)
 	})
 
@@ -41,10 +41,10 @@ func TestSimpleCycle(t *testing.T) {
 	var q *Promise[cty.Value]
 	var p *Promise[cty.Value]
 
-	p = NewPromise[cty.Value](istringer(5), func(e executor) (cty.Value, tfdiags.Diagnostics) {
+	p = NewPromise[cty.Value](istringer(5), func(e *Executor) (cty.Value, tfdiags.Diagnostics) {
 		return q.Value(e)
 	})
-	q = NewPromise[cty.Value](stringer("z"), func(e executor) (cty.Value, tfdiags.Diagnostics) {
+	q = NewPromise[cty.Value](stringer("z"), func(e *Executor) (cty.Value, tfdiags.Diagnostics) {
 		return p.Value(e)
 	})
 
@@ -56,7 +56,7 @@ func TestSingleCycle(t *testing.T) {
 	var n = 20
 	chain := make([]*Promise[cty.Value], n, n)
 	for i := 0; i < n; i++ {
-		chain[i] = NewPromise[cty.Value](istringer(i), func(e executor) (cty.Value, tfdiags.Diagnostics) {
+		chain[i] = NewPromise[cty.Value](istringer(i), func(e *Executor) (cty.Value, tfdiags.Diagnostics) {
 			return chain[(i+1)%n].Value(e)
 		})
 	}
@@ -70,7 +70,7 @@ func TestParallelCycle(t *testing.T) {
 	chain := make([]*Promise[cty.Value], n, n)
 	for i := 0; i < n; i++ {
 		i := i
-		chain[i] = NewPromise[cty.Value](istringer(i), func(e executor) (cty.Value, tfdiags.Diagnostics) {
+		chain[i] = NewPromise[cty.Value](istringer(i), func(e *Executor) (cty.Value, tfdiags.Diagnostics) {
 			//time.Sleep(10 * time.Millisecond)
 			val, err := chain[(i+1)%n].Value(e)
 			if err != nil {
@@ -105,7 +105,7 @@ func TestParallelCrazy(t *testing.T) {
 	var n = 4000
 	chain := make([]*Promise[cty.Value], n, n)
 	for i := 0; i < n; i++ {
-		chain[i] = NewPromise[cty.Value](istringer(i), func(e executor) (cty.Value, tfdiags.Diagnostics) {
+		chain[i] = NewPromise[cty.Value](istringer(i), func(e *Executor) (cty.Value, tfdiags.Diagnostics) {
 			//time.Sleep(10 * time.Millisecond)
 			r := make(chan int, 4)
 			go func() {

@@ -23,27 +23,26 @@ func (pc AbsProviderConfig) String() string {
 	return fmt.Sprintf("%s.%s", pc.Module, pc.Local)
 }
 
-type Provider func(self executor) (providers.Interface, func(), tfdiags.Diagnostics)
+type Provider func(self *Executor) (providers.Interface, func(), tfdiags.Diagnostics)
 
 func NewProvider(ctx context.Context, addr AbsProviderConfig, providerType addrs.Provider, config *configs.Provider, scope *Scope) Provider {
 	// TODO provider instances
 
 	// reworked from tofu/node_provider.go
 	// This breaks non-direct provider inputs?
-	configBody := tofu.BuildProviderConfig(&tofu.MockEvalContext{}, addrs.AbsProviderConfig{Provider: providerType, Module: addr.Module.Module(), Alias: addr.Local.Alias}, config)
 
-	cfgVal := NewPromise(addr, func(self executor) (cty.Value, tfdiags.Diagnostics) {
+	cfgVal := NewPromise(addr, func(self *Executor) (cty.Value, tfdiags.Diagnostics) {
 		log.Printf("[TRACE] building configuration for provider %s", addr)
-		evalCtx := scope.EvalContext(self)
+
+		configBody := tofu.BuildProviderConfig(&tofu.MockEvalContext{}, addrs.AbsProviderConfig{Provider: providerType, Module: addr.Module.Module(), Alias: addr.Local.Alias}, config)
 
 		provider, done, diags := scope.Plugins.ConfiguredProvider(providerType, cty.NilVal)
 		defer done()
 
 		resp := provider.GetProviderSchema(ctx)
-		bodyDiags := resp.Diagnostics.InConfigBody(configBody, addr.String()) // TODO addr.InstanceString(providerKey))
-		diags = diags.Append(bodyDiags)
+		diags = diags.Append(resp.Diagnostics)
 		if diags.HasErrors() {
-			return cty.NilVal, diags
+			return cty.NilVal, diags.InConfigBody(configBody, addr.String())
 		}
 
 		configSchema := resp.Provider.Block
@@ -52,10 +51,11 @@ func NewProvider(ctx context.Context, addr AbsProviderConfig, providerType addrs
 			data = n.Config.Instances[providerKey]
 		}*/
 
+		evalCtx := scope.EvalContext(self)
 		configVal, configBody, evalDiags := evalCtx.EvaluateBlock(configBody, configSchema, nil, data)
 		diags = diags.Append(evalDiags)
 		if evalDiags.HasErrors() {
-			return cty.NilVal, diags
+			return cty.NilVal, diags.InConfigBody(configBody, addr.String())
 		}
 
 		verifyConfigIsKnown := scope.op == walkImport
@@ -66,7 +66,7 @@ func NewProvider(ctx context.Context, addr AbsProviderConfig, providerType addrs
 				Detail:   fmt.Sprintf("The configuration for %s depends on values that cannot be determined until apply.", addr),
 				Subject:  &config.DeclRange,
 			})
-			return cty.NilVal, diags
+			return cty.NilVal, diags.InConfigBody(configBody, addr.String())
 		}
 
 		// If our config value contains any marked values, ensure those are
@@ -82,7 +82,7 @@ func NewProvider(ctx context.Context, addr AbsProviderConfig, providerType addrs
 		// ValidateProviderConfig is only used for validation. We are intentionally
 		// ignoring the PreparedConfig field to maintain existing behavior.
 		validateResp := provider.ValidateProviderConfig(ctx, req)
-		diags = diags.Append(validateResp.Diagnostics.InConfigBody(configBody, addr.String())) //addr.InstanceString(providerKey)))
+		diags = diags.Append(validateResp.Diagnostics)
 		if diags.HasErrors() && config == nil {
 			// If there isn't an explicit "provider" block in the configuration,
 			// this error message won't be very clear. Add some detail to the error
@@ -95,7 +95,7 @@ func NewProvider(ctx context.Context, addr AbsProviderConfig, providerType addrs
 		}
 
 		if diags.HasErrors() {
-			return cty.NilVal, diags
+			return cty.NilVal, diags.InConfigBody(configBody, addr.String())
 		}
 
 		// If the provider returns something different, log a warning to help
@@ -105,14 +105,15 @@ func NewProvider(ctx context.Context, addr AbsProviderConfig, providerType addrs
 			log.Printf("[WARN] ValidateProviderConfig from %q changed the config value, but that value is unused", addr)
 		}
 
-		return unmarkedConfigVal, diags
+		return unmarkedConfigVal, diags.InConfigBody(configBody, addr.String())
 
 	})
 
-	return func(self executor) (providers.Interface, func(), tfdiags.Diagnostics) {
+	return func(self *Executor) (providers.Interface, func(), tfdiags.Diagnostics) {
 		cfg, diags := cfgVal.Value(self)
-		diags = diags.InConfigBody(configBody, addr.String()) //addr.InstanceString(providerKey)))
 		if diags.HasErrors() {
+			// TODO this is broken and should be moved above!
+			var diags tfdiags.Diagnostics
 			if config == nil {
 				// If there isn't an explicit "provider" block in the configuration,
 				// this error message won't be very clear. Add some detail to the error
@@ -127,9 +128,11 @@ func NewProvider(ctx context.Context, addr AbsProviderConfig, providerType addrs
 		}
 
 		if scope.op == walkValidate {
-			return scope.Plugins.ConfiguredProvider(providerType, cty.NilVal)
+			p, done, diags := scope.Plugins.ConfiguredProvider(providerType, cty.NilVal)
+			return p, done, diags
 		} else {
-			return scope.Plugins.ConfiguredProvider(providerType, cfg)
+			p, done, diags := scope.Plugins.ConfiguredProvider(providerType, cfg)
+			return p, done, diags
 		}
 	}
 }

@@ -87,7 +87,42 @@ func NewScope(path addrs.ModuleInstance, parent *Scope, data ModuleData) *Scope 
 	}
 }
 
-func (s *Scope) EvalContext(caller executor, overrides ...DataOverride) tofu.EvalContext {
+type LegacyExecutable interface {
+	tofu.GraphNodeReferencer
+}
+
+func (s *Scope) LegacyExecute(ctx context.Context, caller *Executor, node tofu.GraphNodeExecutable) (tofu.EvalContext, tfdiags.Diagnostics) {
+	evalCtx := s.EvalContext(caller)
+
+	var refs []*addrs.Reference
+	// TODO this is a bit of a nasty patch, everything through here should be referencer
+	if gnr, ok := node.(tofu.GraphNodeReferencer); ok {
+		refs = gnr.References()
+
+		scope := evalCtx.EvaluationScope(nil, nil, tofu.EvalDataForNoInstanceKey)
+		var filtered []*addrs.Reference
+		for _, ref := range refs {
+			switch ref.Subject.(type) {
+			case // Skip non-promise references
+				addrs.ForEachAttr,
+				addrs.CountAttr,
+				addrs.TerraformAttr,
+				addrs.PathAttr:
+				continue
+			}
+			filtered = append(filtered, ref)
+		}
+		_, diags := scope.EvalContext(refs)
+		if diags.HasErrors() {
+			return nil, diags
+		}
+	}
+
+	diags := node.Execute(ctx, evalCtx, tofu.WalkOperation(s.op))
+	return evalCtx, diags
+}
+
+func (s *Scope) EvalContext(caller *Executor, overrides ...DataOverride) tofu.EvalContext {
 	// I think this can be stupid?
 	// This is just a hack for the variable input passthrough from parent -> child in the variable nodes
 	var varCache cty.Value

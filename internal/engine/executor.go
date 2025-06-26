@@ -1,114 +1,132 @@
 package engine
 
 import (
+	"fmt"
 	"sync"
+
+	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
-type executor interface {
-	Visit(any)
-	Execute(any, func())
-	Wait(any, executor, chan struct{}) error
-	WaitingOn() executor
+type PoolEntryStatus int
+
+const (
+	PoolEntryStatusUnresolved PoolEntryStatus = iota
+	// An executor is resolving this
+	PoolEntryStatusResolving
+	// Discovered another executor is already resolving this node
+	PoolEntryStatusResolved
+)
+
+type PoolEntry fmt.Stringer
+type PoolData struct {
+	sync.Mutex
+
+	status PoolEntryStatus
+	waiter chan struct{}
+
+	visiting PoolEntry
+	visited  []PoolEntry
+	diags    tfdiags.Diagnostics
+}
+
+type Pool struct {
+	sync.Mutex
+
+	data map[PoolEntry]*PoolData
+
+	diags tfdiags.Diagnostics
 }
 
 type Executor struct {
-	recorder  func(any, any)
-	stack     []any
-	waitingOn executor
-
-	lock sync.Mutex
+	caller PoolEntry
+	pool   *Pool
 }
 
-func NewExecutor(recorder func(any, any)) *Executor {
-	return &Executor{recorder: recorder}
-}
-
-func (e *Executor) Visit(id any) {
-	if len(e.stack) != 0 {
-		e.recorder(e.stack[len(e.stack)-1], id)
-	}
-}
-
-func (e *Executor) Execute(id any, action func()) {
-	// Push on to stack
-	e.stack = append(e.stack, id)
-
-	action()
-
-	// Pop off of stack
-	e.stack = e.stack[:len(e.stack)-1]
-}
-
-func (e *Executor) WaitingOn() executor {
-	return e.waitingOn
-}
-
-func (e *Executor) CycleCheck(root *Executor) []any {
-	if e == root {
-		return e.stack
-	}
-	e.lock.Lock()
-	defer e.lock.Unlock()
-	if e.waitingOn != nil {
-		found := e.waitingOn.(*Executor).CycleCheck(root)
-		if len(found) > 0 {
-			return append(append([]any{}, e.stack...), found...)
+func (e *Executor) Execute(p PoolEntry, resolve func(*Executor) tfdiags.Diagnostics) tfdiags.Diagnostics {
+	// Lock for modifications to the pool
+	e.pool.Lock()
+	entry, ok := e.pool.data[p]
+	if !ok {
+		entry = &PoolData{
+			status: PoolEntryStatusUnresolved,
+			waiter: make(chan struct{}),
 		}
+		e.pool.data[p] = entry
 	}
-	return nil
 
-}
+	if e.caller != nil {
+		// Record visit regardless of status
+		caller := e.pool.data[e.caller]
+		caller.Lock()
+		caller.visiting = p
+		caller.visited = append(caller.visited, p) // Not deduped (for now?)
+		caller.Unlock()
+	}
 
-func (e *Executor) Wait(id any, waitingOn executor, wait chan struct{}) error {
-	e.waitingOn = waitingOn
-	defer func() {
-		e.waitingOn = nil
-	}()
-	/*
+	// Done with direct access to the pool map
+	e.pool.Unlock()
 
-		// Cycle check
-		hasCycle := false
-		for w := waitingOn; w != nil; w = w.WaitingOn() {
-			if w == e {
-				hasCycle = true
-				break
-			}
-		}
-		if hasCycle {
-			// Create stack trace
-			var stack []any
-			for w := waitingOn; w != nil; w = w.WaitingOn() {
-				stack = append(stack, w.(*Executor).stack...)
-				if w == e {
-					break
-				}
-			}
-			stack = append(stack, id)
+	entry.Lock()
+	switch entry.status {
+	case PoolEntryStatusUnresolved:
+		// Start resolver
+		entry.status = PoolEntryStatusResolving
+		entry.Unlock()
 
-			var msg string
-			foundCycleStart := false
-			for _, item := range stack {
-				if !foundCycleStart {
-					if item == id {
-						foundCycleStart = true
-						msg = fmt.Sprintf("Cycle Detected: %s", item)
+		// We will be the only ones to modify the entry from here on (other than visited)
+		// Keep the call stack short by running each in it's own go routine
+		go func() {
+			defer func() {
+				close(entry.waiter)
+			}()
+			entry.diags = resolve(NewExecutor(p, e.pool))
+			if entry.diags.HasErrors() {
+				// Visited won't be modified past here
+				e.pool.Lock()
+				defer e.pool.Unlock()
+				for _, key := range entry.visited {
+					if e.pool.data[key].diags.HasErrors() {
+						// something we called failed, we don't need to report our diags
+						return
 					}
-					continue
 				}
-				if foundCycleStart {
-					msg = fmt.Sprintf("%s -> %s", msg, item)
-				}
-
+				e.pool.diags = e.pool.diags.Append(entry.diags)
 			}
-			return errors.New(msg)
-		}*/
+		}()
+	case PoolEntryStatusResolving:
+		// Check for cycle
+		entry.Unlock()
+
+		// Conservative lock
+		e.pool.Lock()
+		// TODO optimize this a bit...
+		// Could use some pointer magic?
+		stack := []PoolEntry{}
+		for current := e.pool.data[entry.visiting]; current != nil; current = e.pool.data[current.visiting] {
+			stack = append(stack, current.visiting)
+			if current == entry {
+				stack = append(stack, stack[0])
+				err := fmt.Errorf("CYCLE: %v", stack)
+				//e.pool.diags = e.pool.diags.Append(err)
+				e.pool.Unlock()
+				return tfdiags.Diagnostics{}.Append(err)
+			}
+
+		}
+		e.pool.Unlock()
+	}
 
 	select {
-	case <-wait:
+	case <-entry.waiter:
+		// Wait for completion (if applicable)
 	}
-	return nil
+
+	return entry.diags
 }
 
-func (e *Executor) Close() {
-
+func NewExecutor(caller PoolEntry, pool *Pool) *Executor {
+	return &Executor{
+		caller: caller,
+		pool:   pool,
+	}
 }

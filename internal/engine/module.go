@@ -2,87 +2,12 @@ package engine
 
 import (
 	"context"
-	"sync"
 
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 	"github.com/zclconf/go-cty/cty"
 )
-
-type Edge struct {
-	Requester any
-	Requestee any
-}
-
-type GraphCollector struct {
-	sync.Mutex
-	edges []Edge
-}
-
-func (e *GraphCollector) AddEdge(requester, requestee any) {
-	e.Lock()
-	e.edges = append(e.edges, Edge{Requester: requester, Requestee: requestee})
-	e.Unlock()
-}
-
-type ConcurrencyPool struct {
-	wg    sync.WaitGroup
-	lock  sync.Mutex
-	diags tfdiags.Diagnostics
-	pool  chan *Executor
-	graph *GraphCollector
-}
-
-func NewConcurrencyPool(size int) *ConcurrencyPool {
-	graph := &GraphCollector{}
-	c := make(chan *Executor, size)
-	for i := 0; i < size; i++ {
-		c <- NewExecutor(graph.AddEdge)
-	}
-	return &ConcurrencyPool{pool: c, graph: graph}
-}
-
-func (c *ConcurrencyPool) Add(p ValuePromise) {
-	c.wg.Add(1)
-	go func() {
-		defer c.wg.Done()
-		slot := <-c.pool
-		_, diags := p.Value(slot)
-		c.pool <- slot
-
-		c.lock.Lock()
-		defer c.lock.Unlock()
-		c.diags = c.diags.Append(diags)
-	}()
-}
-func (c *ConcurrencyPool) Expand(e ExpandValuePromise) {
-	c.wg.Add(1)
-	go func() {
-		defer c.wg.Done()
-		slot := <-c.pool
-		diags := e.Expand(c, slot)
-		c.pool <- slot
-
-		c.lock.Lock()
-		defer c.lock.Unlock()
-		c.diags = c.diags.Append(diags)
-	}()
-}
-
-func (c *ConcurrencyPool) Wait() ([]Edge, tfdiags.Diagnostics) {
-	c.wg.Wait()
-	return c.graph.edges, c.diags
-}
-
-type ValuePromise interface {
-	Value(executor) (cty.Value, tfdiags.Diagnostics)
-}
-
-type ExpandValuePromise interface {
-	ValuePromise
-	Expand(*ConcurrencyPool, executor) tfdiags.Diagnostics // Could also return map[addrs.InstanceKey]*Scope for DependsOn
-}
 
 type ModuleData struct {
 	Addr      addrs.ModuleInstance
@@ -174,15 +99,16 @@ func NewModule(ctx context.Context, addr addrs.ModuleInstance, config *configs.C
 	}
 
 	return Module{
-		NewPromise(Ident{addr, "(outputs)"}, func(self executor) (cty.Value, tfdiags.Diagnostics) {
+		NewPromise(Ident{addr, "(outputs)"}, func(self *Executor) (cty.Value, tfdiags.Diagnostics) {
 			obj := map[string]cty.Value{}
-			var diags tfdiags.Diagnostics
 			for name := range config.Module.Outputs {
 				outVal, outDiags := data.Outputs[addrs.OutputValue{Name: name}].Value(self)
+				if outDiags.HasErrors() {
+					return cty.NilVal, outDiags
+				}
 				obj[name] = outVal
-				diags = diags.Append(outDiags)
 			}
-			return cty.ObjectVal(obj), diags
+			return cty.ObjectVal(obj), nil
 		}),
 		data,
 	}
