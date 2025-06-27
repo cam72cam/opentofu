@@ -111,10 +111,14 @@ func (s *Scope) LegacyExecute(ctx context.Context, caller *Executor, node tofu.G
 				addrs.TerraformAttr,
 				addrs.PathAttr:
 				continue
+			case addrs.ResourceInstancePhase:
+				println("Skipping " + ref.DisplayString())
+				//panic(spew.Sdump(ref))
+				continue
 			}
 			filtered = append(filtered, ref)
 		}
-		_, diags := scope.EvalContext(refs)
+		_, diags := scope.EvalContext(filtered)
 		if diags.HasErrors() {
 			return nil, diags
 		}
