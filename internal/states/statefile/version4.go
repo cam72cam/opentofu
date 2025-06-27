@@ -526,6 +526,7 @@ func appendInstanceObjectStateV4(rs *states.Resource, is *states.ResourceInstanc
 			"Failed to serialize resource instance in state",
 			fmt.Sprintf("Instance %s has status %s, which cannot be saved in state.", rs.Addr.Instance(key), obj.Status),
 		))
+		panic(diags.Err().Error())
 	}
 
 	var privateRaw []byte
