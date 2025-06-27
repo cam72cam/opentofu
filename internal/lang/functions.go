@@ -7,6 +7,7 @@ package lang
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/hashicorp/hcl/v2/ext/tryfunc"
 	ctyyaml "github.com/zclconf/go-cty-yaml"
@@ -28,44 +29,59 @@ var impureFunctions = []string{
 // This should probably be replaced with addrs.Function everywhere
 const CoreNamespace = addrs.FunctionNamespaceCore + "::"
 
+// Hack this for efficiency
+var (
+	funcLock  sync.Mutex
+	funcCache = map[string]map[string]function.Function{}
+)
+
 // Functions returns the set of functions that should be used to when evaluating
 // expressions in the receiving scope.
 func (s *Scope) Functions() map[string]function.Function {
 	s.funcsLock.Lock()
+	defer s.funcsLock.Unlock()
 	if s.funcs == nil {
-		s.funcs = makeBaseFunctionTable(s.BaseDir)
-		if s.ConsoleMode {
-			// The type function is only available in OpenTofu console.
-			s.funcs["type"] = funcs.TypeFunc
-		} else {
-			// The plantimestamp function doesn't make sense in the OpenTofu
-			// console.
-			s.funcs["plantimestamp"] = funcs.MakeStaticTimestampFunc(s.PlanTimestamp)
-		}
-
-		if s.PureOnly {
-			// Force our few impure functions to return unknown so that we
-			// can defer evaluating them until a later pass.
-			for _, name := range impureFunctions {
-				s.funcs[name] = function.Unpredictable(s.funcs[name])
+		funcLock.Lock()
+		defer funcLock.Unlock()
+		key := fmt.Sprintf("%v, %v, %v", s.BaseDir, s.ConsoleMode, s.PureOnly)
+		cached, ok := funcCache[key]
+		if !ok {
+			cached = makeBaseFunctionTable(s.BaseDir)
+			if s.ConsoleMode {
+				// The type function is only available in OpenTofu console.
+				cached["type"] = funcs.TypeFunc
+			} else {
+				// The plantimestamp function doesn't make sense in the OpenTofu
+				// console.
+				cached["plantimestamp"] = funcs.MakeStaticTimestampFunc(s.PlanTimestamp)
 			}
-		}
 
-		coreNames := make([]string, 0)
-		// Add a description to each function and parameter based on the
-		// contents of descriptionList.
-		// One must create a matching description entry whenever a new
-		// function is introduced.
-		for name, f := range s.funcs {
-			s.funcs[name] = funcs.WithDescription(name, f)
-			coreNames = append(coreNames, name)
+			if s.PureOnly {
+				// Force our few impure functions to return unknown so that we
+				// can defer evaluating them until a later pass.
+				for _, name := range impureFunctions {
+					cached[name] = function.Unpredictable(cached[name])
+				}
+			}
+
+			coreNames := make([]string, 0)
+			// Add a description to each function and parameter based on the
+			// contents of descriptionList.
+			// One must create a matching description entry whenever a new
+			// function is introduced.
+			for name, f := range cached {
+				cached[name] = funcs.WithDescription(name, f)
+				coreNames = append(coreNames, name)
+			}
+			// Copy all stdlib funcs into core:: namespace
+			for _, name := range coreNames {
+				cached[CoreNamespace+name] = cached[name]
+			}
+
+			funcCache[key] = cached
 		}
-		// Copy all stdlib funcs into core:: namespace
-		for _, name := range coreNames {
-			s.funcs[CoreNamespace+name] = s.funcs[name]
-		}
+		s.funcs = cached
 	}
-	s.funcsLock.Unlock()
 
 	return s.funcs
 }

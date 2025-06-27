@@ -7,6 +7,7 @@ package lang
 
 import (
 	"fmt"
+	"maps"
 	"reflect"
 	"strings"
 
@@ -16,7 +17,6 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
-	"github.com/zclconf/go-cty/cty/function"
 
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs/configschema"
@@ -327,12 +327,8 @@ func (s *Scope) evalContext(parent *hcl.EvalContext, refs []*addrs.Reference, se
 	// Calling NewChild() on a nil parent will
 	// produce an EvalContext with no parent.
 	ctx := parent.NewChild()
-	ctx.Functions = make(map[string]function.Function)
+	ctx.Functions = s.Functions()
 	ctx.Variables = make(map[string]cty.Value)
-
-	for name, fn := range s.Functions() {
-		ctx.Functions[name] = fn
-	}
 
 	// Easy path for common case where there are no references at all.
 	if len(refs) == 0 {
@@ -358,6 +354,7 @@ func (s *Scope) evalContext(parent *hcl.EvalContext, refs []*addrs.Reference, se
 	// that's redundant in the process of populating our values map.
 	varBuilder := s.newEvalVarBuilder()
 
+	hasCopiedFunctions := false
 	for _, ref := range refs {
 		if ref.Subject == addrs.Self {
 			diags.Append(varBuilder.putSelfValue(selfAddr, ref))
@@ -371,6 +368,10 @@ func (s *Scope) evalContext(parent *hcl.EvalContext, refs []*addrs.Reference, se
 				diags = diags.Append(fnDiags)
 
 				if !fnDiags.HasErrors() {
+					if !hasCopiedFunctions {
+						hasCopiedFunctions = true
+						ctx.Functions = maps.Clone(ctx.Functions)
+					}
 					ctx.Functions[subj.String()] = *fn
 				}
 			}
