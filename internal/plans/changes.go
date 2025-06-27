@@ -19,7 +19,7 @@ import (
 // code in another package) for display to the user.
 type Changes struct {
 	// Resources tracks planned changes to resource instance objects.
-	Resources []*ResourceInstanceChangeSrc
+	Resources map[string]*ResourceInstanceChangeSrc
 
 	// Outputs tracks planned changes output values.
 	//
@@ -34,7 +34,16 @@ type Changes struct {
 
 // NewChanges returns a valid Changes object that describes no changes.
 func NewChanges() *Changes {
-	return &Changes{}
+	return &Changes{
+		Resources: map[string]*ResourceInstanceChangeSrc{},
+	}
+}
+
+func ResourceChangeKey(addr addrs.AbsResourceInstance, gen states.Generation) string {
+	if gen == nil {
+		return addr.String() + ":"
+	}
+	return addr.String() + ":" + gen.String()
 }
 
 func (c *Changes) Empty() bool {
@@ -61,13 +70,7 @@ func (c *Changes) Empty() bool {
 // resource instance of the given address, if any. Returns nil if no change is
 // planned.
 func (c *Changes) ResourceInstance(addr addrs.AbsResourceInstance) *ResourceInstanceChangeSrc {
-	for _, rc := range c.Resources {
-		if rc.Addr.Equal(addr) && rc.DeposedKey == states.NotDeposed {
-			return rc
-		}
-	}
-
-	return nil
+	return c.Resources[ResourceChangeKey(addr, states.CurrentGen)]
 
 }
 

@@ -18,6 +18,7 @@ package states
 // a valid generation and must not be used.
 type Generation interface {
 	generation()
+	String() string
 }
 
 // CurrentGen is the Generation representing the currently-active object for

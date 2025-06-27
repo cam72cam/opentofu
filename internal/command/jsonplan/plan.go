@@ -184,7 +184,7 @@ func MarshalForRenderer(
 		return nil, nil, nil, nil, err
 	}
 
-	if output.ResourceChanges, err = MarshalResourceChanges(p.Changes.Resources, schemas); err != nil {
+	if output.ResourceChanges, err = MarshalResourceChangesMap(p.Changes.Resources, schemas); err != nil {
 		return nil, nil, nil, nil, err
 	}
 
@@ -268,7 +268,7 @@ func MarshalForLog(
 
 	// output.ResourceChanges
 	if p.Changes != nil {
-		output.ResourceChanges, err = MarshalResourceChanges(p.Changes.Resources, schemas)
+		output.ResourceChanges, err = MarshalResourceChangesMap(p.Changes.Resources, schemas)
 		if err != nil {
 			return nil, fmt.Errorf("error in marshaling resource changes: %w", err)
 		}
@@ -368,6 +368,14 @@ func (p *Plan) marshalPlanVariables(vars map[string]plans.DynamicValue, decls ma
 	}
 
 	return nil
+}
+
+func MarshalResourceChangesMap(resourcesMap map[string]*plans.ResourceInstanceChangeSrc, schemas plugins.Schemas) ([]ResourceChange, error) {
+	var resources []*plans.ResourceInstanceChangeSrc
+	for _, change := range resourcesMap {
+		resources = append(resources, change)
+	}
+	return MarshalResourceChanges(resources, schemas)
 }
 
 // MarshalResourceChanges converts the provided internal representation of

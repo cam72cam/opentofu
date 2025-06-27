@@ -58,11 +58,8 @@ func readTfplan(r io.Reader) (*plans.Plan, error) {
 	}
 
 	plan := &plans.Plan{
-		VariableValues: map[string]plans.DynamicValue{},
-		Changes: &plans.Changes{
-			Outputs:   []*plans.OutputChangeSrc{},
-			Resources: []*plans.ResourceInstanceChangeSrc{},
-		},
+		VariableValues:   map[string]plans.DynamicValue{},
+		Changes:          plans.NewChanges(),
 		DriftedResources: []*plans.ResourceInstanceChangeSrc{},
 		Checks:           &states.CheckResults{},
 	}
@@ -194,7 +191,7 @@ func readTfplan(r io.Reader) (*plans.Plan, error) {
 			return nil, err
 		}
 
-		plan.Changes.Resources = append(plan.Changes.Resources, change)
+		plan.Changes.Resources[plans.ResourceChangeKey(change.Addr, change.DeposedKey)] = change
 	}
 
 	for _, rawRC := range rawPlan.ResourceDrift {

@@ -40,7 +40,7 @@ func (cs *ChangesSync) AppendResourceInstanceChange(changeSrc *ResourceInstanceC
 	defer cs.lock.Unlock()
 
 	s := changeSrc.DeepCopy()
-	cs.changes.Resources = append(cs.changes.Resources, s)
+	cs.changes.Resources[ResourceChangeKey(s.Addr, s.DeposedKey)] = s
 }
 
 // GetResourceInstanceChange searches the set of resource instance changes for
@@ -121,19 +121,7 @@ func (cs *ChangesSync) RemoveResourceInstanceChange(addr addrs.AbsResourceInstan
 	cs.lock.Lock()
 	defer cs.lock.Unlock()
 
-	dk := states.NotDeposed
-	if realDK, ok := gen.(states.DeposedKey); ok {
-		dk = realDK
-	}
-
-	for i, r := range cs.changes.Resources {
-		if !r.Addr.Equal(addr) || r.DeposedKey != dk {
-			continue
-		}
-		copy(cs.changes.Resources[i:], cs.changes.Resources[i+1:])
-		cs.changes.Resources = cs.changes.Resources[:len(cs.changes.Resources)-1]
-		return
-	}
+	delete(cs.changes.Resources, ResourceChangeKey(addr, gen))
 }
 
 // AppendOutputChange records the given output value change in the set of
