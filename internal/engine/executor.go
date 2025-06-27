@@ -28,6 +28,9 @@ type PoolData struct {
 	visiting PoolEntry
 	visited  []PoolEntry
 	diags    tfdiags.Diagnostics
+
+	ancestors          []PoolEntry
+	ancestorsPopulated bool
 }
 
 type Pool struct {
@@ -40,23 +43,36 @@ type Pool struct {
 	sem tofu.Semaphore
 }
 
-func (p *Pool) Visited(root PoolEntry) []PoolEntry {
+func (p *Pool) Ancestors(root PoolEntry) []PoolEntry {
 	// DFS walk
 	p.Lock()
 	defer p.Unlock()
 
-	var entries []PoolEntry
+	var down func(PoolEntry) []PoolEntry
+	down = func(entry PoolEntry) []PoolEntry {
+		data := p.data[entry]
+		if !data.ancestorsPopulated {
+			data.ancestorsPopulated = true
 
-	var down func(PoolEntry)
-	down = func(entry PoolEntry) {
-		for _, visit := range p.data[entry].visited {
-			entries = append(entries, visit)
+			// Use a map for dedup
+			entries := make(map[PoolEntry]struct{})
+			for _, visit := range data.visited {
+				entries[visit] = struct{}{}
+				for _, found := range down(visit) {
+					entries[found] = struct{}{}
+				}
+			}
 
+			for visit := range entries {
+				data.ancestors = append(data.ancestors, visit)
+			}
+
+			return data.ancestors
 		}
-	}
-	down(root)
 
-	return entries
+		return data.ancestors
+	}
+	return down(root)
 }
 
 type Executor struct {

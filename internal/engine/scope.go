@@ -117,7 +117,7 @@ func (s *Scope) LegacyExecute(ctx context.Context, caller *Executor, node tofu.G
 		// TODO graphNodeAttachDataResourceDependsOn
 		if gnad, ok := node.(tofu.GraphNodeAttachDependencies); ok {
 			// Find dependencies to attach
-			visited := caller.pool.Visited(caller.caller)
+			visited := caller.pool.Ancestors(caller.caller)
 
 			var resources []addrs.ConfigResource
 			for _, raw := range visited {
