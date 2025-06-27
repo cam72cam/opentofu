@@ -18,7 +18,7 @@ func WalkApply(ctx context.Context, config *configs.Config, tofuCtx *tofu.Contex
 		state = states.NewState()
 	}
 
-	scope := NewRootScope(walkApply, tofuCtx, state.DeepCopy().SyncWrapper(), state.DeepCopy().SyncWrapper(), state.SyncWrapper(), plan.Changes.SyncWrapper(), config)
+	scope := NewRootScope(walkApply, tofuCtx, state.DeepCopy(), state.DeepCopy(), state, plan.Changes, config)
 
 	for _, configElem := range plan.Checks.ConfigResults.Elems {
 		if configElem.Value.ObjectAddrsKnown() {

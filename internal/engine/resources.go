@@ -348,7 +348,7 @@ func NewResourceInstance(ctx context.Context, addr addrs.AbsResourceInstance, co
 
 		if src.Status == states.ObjectPlanned {
 			// TODO make this match tofu/evaluate.go much more closely
-			change := scope.Changes.GetResourceInstanceChange(addr, states.CurrentGen)
+			change := scope.Changes.ResourceInstance(addr)
 			if change == nil {
 				// If the object is in planned status then we should not get
 				// here, since we should have found a pending value in the plan

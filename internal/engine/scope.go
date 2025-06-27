@@ -30,7 +30,9 @@ type Scope struct {
 	PrevRun *states.SyncState
 	Refresh *states.SyncState
 	State   *states.SyncState
-	Changes *plans.ChangesSync
+	Changes *plans.Changes
+
+	ChangesSync *plans.ChangesSync
 
 	Checks *checks.State
 
@@ -40,10 +42,10 @@ type Scope struct {
 func NewRootScope(
 	op WalkOperation,
 	tofuCtx *tofu.Context,
-	prevRun *states.SyncState,
-	refresh *states.SyncState,
-	state *states.SyncState,
-	changes *plans.ChangesSync,
+	prevRun *states.State,
+	refresh *states.State,
+	state *states.State,
+	changes *plans.Changes,
 	cfg *configs.Config,
 ) *Scope {
 	return &Scope{
@@ -54,10 +56,12 @@ func NewRootScope(
 
 		Checks: checks.NewState(cfg),
 
-		PrevRun: prevRun,
-		Refresh: refresh,
-		State:   state,
+		PrevRun: prevRun.SyncWrapper(),
+		Refresh: refresh.SyncWrapper(),
+		State:   state.SyncWrapper(),
 		Changes: changes,
+
+		ChangesSync: changes.SyncWrapper(),
 	}
 }
 
@@ -73,6 +77,8 @@ func NewScope(path addrs.ModuleInstance, parent *Scope, data ModuleData) *Scope 
 		Refresh: parent.Refresh,
 		State:   parent.State,
 		Changes: parent.Changes,
+
+		ChangesSync: parent.ChangesSync,
 
 		Data: data,
 	}
@@ -160,7 +166,7 @@ func (s *Scope) EvalContext(caller *Executor, overrides ...DataOverride) tofu.Ev
 
 	evalCtx := &tofu.MockEvalContext{
 		PathPath:          s.Data.Addr,
-		ChangesChanges:    s.Changes,
+		ChangesChanges:    s.ChangesSync,
 		StateState:        s.State,
 		RefreshStateState: s.Refresh,
 		PrevRunStateState: s.PrevRun,

@@ -34,7 +34,7 @@ func WalkPlan(ctx context.Context, config *configs.Config, tofuCtx *tofu.Context
 		Changes: plans.NewChanges(),
 	}
 
-	scope := NewRootScope(walkPlan, tofuCtx, out.PrevRun.SyncWrapper(), out.Refresh.SyncWrapper(), out.State.SyncWrapper(), out.Changes.SyncWrapper(), config)
+	scope := NewRootScope(walkPlan, tofuCtx, out.PrevRun, out.Refresh, out.State, out.Changes, config)
 
 	root := NewModule(ctx, addrs.RootModuleInstance, config, NewRootVariableInputs(inputs), scope)
 

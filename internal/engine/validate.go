@@ -15,7 +15,7 @@ import (
 )
 
 func WalkValidate(ctx context.Context, config *configs.Config, tofuCtx *tofu.Context) tfdiags.Diagnostics {
-	scope := NewRootScope(walkValidate, tofuCtx, states.NewState().SyncWrapper(), states.NewState().SyncWrapper(), states.NewState().SyncWrapper(), plans.NewChanges().SyncWrapper(), config)
+	scope := NewRootScope(walkValidate, tofuCtx, states.NewState(), states.NewState(), states.NewState(), plans.NewChanges(), config)
 	inputs := VariableInputs{}
 
 	// Mirrors tofu/context_validate.go
