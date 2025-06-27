@@ -448,12 +448,20 @@ func cachedProviderFactory(ctx context.Context, meta *providercache.CachedProvid
 	}
 
 	return pluginProviderFactory(ctx, func() *plugin.ClientConfig {
+		logger := logging.NewProviderLogger("")
+		cmd := exec.Command(execFile)
+		level := logger.GetLevel()
+		// Last entry is preserved, set the potential overrides first
+		cmd.Env = append([]string{
+			"TF_LOG_PROVIDER=" + level.String(),
+			"TF_LOG_SDK=" + level.String(),
+		}, cmd.Environ()...)
 		return &plugin.ClientConfig{
 			HandshakeConfig:  tfplugin.Handshake,
-			Logger:           logging.NewProviderLogger(""),
+			Logger:           logger,
 			AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
 			Managed:          true,
-			Cmd:              exec.Command(execFile),
+			Cmd:              cmd,
 			AutoMTLS:         enableProviderAutoMTLS,
 			VersionedPlugins: tfplugin.VersionedPlugins,
 			SyncStdout:       logging.PluginOutputMonitor(fmt.Sprintf("%s:stdout", meta.Provider)),
