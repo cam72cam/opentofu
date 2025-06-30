@@ -113,7 +113,7 @@ func (e *Executor) Execute(p PoolEntry, resolve func(*Executor) tfdiags.Diagnost
 
 		// We will be the only ones to modify the entry from here on (other than visited)
 		// Keep the call stack short by running each in it's own go routine
-		func() {
+		go func() {
 			defer func() {
 				close(entry.waiter)
 			}()
