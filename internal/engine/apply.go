@@ -10,12 +10,53 @@ import (
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 	"github.com/opentofu/opentofu/internal/tofu"
+	"github.com/zclconf/go-cty/cty"
 )
 
-func WalkApply(ctx context.Context, config *configs.Config, tofuCtx *tofu.Context, plan *plans.Plan, inputs tofu.InputValues) (*states.State, tfdiags.Diagnostics) {
+func WalkApply(ctx context.Context, config *configs.Config, tofuCtx *tofu.Context, plan *plans.Plan) (*states.State, tfdiags.Diagnostics) {
 	state := plan.PriorState
 	if state == nil {
 		state = states.NewState()
+	}
+
+	variables := tofu.InputValues{}
+	{
+		// From context_apply.go
+		var diags tfdiags.Diagnostics
+		for name, dyVal := range plan.VariableValues {
+			val, err := dyVal.Decode(cty.DynamicPseudoType)
+			if err != nil {
+				diags = diags.Append(tfdiags.Sourceless(
+					tfdiags.Error,
+					"Invalid variable value in plan",
+					fmt.Sprintf("Invalid value for variable %q recorded in plan file: %s.", name, err),
+				))
+				continue
+			}
+
+			variables[name] = &tofu.InputValue{
+				Value:      val,
+				SourceType: tofu.ValueFromPlan,
+			}
+		}
+		if diags.HasErrors() {
+			return nil, diags
+		}
+
+		// The plan.VariableValues field only records variables that were actually
+		// set by the caller in the PlanOpts, so we may need to provide
+		// placeholders for any other variables that the user didn't set, in
+		// which case OpenTofu will once again use the default value from the
+		// configuration when we visit these variables during the graph walk.
+		for name := range config.Module.Variables {
+			if _, ok := variables[name]; ok {
+				continue
+			}
+			variables[name] = &tofu.InputValue{
+				Value:      cty.NilVal,
+				SourceType: tofu.ValueFromPlan,
+			}
+		}
 	}
 
 	scope := NewRootScope(walkApply, tofuCtx, state.DeepCopy(), state.DeepCopy(), state, plan.Changes, config)
@@ -27,7 +68,7 @@ func WalkApply(ctx context.Context, config *configs.Config, tofuCtx *tofu.Contex
 		}
 	}
 
-	root := NewModule(ctx, addrs.RootModuleInstance, config, NewRootVariableInputs(inputs), scope)
+	root := NewModule(ctx, addrs.RootModuleInstance, config, NewRootVariableInputs(variables), scope)
 
 	p := NewManager(tofuCtx.Semaphore())
 	root.Collect(p)

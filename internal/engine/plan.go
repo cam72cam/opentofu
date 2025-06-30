@@ -46,5 +46,10 @@ func WalkPlan(ctx context.Context, config *configs.Config, tofuCtx *tofu.Context
 
 	out.Checks = scope.Checks
 
+	// See context_plan.go
+	// The refreshed state may have data resource objects which were deferred
+	// to apply and cannot be serialized.
+	out.Refresh.SyncWrapper().RemovePlannedResourceInstanceObjects()
+
 	return out, diags
 }

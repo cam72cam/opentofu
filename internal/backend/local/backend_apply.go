@@ -302,7 +302,6 @@ func (b *Local) opApply(
 			lr.Config,
 			lr.Core,
 			plan,
-			lr.PlanOpts.SetVariables, // TODO this should probably come from the plan?
 		)
 		applyState = state
 		applyDiags = diags
