@@ -1,10 +1,10 @@
-package engine
+package tofu
 
 import (
 	"sync"
 
 	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tofu"
+	
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -18,10 +18,10 @@ type Manager struct {
 
 	backing *Pool
 
-	sem tofu.Semaphore
+	sem Semaphore
 }
 
-func NewManager(sem tofu.Semaphore) *Manager {
+func NewManager(sem Semaphore) *Manager {
 	return &Manager{
 		backing: &Pool{
 			data: map[PoolEntry]*PoolData{},

@@ -1,25 +1,25 @@
-package engine
+package tofu
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/checks"
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/plans"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tofu"
 	"github.com/zclconf/go-cty/cty"
 )
 
-func WalkApply(ctx context.Context, config *configs.Config, tofuCtx *tofu.Context, plan *plans.Plan) (*states.State, tfdiags.Diagnostics) {
+func WalkApply(ctx context.Context, config *configs.Config, tofuCtx *Context, plan *plans.Plan) (*states.State, *checks.State, tfdiags.Diagnostics) {
 	state := plan.PriorState
 	if state == nil {
 		state = states.NewState()
 	}
 
-	variables := tofu.InputValues{}
+	variables := InputValues{}
 	{
 		// From context_apply.go
 		var diags tfdiags.Diagnostics
@@ -34,13 +34,13 @@ func WalkApply(ctx context.Context, config *configs.Config, tofuCtx *tofu.Contex
 				continue
 			}
 
-			variables[name] = &tofu.InputValue{
+			variables[name] = &InputValue{
 				Value:      val,
-				SourceType: tofu.ValueFromPlan,
+				SourceType: ValueFromPlan,
 			}
 		}
 		if diags.HasErrors() {
-			return nil, diags
+			return nil, nil, diags
 		}
 
 		// The plan.VariableValues field only records variables that were actually
@@ -52,9 +52,9 @@ func WalkApply(ctx context.Context, config *configs.Config, tofuCtx *tofu.Contex
 			if _, ok := variables[name]; ok {
 				continue
 			}
-			variables[name] = &tofu.InputValue{
+			variables[name] = &InputValue{
 				Value:      cty.NilVal,
-				SourceType: tofu.ValueFromPlan,
+				SourceType: ValueFromPlan,
 			}
 		}
 	}
@@ -89,7 +89,7 @@ func WalkApply(ctx context.Context, config *configs.Config, tofuCtx *tofu.Contex
 		}*/
 
 	//spew.Dump(edges)
-	return state, diags
+	return state, scope.Checks, diags
 }
 
 /*

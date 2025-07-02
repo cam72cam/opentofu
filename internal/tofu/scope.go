@@ -1,4 +1,4 @@
-package engine
+package tofu
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 	"github.com/opentofu/opentofu/internal/provisioners"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tofu"
+
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 )
@@ -24,7 +24,7 @@ import (
 type Scope struct {
 	op       WalkOperation
 	expander *instances.Expander
-	tofuCtx  *tofu.Context
+	tofuCtx  *Context
 
 	PrevRun *states.SyncState
 	Refresh *states.SyncState
@@ -40,7 +40,7 @@ type Scope struct {
 
 func NewRootScope(
 	op WalkOperation,
-	tofuCtx *tofu.Context,
+	tofuCtx *Context,
 	prevRun *states.State,
 	refresh *states.State,
 	state *states.State,
@@ -92,15 +92,15 @@ func (s *Scope) Plugins() plugins.Manager {
 	AttachDataResourceDependsOn(deps []addrs.ConfigResource, force bool)
 }*/
 
-func (s *Scope) LegacyExecute(ctx context.Context, caller *Executor, node tofu.GraphNodeExecutable) (tofu.EvalContext, tfdiags.Diagnostics) {
+func (s *Scope) LegacyExecute(ctx context.Context, caller *Executor, node GraphNodeExecutable) (EvalContext, tfdiags.Diagnostics) {
 	evalCtx := s.EvalContext(caller)
 
 	var refs []*addrs.Reference
 	// TODO this is a bit of a nasty patch, everything through here should be referencer
-	if gnr, ok := node.(tofu.GraphNodeReferencer); ok {
+	if gnr, ok := node.(GraphNodeReferencer); ok {
 		refs = gnr.References()
 
-		scope := evalCtx.EvaluationScope(nil, nil, tofu.EvalDataForNoInstanceKey)
+		scope := evalCtx.EvaluationScope(nil, nil, EvalDataForNoInstanceKey)
 		var filtered []*addrs.Reference
 		for _, ref := range refs {
 			switch ref.Subject.(type) {
@@ -124,7 +124,7 @@ func (s *Scope) LegacyExecute(ctx context.Context, caller *Executor, node tofu.G
 
 		// This is similar to
 		// TODO graphNodeAttachDataResourceDependsOn
-		if gnad, ok := node.(tofu.GraphNodeAttachDependencies); ok {
+		if gnad, ok := node.(GraphNodeAttachDependencies); ok {
 			// Find dependencies to attach
 			visited := caller.pool.Ancestors(caller.caller)
 
@@ -152,23 +152,23 @@ func (s *Scope) LegacyExecute(ctx context.Context, caller *Executor, node tofu.G
 		}
 	}
 
-	diags := node.Execute(ctx, evalCtx, tofu.WalkOperation(s.op))
+	diags := node.Execute(ctx, evalCtx, s.op)
 	return evalCtx, diags
 }
 
-func (s *Scope) EvalContext(caller *Executor, overrides ...DataOverride) tofu.EvalContext {
+func (s *Scope) EvalContext(caller *Executor, overrides ...DataOverride) EvalContext {
 	// I think this can be stupid?
 	// This is just a hack for the variable input passthrough from parent -> child in the variable nodes
 	var varCache cty.Value
 
-	evalCtx := &tofu.MockEvalContext{
+	evalCtx := &MockEvalContext{
 		PathPath:          s.Data.Addr,
 		ChangesChanges:    s.ChangesSync,
 		StateState:        s.State,
 		RefreshStateState: s.Refresh,
 		PrevRunStateState: s.PrevRun,
 		ChecksState:       s.Checks,
-		HookFn: func(fn func(tofu.Hook) (tofu.HookAction, error)) error {
+		HookFn: func(fn func(Hook) (HookAction, error)) error {
 			// Lifted from BuiltinEvalContext
 			for _, h := range s.tofuCtx.Hooks() {
 				action, err := fn(h)
@@ -177,9 +177,9 @@ func (s *Scope) EvalContext(caller *Executor, overrides ...DataOverride) tofu.Ev
 				}
 
 				switch action {
-				case tofu.HookActionContinue:
+				case HookActionContinue:
 					continue
-				case tofu.HookActionHalt:
+				case HookActionHalt:
 					// Return an early exit error to trigger an early exit
 					log.Printf("[WARN] Early exit triggered by hook: %T", h)
 					return nil
@@ -229,7 +229,7 @@ func (s *Scope) EvalContext(caller *Executor, overrides ...DataOverride) tofu.Ev
 		EvaluationScopeResultFunc: func(
 			self addrs.Referenceable,
 			source addrs.Referenceable,
-			keyData tofu.InstanceKeyEvalData,
+			keyData InstanceKeyEvalData,
 		) *lang.Scope {
 			return &lang.Scope{
 				Data: &evalData{
@@ -254,7 +254,7 @@ func (s *Scope) EvalContext(caller *Executor, overrides ...DataOverride) tofu.Ev
 					// TODO manage scope of provider (if we care)
 					provider, _, _ := providerConfig(caller)
 
-					return tofu.EvalContextProviderFunction(provider, tofu.WalkOperation(s.op), pf, rng)
+					return EvalContextProviderFunction(provider, s.op, pf, rng)
 				},
 			}
 		},

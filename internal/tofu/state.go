@@ -1,4 +1,4 @@
-package engine
+package tofu
 
 import (
 	"github.com/opentofu/opentofu/internal/addrs"

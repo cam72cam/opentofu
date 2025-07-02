@@ -1,4 +1,4 @@
-package engine
+package tofu
 
 import (
 	"context"
@@ -6,13 +6,13 @@ import (
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tofu"
+	
 	"github.com/zclconf/go-cty/cty"
 )
 
 func NewLocal(ctx context.Context, addr addrs.AbsLocalValue, config *configs.Local, scope *Scope) ValuePromise {
 	return NewPromise(Ident{base: addr}, func(self *Executor) (cty.Value, tfdiags.Diagnostics) {
-		node := &tofu.NodeLocal{
+		node := &NodeLocal{
 			Addr:   addr,
 			Config: config,
 		}

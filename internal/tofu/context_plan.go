@@ -21,6 +21,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/checks"
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/instances"
 	"github.com/opentofu/opentofu/internal/lang/globalref"
@@ -305,6 +306,9 @@ The -target and -exclude options are not for routine use, and are provided only 
 // the graph. This allows tofu to report errors (mostly cycles) during
 // plan that would otherwise only crop up during apply
 func (c *Context) checkApplyGraph(ctx context.Context, plan *plans.Plan, config *configs.Config) tfdiags.Diagnostics {
+	if useNewEngine() {
+		return nil
+	}
 	if plan.Changes.Empty() {
 		log.Println("[DEBUG] no planned changes, skipping apply graph check")
 		return nil
@@ -776,33 +780,68 @@ func (c *Context) planWalk(ctx context.Context, config *configs.Config, prevRunS
 		// strange problems that may lead to confusing error messages.
 		return nil, diags
 	}
-	providerFunctionTracker := make(ProviderFunctionMapping)
-
-	graph, walkOp, moreDiags := c.planGraph(ctx, config, prevRunState, opts, providerFunctionTracker)
-	diags = diags.Append(moreDiags)
-	if diags.HasErrors() {
-		return nil, diags
-	}
 
 	timestamp := time.Now().UTC()
 
-	// If we get here then we should definitely have a non-nil "graph", which
-	// we can now walk.
-	changes := plans.NewChanges()
-	walker, walkDiags := c.walk(ctx, graph, walkOp, &graphWalkOpts{
-		Config:                  config,
-		InputState:              prevRunState,
-		Changes:                 changes,
-		MoveResults:             moveResults,
-		PlanTimeTimestamp:       timestamp,
-		ProviderFunctionTracker: providerFunctionTracker,
-	})
-	diags = diags.Append(walker.NonFatalDiagnostics)
-	diags = diags.Append(walkDiags)
+	var instanceExpander *instances.Expander
+	var importResolver *ImportResolver
+	var refreshState *states.SyncState
+	var changes *plans.Changes
+	var plannedState *states.State
+	var checks *checks.State
 
-	allInsts := walker.InstanceExpander.AllInstances()
+	if useNewEngine() {
+		data, walkDiags := WalkPlan(
+			ctx,
+			config,
+			c,
+			prevRunState,
+			opts.SetVariables,
+		)
+		diags = diags.Append(walkDiags)
 
-	importValidateDiags := c.postPlanValidateImports(walker.ImportResolver, allInsts)
+		instanceExpander = instances.NewExpander() // TODO
+		importResolver = NewImportResolver()       // TODO
+		refreshState = data.Refresh.SyncWrapper()
+		changes = data.Changes
+		plannedState = data.State
+		checks = data.Checks
+	} else {
+
+		providerFunctionTracker := make(ProviderFunctionMapping)
+
+		graph, walkOp, moreDiags := c.planGraph(ctx, config, prevRunState, opts, providerFunctionTracker)
+		diags = diags.Append(moreDiags)
+		if diags.HasErrors() {
+			return nil, diags
+		}
+
+		// If we get here then we should definitely have a non-nil "graph", which
+		// we can now walk.
+		changes = plans.NewChanges()
+		walker, walkDiags := c.walk(ctx, graph, walkOp, &graphWalkOpts{
+			Config:                  config,
+			InputState:              prevRunState,
+			Changes:                 changes,
+			MoveResults:             moveResults,
+			PlanTimeTimestamp:       timestamp,
+			ProviderFunctionTracker: providerFunctionTracker,
+		})
+		diags = diags.Append(walker.NonFatalDiagnostics)
+		diags = diags.Append(walkDiags)
+
+		instanceExpander = walker.InstanceExpander
+		importResolver = walker.ImportResolver
+
+		prevRunState = walker.PrevRunState.Close()
+		refreshState = walker.RefreshState
+		plannedState = walker.State.Close()
+		checks = walker.Checks
+	}
+
+	allInsts := instanceExpander.AllInstances()
+
+	importValidateDiags := c.postPlanValidateImports(importResolver, allInsts)
 	if importValidateDiags.HasErrors() {
 		return nil, importValidateDiags
 	}
@@ -833,12 +872,11 @@ func (c *Context) planWalk(ctx context.Context, config *configs.Config, prevRunS
 	// we encountered errors, which we'll return as part of a non-nil plan
 	// so that e.g. the UI can show what was planned so far in case that extra
 	// context helps the user to understand the error messages we're returning.
-	prevRunState = walker.PrevRunState.Close()
 
 	// The refreshed state may have data resource objects which were deferred
 	// to apply and cannot be serialized.
-	walker.RefreshState.RemovePlannedResourceInstanceObjects()
-	priorState := walker.RefreshState.Close()
+	refreshState.RemovePlannedResourceInstanceObjects()
+	priorState := refreshState.Close()
 
 	driftedResources, driftDiags := c.driftedResources(ctx, config, prevRunState, priorState, moveResults)
 	diags = diags.Append(driftDiags)
@@ -849,9 +887,9 @@ func (c *Context) planWalk(ctx context.Context, config *configs.Config, prevRunS
 		DriftedResources:   driftedResources,
 		PrevRunState:       prevRunState,
 		PriorState:         priorState,
-		PlannedState:       walker.State.Close(),
+		PlannedState:       plannedState,
 		ExternalReferences: opts.ExternalReferences,
-		Checks:             states.NewCheckResults(walker.Checks),
+		Checks:             states.NewCheckResults(checks),
 		Timestamp:          timestamp,
 
 		// Other fields get populated by Context.Plan after we return

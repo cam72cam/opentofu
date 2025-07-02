@@ -15,6 +15,7 @@ import (
 	otelTrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/checks"
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/plans"
 	"github.com/opentofu/opentofu/internal/states"
@@ -87,36 +88,49 @@ func (c *Context) Apply(ctx context.Context, plan *plans.Plan, config *configs.C
 		}
 	}
 
-	providerFunctionTracker := make(ProviderFunctionMapping)
+	var checks *checks.State
+	var newState *states.State
+	if useNewEngine() {
+		newState, checks, diags = WalkApply(
+			ctx,
+			config,
+			c,
+			plan,
+		)
+	} else {
+		providerFunctionTracker := make(ProviderFunctionMapping)
 
-	graph, operation, diags := c.applyGraph(ctx, plan, config, providerFunctionTracker)
-	if diags.HasErrors() {
-		return nil, diags
+		graph, operation, diags := c.applyGraph(ctx, plan, config, providerFunctionTracker)
+		if diags.HasErrors() {
+			return nil, diags
+		}
+
+		workingState := plan.PriorState.DeepCopy()
+		walker, walkDiags := c.walk(ctx, graph, operation, &graphWalkOpts{
+			Config:     config,
+			InputState: workingState,
+			Changes:    plan.Changes,
+
+			// We need to propagate the check results from the plan phase,
+			// because that will tell us which checkable objects we're expecting
+			// to see updated results from during the apply step.
+			PlanTimeCheckResults: plan.Checks,
+
+			// We also want to propagate the timestamp from the plan file.
+			PlanTimeTimestamp:       plan.Timestamp,
+			ProviderFunctionTracker: providerFunctionTracker,
+		})
+		diags = diags.Append(walker.NonFatalDiagnostics)
+		diags = diags.Append(walkDiags)
+
+		checks = walker.Checks
+		newState = walker.State.Close()
 	}
-
-	workingState := plan.PriorState.DeepCopy()
-	walker, walkDiags := c.walk(ctx, graph, operation, &graphWalkOpts{
-		Config:     config,
-		InputState: workingState,
-		Changes:    plan.Changes,
-
-		// We need to propagate the check results from the plan phase,
-		// because that will tell us which checkable objects we're expecting
-		// to see updated results from during the apply step.
-		PlanTimeCheckResults: plan.Checks,
-
-		// We also want to propagate the timestamp from the plan file.
-		PlanTimeTimestamp:       plan.Timestamp,
-		ProviderFunctionTracker: providerFunctionTracker,
-	})
-	diags = diags.Append(walker.NonFatalDiagnostics)
-	diags = diags.Append(walkDiags)
 
 	// After the walk is finished, we capture a simplified snapshot of the
 	// check result data as part of the new state.
-	walker.State.RecordCheckResults(walker.Checks)
+	newState.CheckResults = states.NewCheckResults(checks)
 
-	newState := walker.State.Close()
 	if plan.UIMode == plans.DestroyMode && !diags.HasErrors() {
 		// NOTE: This is a vestigial violation of the rule that we mustn't
 		// use plan.UIMode to affect apply-time behavior.

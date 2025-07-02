@@ -1,4 +1,4 @@
-package engine
+package tofu
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tofu"
+	
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -21,7 +21,7 @@ func NewOutput(ctx context.Context, addr addrs.AbsOutputValue, config *configs.O
 		}
 
 		// TODO NodeDestroyableOutput
-		node := &tofu.NodeApplyableOutput{
+		node := &NodeApplyableOutput{
 			Addr:   addr,
 			Config: config,
 			//TODO RefreshOnly:  o.RefreshOnly,

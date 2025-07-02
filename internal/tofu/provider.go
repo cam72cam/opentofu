@@ -1,4 +1,4 @@
-package engine
+package tofu
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/providers"
 	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tofu"
+
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -34,7 +34,7 @@ func NewProvider(ctx context.Context, addr AbsProviderConfig, providerType addrs
 	cfgVal := NewPromise(Ident{base: addr}, func(self *Executor) (cty.Value, tfdiags.Diagnostics) {
 		log.Printf("[TRACE] building configuration for provider %s", addr)
 
-		configBody := tofu.BuildProviderConfig(&tofu.MockEvalContext{}, addrs.AbsProviderConfig{Provider: providerType, Module: addr.Module.Module(), Alias: addr.Local.Alias}, config)
+		configBody := BuildProviderConfig(&MockEvalContext{}, addrs.AbsProviderConfig{Provider: providerType, Module: addr.Module.Module(), Alias: addr.Local.Alias}, config)
 
 		provider, done, diags := scope.Plugins().ConfiguredProvider(providerType, cty.NilVal)
 		defer done()
@@ -46,7 +46,7 @@ func NewProvider(ctx context.Context, addr AbsProviderConfig, providerType addrs
 		}
 
 		configSchema := resp.Provider.Block
-		data := tofu.EvalDataForNoInstanceKey
+		data := EvalDataForNoInstanceKey
 		/*if n.Config != nil && n.Config.Instances != nil {
 			data = n.Config.Instances[providerKey]
 		}*/
@@ -136,6 +136,3 @@ func NewProvider(ctx context.Context, addr AbsProviderConfig, providerType addrs
 		}
 	}
 }
-
-const providerConfigErr = `Provider %q requires explicit configuration. Add a provider block to the root module and configure the provider's required arguments as described in the provider documentation.
-`

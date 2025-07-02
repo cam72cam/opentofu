@@ -54,6 +54,10 @@ func (c *Context) Validate(ctx context.Context, config *configs.Config) tfdiags.
 
 	log.Printf("[DEBUG] Building and walking validate graph")
 
+	if useNewEngine() {
+		return WalkValidate(ctx, config, c)
+	}
+
 	// Validate is to check if the given module is valid regardless of
 	// input values, current state, etc. Therefore we populate all of the
 	// input values with unknown values of the expected type, allowing us

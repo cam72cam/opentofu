@@ -1,4 +1,4 @@
-package engine
+package tofu
 
 import (
 	"context"
@@ -8,17 +8,17 @@ import (
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/lang/marks"
 	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tofu"
+
 	"github.com/zclconf/go-cty/cty"
 )
 
 type VariableInput struct {
-	value *tofu.InputValue
+	value *InputValue
 	expr  hcl.Expression
 }
 type VariableInputs map[addrs.InputVariable]VariableInput
 
-func NewRootVariableInputs(values tofu.InputValues) VariableInputs {
+func NewRootVariableInputs(values InputValues) VariableInputs {
 	inputs := VariableInputs{}
 	for name, value := range values {
 		inputs[addrs.InputVariable{Name: name}] = VariableInput{value: value}
@@ -53,7 +53,7 @@ func NewVariable(ctx context.Context, addr addrs.AbsInputVariableInstance, confi
 
 	valuePromise := NewPromise(Ident{addr, "(value)"}, func(self *Executor) (cty.Value, tfdiags.Diagnostics) {
 		if addr.Module.IsRoot() {
-			input := &tofu.NodeRootVariable{
+			input := &NodeRootVariable{
 				Addr:     addr.Variable,
 				Config:   config,
 				RawValue: input.value,
@@ -65,7 +65,7 @@ func NewVariable(ctx context.Context, addr addrs.AbsInputVariableInstance, confi
 			}
 			return evalCtx.GetVariableValue(addr), diags
 		} else {
-			input := &tofu.NodeModuleVariable{
+			input := &NodeModuleVariable{
 				Addr:           addr,
 				Config:         config,
 				Expr:           input.expr,
@@ -95,7 +95,7 @@ func NewVariable(ctx context.Context, addr addrs.AbsInputVariableInstance, confi
 		}
 
 		// It is evaluated in the "child" module
-		ref := &tofu.NodeVariableReferenceInstance{
+		ref := &NodeVariableReferenceInstance{
 			Addr:   addr,
 			Config: config,
 			Expr:   input.expr,
@@ -118,9 +118,9 @@ func NewVariable(ctx context.Context, addr addrs.AbsInputVariableInstance, confi
 
 		// TODO this does not check references before executing
 		// This is probably safe for variables, but should be avoided where possible
-		// (&tofu.NodeVariableReference{Config: config}).References(),
+		// (&NodeVariableReference{Config: config}).References(),
 
-		diags = ref.Execute(ctx, evalCtx, tofu.WalkOperation(scope.op))
+		diags = ref.Execute(ctx, evalCtx, scope.op)
 		return val, diags
 	})
 }

@@ -1,11 +1,11 @@
-package engine
+package tofu
 
 import (
 	"fmt"
 	"sync"
 
 	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tofu"
+	
 )
 
 type PoolEntryStatus int
@@ -43,7 +43,7 @@ type Pool struct {
 
 	diags tfdiags.Diagnostics
 
-	sem tofu.Semaphore
+	sem Semaphore
 }
 
 func (p *Pool) Ancestors(root PoolEntry) []PoolEntry {

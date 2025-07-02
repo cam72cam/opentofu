@@ -1,4 +1,4 @@
-package engine
+package tofu
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tofu"
+
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -27,9 +27,9 @@ func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Re
 			if diags.HasErrors() {
 				return cty.NilVal, diags
 			}
-			node := &tofu.NodeValidatableResource{&abstract}
+			node := &NodeValidatableResource{&abstract}
 
-			resolvedProvider := tofu.ResolvedProvider{
+			resolvedProvider := ResolvedProvider{
 				// For validate, we can just depend on the unconfigured root instance
 				ProviderConfig: addrs.AbsProviderConfig{Provider: abstract.Provider()},
 			}
@@ -56,7 +56,7 @@ func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Re
 		switch {
 		case config != nil && config.Count != nil:
 			evalCtx := scope.EvalContext(self)
-			count, cDiags := tofu.EvaluateCountExpression(config.Count, evalCtx, addr)
+			count, cDiags := EvaluateCountExpression(config.Count, evalCtx, addr)
 			diags = diags.Append(cDiags)
 			if diags.HasErrors() {
 				return instances, diags
@@ -67,7 +67,7 @@ func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Re
 
 		case config != nil && config.ForEach != nil:
 			evalCtx := scope.EvalContext(self)
-			forEach, feDiags := tofu.EvaluateForEachExpression(config.ForEach, evalCtx, addr)
+			forEach, feDiags := EvaluateForEachExpression(config.ForEach, evalCtx, addr)
 			diags = diags.Append(feDiags)
 			if diags.HasErrors() {
 				return instances, diags
@@ -185,9 +185,9 @@ func (m Resource) Expand(c *Manager, exec *Executor) {
 	}
 }
 
-func tofuNodeAbstractResource(addr addrs.ConfigResource, config *configs.Resource, scope *Scope) (tofu.NodeAbstractResource, tfdiags.Diagnostics) {
+func tofuNodeAbstractResource(addr addrs.ConfigResource, config *configs.Resource, scope *Scope) (NodeAbstractResource, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
-	abstract := tofu.NodeAbstractResource{
+	abstract := NodeAbstractResource{
 		Addr: addr,
 
 		// Set from GraphNodeTargetable
@@ -247,7 +247,7 @@ func NewResourceInstance(ctx context.Context, addr addrs.AbsResourceInstance, co
 		return cty.NilVal, diags
 	}
 
-	abstractInstance := &tofu.NodeAbstractResourceInstance{
+	abstractInstance := &NodeAbstractResourceInstance{
 		NodeAbstractResource: abstract,
 
 		Addr: addr,
@@ -268,7 +268,7 @@ func NewResourceInstance(ctx context.Context, addr addrs.AbsResourceInstance, co
 	// Now that we have attached the config and state, we can resolve the requested provider
 	// TransformProvider
 	providedBy := abstractInstance.ProvidedBy()
-	resolvedProvider := tofu.ResolvedProvider{
+	resolvedProvider := ResolvedProvider{
 		// TODO provider configs AbsProviderConfig for configured providers
 		ProviderConfig: addrs.AbsProviderConfig{
 			// Module:
@@ -284,7 +284,7 @@ func NewResourceInstance(ctx context.Context, addr addrs.AbsResourceInstance, co
 
 	// Execute
 	if scope.op == walkPlan {
-		node := &tofu.NodePlannableResourceInstance{
+		node := &NodePlannableResourceInstance{
 			NodeAbstractResourceInstance: abstractInstance,
 			ForceCreateBeforeDestroy:     config.Managed.CreateBeforeDestroy,
 
@@ -314,7 +314,7 @@ func NewResourceInstance(ctx context.Context, addr addrs.AbsResourceInstance, co
 
 	}
 	if scope.op == walkApply {
-		node := &tofu.NodeApplyableResourceInstance{
+		node := &NodeApplyableResourceInstance{
 			NodeAbstractResourceInstance: abstractInstance,
 			//TODO ForceCreateBeforeDestroy bool
 
@@ -389,59 +389,4 @@ func NewResourceInstance(ctx context.Context, addr addrs.AbsResourceInstance, co
 	}
 
 	return cty.NilVal, diags
-}
-
-// From tofu
-
-func copyPathValueMarks(marks cty.PathValueMarks) cty.PathValueMarks {
-	newMarks := make(cty.ValueMarks, len(marks.Marks))
-	result := cty.PathValueMarks{Path: marks.Path}
-	for k, v := range marks.Marks {
-		newMarks[k] = v
-	}
-	result.Marks = newMarks
-	return result
-}
-
-// combinePathValueMarks will combine the marks from two sets of marks with paths, ensuring that we don't duplicate marks
-// for the same path, but instead combine the marks for the same path
-// This ensures that we don't lose user marks when combining 2 different sets of marks for the same path
-func combinePathValueMarks(marks []cty.PathValueMarks, other []cty.PathValueMarks) []cty.PathValueMarks {
-	// skip some work if we don't have any marks in either of the lists
-	if len(marks) == 0 {
-		return other
-	}
-	if len(other) == 0 {
-		return marks
-	}
-
-	combined := make([]cty.PathValueMarks, 0, len(marks))
-	// construct the initial set of marks
-	combined = append(combined, marks...)
-
-	// check if we've already inserted this by looping over and calling .Equals().
-	// This isn't so nice but there is no nice comparison for cty.PathValueMarks
-	// so we have to do it this way
-	for _, mark := range other {
-		exists := false
-		for i, existing := range combined {
-			if mark.Path.Equals(existing.Path) {
-				// if we found a matching path, we should combine the marks and update the existing item
-				dupe := copyPathValueMarks(existing)
-				for k, v := range mark.Marks {
-					dupe.Marks[k] = v
-				}
-				combined[i] = dupe
-				exists = true
-				break
-			}
-		}
-		// Otherwise we haven't seen this path before, so we should add it to the list
-		// no merging required
-		if !exists {
-			combined = append(combined, mark)
-		}
-	}
-
-	return combined
 }

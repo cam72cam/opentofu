@@ -17,7 +17,6 @@ import (
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/backend"
 	"github.com/opentofu/opentofu/internal/command/views"
-	"github.com/opentofu/opentofu/internal/engine"
 	"github.com/opentofu/opentofu/internal/logging"
 	"github.com/opentofu/opentofu/internal/plans"
 	"github.com/opentofu/opentofu/internal/states"
@@ -125,29 +124,8 @@ func (b *Local) opApply(
 	if op.PlanFile == nil {
 		// Perform the plan
 		log.Printf("[INFO] backend/local: apply calling Plan")
-		//plan, moreDiags = lr.Core.Plan(ctx, lr.Config, lr.InputState, lr.PlanOpts)
-
-		data, moreDiags := engine.WalkPlan(
-			ctx,
-			lr.Config,
-			lr.Core,
-			lr.InputState,
-			lr.PlanOpts.SetVariables,
-		)
-
-		plan = &plans.Plan{
-			UIMode:  lr.PlanOpts.Mode,
-			Changes: data.Changes,
-			//DriftedResources:   driftedResources,
-			PrevRunState: data.PrevRun,
-			PriorState:   data.Refresh,
-			PlannedState: data.State,
-			//ExternalReferences: opts.ExternalReferences,
-			Checks: states.NewCheckResults(data.Checks),
-			//Timestamp:          timestamp,
-
-			// Other fields get populated by Context.Plan after we return
-		}
+		var moreDiags tfdiags.Diagnostics
+		plan, moreDiags = lr.Core.Plan(ctx, lr.Config, lr.InputState, lr.PlanOpts)
 
 		diags = diags.Append(moreDiags)
 		if moreDiags.HasErrors() {
@@ -295,16 +273,7 @@ func (b *Local) opApply(
 		defer panicHandler()
 		defer close(doneCh)
 		log.Printf("[INFO] backend/local: apply calling Apply")
-		//applyState, applyDiags = lr.Core.Apply(ctx, plan, lr.Config)
-
-		state, diags := engine.WalkApply(
-			ctx,
-			lr.Config,
-			lr.Core,
-			plan,
-		)
-		applyState = state
-		applyDiags = diags
+		applyState, applyDiags = lr.Core.Apply(ctx, plan, lr.Config)
 	}()
 
 	if b.opWait(doneCh, stopCtx, cancelCtx, lr.Core, opState, op.View) {

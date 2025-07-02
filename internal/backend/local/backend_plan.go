@@ -12,12 +12,10 @@ import (
 	"log"
 
 	"github.com/opentofu/opentofu/internal/backend"
-	"github.com/opentofu/opentofu/internal/engine"
 	"github.com/opentofu/opentofu/internal/genconfig"
 	"github.com/opentofu/opentofu/internal/logging"
 	"github.com/opentofu/opentofu/internal/plans"
 	"github.com/opentofu/opentofu/internal/plans/planfile"
-	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/states/statefile"
 	"github.com/opentofu/opentofu/internal/states/statemgr"
 	"github.com/opentofu/opentofu/internal/tfdiags"
@@ -119,30 +117,7 @@ func (b *Local) opPlan(
 		defer panicHandler()
 		defer close(doneCh)
 		log.Printf("[INFO] backend/local: plan calling Plan")
-		//plan, planDiags = lr.Core.Plan(ctx, lr.Config, lr.InputState, lr.PlanOpts)
-
-		data, diags := engine.WalkPlan(
-			ctx,
-			lr.Config,
-			lr.Core,
-			lr.InputState,
-			lr.PlanOpts.SetVariables,
-		)
-
-		plan = &plans.Plan{
-			UIMode:  lr.PlanOpts.Mode,
-			Changes: data.Changes,
-			//DriftedResources:   driftedResources,
-			PrevRunState: data.PrevRun,
-			PriorState:   data.Refresh,
-			PlannedState: data.State,
-			//ExternalReferences: opts.ExternalReferences,
-			Checks: states.NewCheckResults(data.Checks),
-			//Timestamp:          timestamp,
-
-			// Other fields get populated by Context.Plan after we return
-		}
-		planDiags = diags
+		plan, planDiags = lr.Core.Plan(ctx, lr.Config, lr.InputState, lr.PlanOpts)
 	}()
 
 	if b.opWait(doneCh, stopCtx, cancelCtx, lr.Core, opState, op.View) {

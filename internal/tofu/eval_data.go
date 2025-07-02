@@ -1,4 +1,4 @@
-package engine
+package tofu
 
 import (
 	"fmt"
@@ -54,17 +54,6 @@ func (d *evalData) override(addr any) (bool, cty.Value, tfdiags.Diagnostics) {
 		}
 	}
 	return false, cty.NilVal, nil
-}
-
-// Most of these functions pulled code from internal/tofu/evaluate for diagnostic consistency
-
-func moduleDisplayAddr(addr addrs.ModuleInstance) string {
-	switch {
-	case addr.IsRoot():
-		return "the root module"
-	default:
-		return addr.String()
-	}
 }
 
 func (d *evalData) value(promise ValuePromise) (cty.Value, tfdiags.Diagnostics) {

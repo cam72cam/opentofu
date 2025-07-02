@@ -1,4 +1,4 @@
-package engine
+package tofu
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 	"github.com/opentofu/opentofu/internal/plans"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/opentofu/opentofu/internal/tofu"
 )
 
 type PlanOutput struct {
@@ -22,7 +21,7 @@ type PlanOutput struct {
 	Checks *checks.State
 }
 
-func WalkPlan(ctx context.Context, config *configs.Config, tofuCtx *tofu.Context, state *states.State, inputs tofu.InputValues) (PlanOutput, tfdiags.Diagnostics) {
+func WalkPlan(ctx context.Context, config *configs.Config, tofuCtx *Context, state *states.State, inputs InputValues) (PlanOutput, tfdiags.Diagnostics) {
 	if state == nil {
 		state = states.NewState()
 	}
@@ -45,11 +44,6 @@ func WalkPlan(ctx context.Context, config *configs.Config, tofuCtx *tofu.Context
 	fmt.Printf("Detected %v edges\n", len(edges))
 
 	out.Checks = scope.Checks
-
-	// See context_plan.go
-	// The refreshed state may have data resource objects which were deferred
-	// to apply and cannot be serialized.
-	out.Refresh.SyncWrapper().RemovePlannedResourceInstanceObjects()
 
 	// Post-process plan to spread create_before_destroy
 
