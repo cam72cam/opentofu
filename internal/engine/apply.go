@@ -73,7 +73,21 @@ func WalkApply(ctx context.Context, config *configs.Config, tofuCtx *tofu.Contex
 	p := NewManager(tofuCtx.Semaphore())
 	root.Collect(p)
 	edges, diags := p.Wait()
-	fmt.Printf("Detected %v edges", len(edges))
+	fmt.Printf("Detected %v edges\n", len(edges))
+
+	/*
+		for _, mod := range state.Modules {
+			for _, res := range mod.Resources {
+				for key, inst := range res.Instances {
+					addr := res.Addr.Instance(key)
+					println(addr.String())
+					if inst.Current.CreateBeforeDestroy {
+						fmt.Printf("CBD: %s\n", addr.String())
+					}
+				}
+			}
+		}*/
+
 	//spew.Dump(edges)
 	return state, diags
 }

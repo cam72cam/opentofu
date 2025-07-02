@@ -7,6 +7,11 @@ import (
 	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
+type Identity interface {
+	fmt.Stringer
+	Addr() fmt.Stringer
+}
+
 type Ident struct {
 	base   fmt.Stringer
 	suffix string
@@ -15,15 +20,18 @@ type Ident struct {
 func (i Ident) String() string {
 	return fmt.Sprintf("%s %s", i.base, i.suffix)
 }
+func (i Ident) Addr() fmt.Stringer {
+	return i.base
+}
 
 type Promise[T any] struct {
-	ident   fmt.Stringer
+	ident   Identity
 	resolve func(*Executor) (T, tfdiags.Diagnostics)
 
 	cachedValue T
 }
 
-func NewPromise[T any](ident fmt.Stringer, resolve func(*Executor) (T, tfdiags.Diagnostics)) *Promise[T] {
+func NewPromise[T any](ident Identity, resolve func(*Executor) (T, tfdiags.Diagnostics)) *Promise[T] {
 	return &Promise[T]{
 		ident:   ident,
 		resolve: resolve,
@@ -46,9 +54,6 @@ func (p *Promise[T]) String() string {
 	return p.ident.String()
 }
 
-func (p *Promise[T]) Addr() fmt.Stringer {
-	if id, ok := p.ident.(Ident); ok {
-		return id.base
-	}
+func (p *Promise[T]) Ident() Identity {
 	return p.ident
 }

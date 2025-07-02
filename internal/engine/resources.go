@@ -22,7 +22,7 @@ type Resource struct {
 
 func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Resource, scope *Scope) Resource {
 	if scope.op == walkValidate {
-		return Resource{ValuePromise: NewPromise(addr, func(self *Executor) (cty.Value, tfdiags.Diagnostics) {
+		return Resource{ValuePromise: NewPromise(Ident{addr, "(stub)"}, func(self *Executor) (cty.Value, tfdiags.Diagnostics) {
 			abstract, diags := tofuNodeAbstractResource(addr.Config(), config, scope)
 			if diags.HasErrors() {
 				return cty.NilVal, diags
@@ -286,7 +286,7 @@ func NewResourceInstance(ctx context.Context, addr addrs.AbsResourceInstance, co
 	if scope.op == walkPlan {
 		node := &tofu.NodePlannableResourceInstance{
 			NodeAbstractResourceInstance: abstractInstance,
-			//TODO ForceCreateBeforeDestroy bool
+			ForceCreateBeforeDestroy:     config.Managed.CreateBeforeDestroy,
 
 			// skipRefresh indicates that we should skip refreshing individual instances
 			//TODO skipRefresh bool

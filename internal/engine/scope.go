@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"fmt"
 	"log"
 
 	"github.com/opentofu/opentofu/internal/addrs"
@@ -131,14 +130,8 @@ func (s *Scope) LegacyExecute(ctx context.Context, caller *Executor, node tofu.G
 
 			var resources []addrs.ConfigResource
 			for _, raw := range visited {
-				// Hack for now
-				type addrable interface {
-					Addr() fmt.Stringer
-				}
-				raw = raw.(addrable).Addr()
-
 				var addr addrs.ConfigResource
-				switch v := raw.(type) {
+				switch v := raw.Ident().Addr().(type) {
 				case addrs.AbsResourceInstance:
 					addr = v.ContainingResource().Config()
 				case addrs.ConfigResource:

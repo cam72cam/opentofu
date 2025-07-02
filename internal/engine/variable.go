@@ -28,7 +28,7 @@ func NewRootVariableInputs(values tofu.InputValues) VariableInputs {
 
 func NewVariable(ctx context.Context, addr addrs.AbsInputVariableInstance, config *configs.Variable, input VariableInput, scope *Scope, parentScope *Scope) *Promise[cty.Value] {
 	if scope.op == walkValidate {
-		return NewPromise(addr, func(self *Executor) (cty.Value, tfdiags.Diagnostics) {
+		return NewPromise(Ident{base: addr}, func(self *Executor) (cty.Value, tfdiags.Diagnostics) {
 			// From tofu/evaluate.go
 			// During the validate walk, input variables are always unknown so
 			// that we are validating the configuration for all possible input values

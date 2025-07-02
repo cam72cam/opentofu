@@ -31,7 +31,7 @@ func NewProvider(ctx context.Context, addr AbsProviderConfig, providerType addrs
 	// reworked from tofu/node_provider.go
 	// This breaks non-direct provider inputs?
 
-	cfgVal := NewPromise(addr, func(self *Executor) (cty.Value, tfdiags.Diagnostics) {
+	cfgVal := NewPromise(Ident{base: addr}, func(self *Executor) (cty.Value, tfdiags.Diagnostics) {
 		log.Printf("[TRACE] building configuration for provider %s", addr)
 
 		configBody := tofu.BuildProviderConfig(&tofu.MockEvalContext{}, addrs.AbsProviderConfig{Provider: providerType, Module: addr.Module.Module(), Alias: addr.Local.Alias}, config)

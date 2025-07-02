@@ -18,7 +18,10 @@ const (
 	PoolEntryStatusResolved
 )
 
-type PoolEntry fmt.Stringer
+type PoolEntry interface {
+	fmt.Stringer
+	Ident() Identity
+}
 type PoolData struct {
 	sync.Mutex
 

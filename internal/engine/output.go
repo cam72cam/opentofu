@@ -11,7 +11,7 @@ import (
 )
 
 func NewOutput(ctx context.Context, addr addrs.AbsOutputValue, config *configs.Output, scope *Scope) ValuePromise {
-	return NewPromise(addr, func(self *Executor) (cty.Value, tfdiags.Diagnostics) {
+	return NewPromise(Ident{base: addr}, func(self *Executor) (cty.Value, tfdiags.Diagnostics) {
 		planning := scope.op != walkApply //TODO plan graph only
 		if planning {
 			configAddr := addr.OutputValue.InModule(addr.Module.Module())
