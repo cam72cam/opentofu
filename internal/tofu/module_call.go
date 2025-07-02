@@ -7,7 +7,7 @@ import (
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/tfdiags"
-	
+
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -54,7 +54,7 @@ func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *config
 	if scope.op == walkValidate {
 		// Validate only ever does a single expansion
 		expansion := NewPromise(Ident{addr, "(expand)"}, func(self *Executor) (ModuleInstances, tfdiags.Diagnostics) {
-			node := &NodeValidateModule{NodeExpandModule{
+			node := &nodeValidateModule{nodeExpandModule{
 				Addr:       append(addr.Module.Module(), config.Name),
 				Config:     moduleConfig.Module,
 				ModuleCall: config,
@@ -111,7 +111,7 @@ func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *config
 			if diags.HasErrors() {
 				return nil, diags
 			}
-			count, ctDiags := EvaluateCountExpression(config.Count, evalCtx, addr.Module)
+			count, ctDiags := evaluateCountExpression(config.Count, evalCtx, addr.Module)
 			diags = diags.Append(ctDiags)
 			if diags.HasErrors() {
 				return nil, diags
@@ -120,7 +120,7 @@ func NewModuleCall(ctx context.Context, addr addrs.AbsModuleCall, config *config
 
 		case config.ForEach != nil:
 			evalCtx := scope.EvalContext(self)
-			forEach, feDiags := EvaluateForEachExpression(config.ForEach, evalCtx, addr.Module)
+			forEach, feDiags := evaluateForEachExpression(config.ForEach, evalCtx, addr.Module)
 			diags = diags.Append(feDiags)
 			if diags.HasErrors() {
 				return nil, diags

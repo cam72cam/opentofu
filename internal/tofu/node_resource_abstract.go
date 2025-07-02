@@ -495,7 +495,7 @@ func (n *NodeAbstractResource) DotNode(name string, opts *dag.DotOpts) *dag.DotN
 // eval is the only change we get to set the resource "each mode" to list
 // in that case, allowing expression evaluation to see it as a zero-element list
 // rather than as not set at all.
-func (n *NodeAbstractResource) WriteResourceState(evalCtx EvalContext, addr addrs.AbsResource) (diags tfdiags.Diagnostics) {
+func (n *NodeAbstractResource) writeResourceState(evalCtx EvalContext, addr addrs.AbsResource) (diags tfdiags.Diagnostics) {
 	state := evalCtx.State()
 
 	// We'll record our expansion decision in the shared "expander" object
@@ -506,7 +506,7 @@ func (n *NodeAbstractResource) WriteResourceState(evalCtx EvalContext, addr addr
 
 	switch {
 	case n.Config != nil && n.Config.Count != nil:
-		count, countDiags := EvaluateCountExpression(n.Config.Count, evalCtx, addr)
+		count, countDiags := evaluateCountExpression(n.Config.Count, evalCtx, addr)
 		diags = diags.Append(countDiags)
 		if countDiags.HasErrors() {
 			return diags
@@ -516,7 +516,7 @@ func (n *NodeAbstractResource) WriteResourceState(evalCtx EvalContext, addr addr
 		expander.SetResourceCount(addr.Module, n.Addr.Resource, count)
 
 	case n.Config != nil && n.Config.ForEach != nil:
-		forEach, forEachDiags := EvaluateForEachExpression(n.Config.ForEach, evalCtx, addr)
+		forEach, forEachDiags := evaluateForEachExpression(n.Config.ForEach, evalCtx, addr)
 		diags = diags.Append(forEachDiags)
 		if forEachDiags.HasErrors() {
 			return diags

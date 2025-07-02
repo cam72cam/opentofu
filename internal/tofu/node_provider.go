@@ -57,7 +57,7 @@ var (
 )
 
 // GraphNodeExecutable
-func (n *NodeApplyableProvider) Execute(ctx context.Context, evalCtx EvalContext, op WalkOperation) tfdiags.Diagnostics {
+func (n *NodeApplyableProvider) Execute(ctx context.Context, evalCtx EvalContext, op walkOperation) tfdiags.Diagnostics {
 	instances, diags := n.initInstances(ctx, evalCtx, op)
 
 	for key, provider := range instances {
@@ -66,7 +66,7 @@ func (n *NodeApplyableProvider) Execute(ctx context.Context, evalCtx EvalContext
 
 	return diags
 }
-func (n *NodeApplyableProvider) initInstances(ctx context.Context, evalCtx EvalContext, op WalkOperation) (map[addrs.InstanceKey]providers.Interface, tfdiags.Diagnostics) {
+func (n *NodeApplyableProvider) initInstances(ctx context.Context, evalCtx EvalContext, op walkOperation) (map[addrs.InstanceKey]providers.Interface, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	var initKeys []addrs.InstanceKey
@@ -109,7 +109,7 @@ func (n *NodeApplyableProvider) initInstances(ctx context.Context, evalCtx EvalC
 
 	return instances, diags
 }
-func (n *NodeApplyableProvider) executeInstance(ctx context.Context, evalCtx EvalContext, op WalkOperation, providerKey addrs.InstanceKey, provider providers.Interface) tfdiags.Diagnostics {
+func (n *NodeApplyableProvider) executeInstance(ctx context.Context, evalCtx EvalContext, op walkOperation, providerKey addrs.InstanceKey, provider providers.Interface) tfdiags.Diagnostics {
 	switch op {
 	case walkValidate:
 		log.Printf("[TRACE] NodeApplyableProvider: validating configuration for %s", n.Addr)
@@ -135,7 +135,7 @@ func (n *NodeApplyableProvider) ValidateProvider(ctx context.Context, evalCtx Ev
 	)
 	defer span.End()
 
-	configBody := BuildProviderConfig(evalCtx, n.Addr, n.ProviderConfig())
+	configBody := buildProviderConfig(evalCtx, n.Addr, n.ProviderConfig())
 
 	// if a provider config is empty (only an alias), return early and don't continue
 	// validation. validate doesn't need to fully configure the provider itself, so
@@ -203,7 +203,7 @@ func (n *NodeApplyableProvider) ConfigureProvider(ctx context.Context, evalCtx E
 
 	config := n.ProviderConfig()
 
-	configBody := BuildProviderConfig(evalCtx, n.Addr, config)
+	configBody := buildProviderConfig(evalCtx, n.Addr, config)
 
 	resp := provider.GetProviderSchema(ctx)
 	diags := resp.Diagnostics.InConfigBody(configBody, n.Addr.InstanceString(providerKey))

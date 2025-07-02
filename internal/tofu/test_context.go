@@ -71,7 +71,7 @@ func (ctx *TestContext) EvaluateAgainstPlan(run *moduletest.Run) {
 	ctx.evaluate(ctx.State.SyncWrapper(), ctx.Plan.Changes.SyncWrapper(), run, walkPlan)
 }
 
-func (ctx *TestContext) evaluate(state *states.SyncState, changes *plans.ChangesSync, run *moduletest.Run, operation WalkOperation) {
+func (ctx *TestContext) evaluate(state *states.SyncState, changes *plans.ChangesSync, run *moduletest.Run, operation walkOperation) {
 	// The state does not include the module that has no resources, making its outputs unusable.
 	// synchronizeStates function synchronizes the state with the planned state, ensuring inclusion of all modules.
 	if ctx.Plan != nil && ctx.Plan.PlannedState != nil &&
@@ -153,7 +153,7 @@ func (ctx *TestContext) evaluate(state *states.SyncState, changes *plans.Changes
 
 			provider := providerSupplier(pr.Type)
 
-			return EvalContextProviderFunction(provider, walkPlan, pf, rng)
+			return evalContextProviderFunction(provider, walkPlan, pf, rng)
 		},
 	}
 

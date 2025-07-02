@@ -96,14 +96,6 @@ type Context struct {
 	encryption encryption.Encryption
 }
 
-func (c *Context) Hooks() []Hook {
-	return c.hooks
-}
-
-func (c *Context) Workspace() string {
-	return c.meta.Env
-}
-
 // (additional methods on Context can be found in context_*.go files.)
 
 // NewContext creates a new Context structure.
@@ -171,10 +163,6 @@ func NewContext(opts *ContextOpts, config *configs.Config, state *states.State) 
 
 		encryption: opts.Encryption,
 	}, diags
-}
-
-func (c *Context) Semaphore() Semaphore {
-	return c.parallelSem
 }
 
 func (c *Context) Schemas() plugins.Schemas {

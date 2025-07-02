@@ -494,7 +494,7 @@ func (c *BuiltinEvalContext) EvaluationScope(self addrs.Referenceable, source ad
 			})
 		}
 
-		return EvalContextProviderFunction(provider, c.Evaluator.Operation, pf, rng)
+		return evalContextProviderFunction(provider, c.Evaluator.Operation, pf, rng)
 	})
 	scope.SetActiveExperiments(mc.Module.ActiveExperiments)
 

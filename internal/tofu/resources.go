@@ -56,7 +56,7 @@ func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Re
 		switch {
 		case config != nil && config.Count != nil:
 			evalCtx := scope.EvalContext(self)
-			count, cDiags := EvaluateCountExpression(config.Count, evalCtx, addr)
+			count, cDiags := evaluateCountExpression(config.Count, evalCtx, addr)
 			diags = diags.Append(cDiags)
 			if diags.HasErrors() {
 				return instances, diags
@@ -67,7 +67,7 @@ func NewResource(ctx context.Context, addr addrs.AbsResource, config *configs.Re
 
 		case config != nil && config.ForEach != nil:
 			evalCtx := scope.EvalContext(self)
-			forEach, feDiags := EvaluateForEachExpression(config.ForEach, evalCtx, addr)
+			forEach, feDiags := evaluateForEachExpression(config.ForEach, evalCtx, addr)
 			diags = diags.Append(feDiags)
 			if diags.HasErrors() {
 				return instances, diags

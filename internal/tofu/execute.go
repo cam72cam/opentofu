@@ -14,5 +14,5 @@ import (
 // GraphNodeExecutable is the interface that graph nodes must implement to
 // enable execution.
 type GraphNodeExecutable interface {
-	Execute(context.Context, EvalContext, WalkOperation) tfdiags.Diagnostics
+	Execute(context.Context, EvalContext, walkOperation) tfdiags.Diagnostics
 }

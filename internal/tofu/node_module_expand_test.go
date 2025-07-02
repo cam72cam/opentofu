@@ -22,7 +22,7 @@ func TestNodeExpandModuleExecute(t *testing.T) {
 	}
 	evalCtx.installSimpleEval()
 
-	node := NodeExpandModule{
+	node := nodeExpandModule{
 		Addr: addrs.Module{"child"},
 		ModuleCall: &configs.ModuleCall{
 			Count: hcltest.MockExprLiteral(cty.NumberIntVal(2)),
@@ -95,8 +95,8 @@ func TestNodeValidateModuleExecute(t *testing.T) {
 			InstanceExpanderExpander: instances.NewExpander(),
 		}
 		evalCtx.installSimpleEval()
-		node := NodeValidateModule{
-			NodeExpandModule{
+		node := nodeValidateModule{
+			nodeExpandModule{
 				Addr: addrs.Module{"child"},
 				ModuleCall: &configs.ModuleCall{
 					Count: hcltest.MockExprLiteral(cty.NumberIntVal(2)),
@@ -115,8 +115,8 @@ func TestNodeValidateModuleExecute(t *testing.T) {
 			InstanceExpanderExpander: instances.NewExpander(),
 		}
 		evalCtx.installSimpleEval()
-		node := NodeValidateModule{
-			NodeExpandModule{
+		node := nodeValidateModule{
+			nodeExpandModule{
 				Addr: addrs.Module{"child"},
 				ModuleCall: &configs.ModuleCall{
 					Count: hcltest.MockExprLiteral(cty.StringVal("invalid")),

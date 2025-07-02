@@ -16,37 +16,37 @@ import (
 	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
-type ConcreteModuleNodeFunc func(n *NodeExpandModule) dag.Vertex
+type ConcreteModuleNodeFunc func(n *nodeExpandModule) dag.Vertex
 
-// NodeExpandModule represents a module call in the configuration that
+// nodeExpandModule represents a module call in the configuration that
 // might expand into multiple module instances depending on how it is
 // configured.
-type NodeExpandModule struct {
+type nodeExpandModule struct {
 	Addr       addrs.Module
 	Config     *configs.Module
 	ModuleCall *configs.ModuleCall
 }
 
 var (
-	_ GraphNodeExecutable       = (*NodeExpandModule)(nil)
-	_ GraphNodeReferencer       = (*NodeExpandModule)(nil)
-	_ GraphNodeReferenceOutside = (*NodeExpandModule)(nil)
-	_ graphNodeExpandsInstances = (*NodeExpandModule)(nil)
+	_ GraphNodeExecutable       = (*nodeExpandModule)(nil)
+	_ GraphNodeReferencer       = (*nodeExpandModule)(nil)
+	_ GraphNodeReferenceOutside = (*nodeExpandModule)(nil)
+	_ graphNodeExpandsInstances = (*nodeExpandModule)(nil)
 )
 
-func (n *NodeExpandModule) expandsInstances() {}
+func (n *nodeExpandModule) expandsInstances() {}
 
-func (n *NodeExpandModule) Name() string {
+func (n *nodeExpandModule) Name() string {
 	return n.Addr.String() + " (expand)"
 }
 
 // GraphNodeModulePath implementation
-func (n *NodeExpandModule) ModulePath() addrs.Module {
+func (n *nodeExpandModule) ModulePath() addrs.Module {
 	return n.Addr
 }
 
 // GraphNodeReferencer implementation
-func (n *NodeExpandModule) References() []*addrs.Reference {
+func (n *nodeExpandModule) References() []*addrs.Reference {
 	var refs []*addrs.Reference
 
 	if n.ModuleCall == nil {
@@ -85,7 +85,7 @@ func (n *NodeExpandModule) References() []*addrs.Reference {
 	return refs
 }
 
-func (n *NodeExpandModule) DependsOn() []*addrs.Reference {
+func (n *nodeExpandModule) DependsOn() []*addrs.Reference {
 	if n.ModuleCall == nil {
 		return nil
 	}
@@ -108,12 +108,12 @@ func (n *NodeExpandModule) DependsOn() []*addrs.Reference {
 }
 
 // GraphNodeReferenceOutside
-func (n *NodeExpandModule) ReferenceOutside() (selfPath, referencePath addrs.Module) {
+func (n *nodeExpandModule) ReferenceOutside() (selfPath, referencePath addrs.Module) {
 	return n.Addr, n.Addr.Parent()
 }
 
 // GraphNodeExecutable
-func (n *NodeExpandModule) Execute(_ context.Context, evalCtx EvalContext, op WalkOperation) (diags tfdiags.Diagnostics) {
+func (n *nodeExpandModule) Execute(_ context.Context, evalCtx EvalContext, op walkOperation) (diags tfdiags.Diagnostics) {
 	expander := evalCtx.InstanceExpander()
 	_, call := n.Addr.Call()
 
@@ -124,7 +124,7 @@ func (n *NodeExpandModule) Execute(_ context.Context, evalCtx EvalContext, op Wa
 		evalCtx = evalCtx.WithPath(module)
 		switch {
 		case n.ModuleCall.Count != nil:
-			count, ctDiags := EvaluateCountExpression(n.ModuleCall.Count, evalCtx, module)
+			count, ctDiags := evaluateCountExpression(n.ModuleCall.Count, evalCtx, module)
 			diags = diags.Append(ctDiags)
 			if diags.HasErrors() {
 				return diags
@@ -132,7 +132,7 @@ func (n *NodeExpandModule) Execute(_ context.Context, evalCtx EvalContext, op Wa
 			expander.SetModuleCount(module, call, count)
 
 		case n.ModuleCall.ForEach != nil:
-			forEach, feDiags := EvaluateForEachExpression(n.ModuleCall.ForEach, evalCtx, module)
+			forEach, feDiags := evaluateForEachExpression(n.ModuleCall.ForEach, evalCtx, module)
 			diags = diags.Append(feDiags)
 			if diags.HasErrors() {
 				return diags
@@ -203,7 +203,7 @@ func (n *nodeCloseModule) IsOverridden(addr addrs.Module) bool {
 	return modConfig.Module.IsOverridden
 }
 
-func (n *nodeCloseModule) Execute(_ context.Context, evalCtx EvalContext, op WalkOperation) (diags tfdiags.Diagnostics) {
+func (n *nodeCloseModule) Execute(_ context.Context, evalCtx EvalContext, op walkOperation) (diags tfdiags.Diagnostics) {
 	if !n.Addr.IsRoot() {
 		return
 	}
@@ -237,17 +237,17 @@ func (n *nodeCloseModule) Execute(_ context.Context, evalCtx EvalContext, op Wal
 	}
 }
 
-// NodeValidateModule wraps a nodeExpand module for validation, ensuring that
+// nodeValidateModule wraps a nodeExpand module for validation, ensuring that
 // no expansion is attempted during evaluation, when count and for_each
 // expressions may not be known.
-type NodeValidateModule struct {
-	NodeExpandModule
+type nodeValidateModule struct {
+	nodeExpandModule
 }
 
-var _ GraphNodeExecutable = (*NodeValidateModule)(nil)
+var _ GraphNodeExecutable = (*nodeValidateModule)(nil)
 
 // GraphNodeEvalable
-func (n *NodeValidateModule) Execute(_ context.Context, evalCtx EvalContext, op WalkOperation) (diags tfdiags.Diagnostics) {
+func (n *nodeValidateModule) Execute(_ context.Context, evalCtx EvalContext, op walkOperation) (diags tfdiags.Diagnostics) {
 	_, call := n.Addr.Call()
 	expander := evalCtx.InstanceExpander()
 

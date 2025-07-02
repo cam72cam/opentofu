@@ -49,7 +49,7 @@ func (n *NodePlanDestroyableResourceInstance) DestroyAddr() *addrs.AbsResourceIn
 }
 
 // GraphNodeEvalable
-func (n *NodePlanDestroyableResourceInstance) Execute(ctx context.Context, evalCtx EvalContext, op WalkOperation) (diags tfdiags.Diagnostics) {
+func (n *NodePlanDestroyableResourceInstance) Execute(ctx context.Context, evalCtx EvalContext, op walkOperation) (diags tfdiags.Diagnostics) {
 	addr := n.ResourceInstanceAddr()
 
 	ctx, span := tracing.Tracer().Start(
@@ -86,7 +86,7 @@ func (n *NodePlanDestroyableResourceInstance) Execute(ctx context.Context, evalC
 	return diags
 }
 
-func (n *NodePlanDestroyableResourceInstance) managedResourceExecute(ctx context.Context, evalCtx EvalContext, _ WalkOperation) (diags tfdiags.Diagnostics) {
+func (n *NodePlanDestroyableResourceInstance) managedResourceExecute(ctx context.Context, evalCtx EvalContext, _ walkOperation) (diags tfdiags.Diagnostics) {
 	addr := n.ResourceInstanceAddr()
 
 	// Declare a bunch of variables that are used for state during
@@ -136,7 +136,7 @@ func (n *NodePlanDestroyableResourceInstance) managedResourceExecute(ctx context
 	return diags
 }
 
-func (n *NodePlanDestroyableResourceInstance) dataResourceExecute(ctx context.Context, evalCtx EvalContext, _ WalkOperation) (diags tfdiags.Diagnostics) {
+func (n *NodePlanDestroyableResourceInstance) dataResourceExecute(ctx context.Context, evalCtx EvalContext, _ walkOperation) (diags tfdiags.Diagnostics) {
 
 	// We may not be able to read a prior data source from the state if the
 	// schema was upgraded and we are destroying before ever refreshing that

@@ -58,7 +58,7 @@ func (n *NodePlannableResourceInstanceOrphan) Name() string {
 }
 
 // GraphNodeExecutable
-func (n *NodePlannableResourceInstanceOrphan) Execute(ctx context.Context, evalCtx EvalContext, op WalkOperation) tfdiags.Diagnostics {
+func (n *NodePlannableResourceInstanceOrphan) Execute(ctx context.Context, evalCtx EvalContext, op walkOperation) tfdiags.Diagnostics {
 	addr := n.ResourceInstanceAddr()
 
 	ctx, span := tracing.Tracer().Start(

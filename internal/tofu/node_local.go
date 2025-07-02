@@ -136,7 +136,7 @@ func (n *NodeLocal) References() []*addrs.Reference {
 // NodeLocal.Execute is an Execute implementation that evaluates the
 // expression for a local value and writes it into a transient part of
 // the state.
-func (n *NodeLocal) Execute(_ context.Context, evalCtx EvalContext, op WalkOperation) (diags tfdiags.Diagnostics) {
+func (n *NodeLocal) Execute(_ context.Context, evalCtx EvalContext, op walkOperation) (diags tfdiags.Diagnostics) {
 	expr := n.Config.Expr
 	addr := n.Addr.LocalValue
 

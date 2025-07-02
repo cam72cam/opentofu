@@ -65,7 +65,7 @@ func NewVariable(ctx context.Context, addr addrs.AbsInputVariableInstance, confi
 			}
 			return evalCtx.GetVariableValue(addr), diags
 		} else {
-			input := &NodeModuleVariable{
+			input := &nodeModuleVariable{
 				Addr:           addr,
 				Config:         config,
 				Expr:           input.expr,

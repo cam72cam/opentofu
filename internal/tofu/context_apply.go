@@ -169,7 +169,7 @@ Note that the -target and -exclude options are not suitable for routine use, and
 	return newState, diags
 }
 
-func (c *Context) applyGraph(ctx context.Context, plan *plans.Plan, config *configs.Config, providerFunctionTracker ProviderFunctionMapping) (*Graph, WalkOperation, tfdiags.Diagnostics) {
+func (c *Context) applyGraph(ctx context.Context, plan *plans.Plan, config *configs.Config, providerFunctionTracker ProviderFunctionMapping) (*Graph, walkOperation, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	variables := InputValues{}

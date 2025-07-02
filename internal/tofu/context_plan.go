@@ -897,7 +897,7 @@ func (c *Context) planWalk(ctx context.Context, config *configs.Config, prevRunS
 	return plan, diags
 }
 
-func (c *Context) planGraph(ctx context.Context, config *configs.Config, prevRunState *states.State, opts *PlanOpts, providerFunctionTracker ProviderFunctionMapping) (*Graph, WalkOperation, tfdiags.Diagnostics) {
+func (c *Context) planGraph(ctx context.Context, config *configs.Config, prevRunState *states.State, opts *PlanOpts, providerFunctionTracker ProviderFunctionMapping) (*Graph, walkOperation, tfdiags.Diagnostics) {
 	switch mode := opts.Mode; mode {
 	case plans.NormalMode:
 		graph, diags := (&PlanGraphBuilder{

@@ -121,7 +121,7 @@ func (n *NodeApplyableResourceInstance) AttachDependencies(deps []addrs.ConfigRe
 }
 
 // GraphNodeExecutable
-func (n *NodeApplyableResourceInstance) Execute(ctx context.Context, evalCtx EvalContext, op WalkOperation) (diags tfdiags.Diagnostics) {
+func (n *NodeApplyableResourceInstance) Execute(ctx context.Context, evalCtx EvalContext, op walkOperation) (diags tfdiags.Diagnostics) {
 	addr := n.ResourceInstanceAddr()
 
 	ctx, span := tracing.Tracer().Start(

@@ -79,7 +79,7 @@ type PlanGraphBuilder struct {
 	ConcreteModule                  ConcreteModuleNodeFunc
 
 	// Plan Operation this graph will be used for.
-	Operation WalkOperation
+	Operation walkOperation
 
 	// ExternalReferences allows the external caller to pass in references to
 	// nodes that should not be pruned even if they are not referenced within
@@ -272,7 +272,7 @@ func (b *PlanGraphBuilder) initPlan() {
 	}
 
 	b.ConcreteResource = func(a *NodeAbstractResource) dag.Vertex {
-		return &NodeExpandPlannableResource{
+		return &nodeExpandPlannableResource{
 			NodeAbstractResource: a,
 			skipRefresh:          b.skipRefresh,
 			skipPlanChanges:      b.skipPlanChanges,
@@ -327,9 +327,9 @@ func (b *PlanGraphBuilder) initValidate() {
 		}
 	}
 
-	b.ConcreteModule = func(n *NodeExpandModule) dag.Vertex {
-		return &NodeValidateModule{
-			NodeExpandModule: *n,
+	b.ConcreteModule = func(n *nodeExpandModule) dag.Vertex {
+		return &nodeValidateModule{
+			nodeExpandModule: *n,
 		}
 	}
 }
@@ -342,7 +342,7 @@ func (b *PlanGraphBuilder) initImport() {
 	}
 
 	b.ConcreteResource = func(a *NodeAbstractResource) dag.Vertex {
-		return &NodeExpandPlannableResource{
+		return &nodeExpandPlannableResource{
 			NodeAbstractResource: a,
 
 			// For now we always skip planning changes for import, since we are

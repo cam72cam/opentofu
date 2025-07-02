@@ -27,7 +27,7 @@ import (
 )
 
 func TestNodeModuleVariablePath(t *testing.T) {
-	n := &NodeModuleVariable{
+	n := &nodeModuleVariable{
 		Addr: addrs.RootModuleInstance.InputVariable("foo"),
 		Config: &configs.Variable{
 			Name:           "foo",

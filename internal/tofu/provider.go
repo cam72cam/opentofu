@@ -34,7 +34,7 @@ func NewProvider(ctx context.Context, addr AbsProviderConfig, providerType addrs
 	cfgVal := NewPromise(Ident{base: addr}, func(self *Executor) (cty.Value, tfdiags.Diagnostics) {
 		log.Printf("[TRACE] building configuration for provider %s", addr)
 
-		configBody := BuildProviderConfig(&MockEvalContext{}, addrs.AbsProviderConfig{Provider: providerType, Module: addr.Module.Module(), Alias: addr.Local.Alias}, config)
+		configBody := buildProviderConfig(&MockEvalContext{}, addrs.AbsProviderConfig{Provider: providerType, Module: addr.Module.Module(), Alias: addr.Local.Alias}, config)
 
 		provider, done, diags := scope.Plugins().ConfiguredProvider(providerType, cty.NilVal)
 		defer done()

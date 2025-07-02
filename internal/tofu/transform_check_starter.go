@@ -24,7 +24,7 @@ type checkStartTransformer struct {
 	Config *configs.Config
 
 	// Operation is the current operation this node will be part of.
-	Operation WalkOperation
+	Operation walkOperation
 }
 
 func (s *checkStartTransformer) Transform(_ context.Context, graph *Graph) error {

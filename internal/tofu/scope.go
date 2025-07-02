@@ -22,7 +22,7 @@ import (
 )
 
 type Scope struct {
-	op       WalkOperation
+	op       walkOperation
 	expander *instances.Expander
 	tofuCtx  *Context
 
@@ -39,7 +39,7 @@ type Scope struct {
 }
 
 func NewRootScope(
-	op WalkOperation,
+	op walkOperation,
 	tofuCtx *Context,
 	prevRun *states.State,
 	refresh *states.State,
@@ -170,7 +170,7 @@ func (s *Scope) EvalContext(caller *Executor, overrides ...DataOverride) EvalCon
 		ChecksState:       s.Checks,
 		HookFn: func(fn func(Hook) (HookAction, error)) error {
 			// Lifted from BuiltinEvalContext
-			for _, h := range s.tofuCtx.Hooks() {
+			for _, h := range s.tofuCtx.hooks {
 				action, err := fn(h)
 				if err != nil {
 					return err
@@ -235,7 +235,7 @@ func (s *Scope) EvalContext(caller *Executor, overrides ...DataOverride) EvalCon
 				Data: &evalData{
 					caller,
 					keyData,
-					s.tofuCtx.Workspace(),
+					s.tofuCtx.meta.Env,
 					overrides,
 					s.Data,
 				},
@@ -254,7 +254,7 @@ func (s *Scope) EvalContext(caller *Executor, overrides ...DataOverride) EvalCon
 					// TODO manage scope of provider (if we care)
 					provider, _, _ := providerConfig(caller)
 
-					return EvalContextProviderFunction(provider, s.op, pf, rng)
+					return evalContextProviderFunction(provider, s.op, pf, rng)
 				},
 			}
 		},

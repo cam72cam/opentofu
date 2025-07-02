@@ -19,7 +19,7 @@ type checkTransformer struct {
 	Config *configs.Config
 
 	// Operation is the current operation this node will be part of.
-	Operation WalkOperation
+	Operation walkOperation
 }
 
 var _ GraphTransformer = (*checkTransformer)(nil)

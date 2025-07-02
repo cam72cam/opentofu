@@ -154,7 +154,7 @@ func (n *NodeVariableReferenceInstance) ModulePath() addrs.Module {
 }
 
 // GraphNodeExecutable
-func (n *NodeVariableReferenceInstance) Execute(_ context.Context, evalCtx EvalContext, op WalkOperation) tfdiags.Diagnostics {
+func (n *NodeVariableReferenceInstance) Execute(_ context.Context, evalCtx EvalContext, op walkOperation) tfdiags.Diagnostics {
 	log.Printf("[TRACE] nodeVariableReferenceInstance: evaluating %s", n.Addr)
 	diags := evalVariableValidations(n.Addr, n.Config, n.Expr, evalCtx)
 

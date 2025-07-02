@@ -32,7 +32,7 @@ func evalContextEvaluate(ctx EvalContext) evalchecks.EvaluateFunc {
 	}
 }
 
-func EvaluateForEachExpression(expr hcl.Expression, ctx EvalContext, excludeableAddr addrs.Targetable) (map[string]cty.Value, tfdiags.Diagnostics) {
+func evaluateForEachExpression(expr hcl.Expression, ctx EvalContext, excludeableAddr addrs.Targetable) (map[string]cty.Value, tfdiags.Diagnostics) {
 	return evalchecks.EvaluateForEachExpression(expr, evalContextScope(ctx), excludeableAddr)
 }
 
@@ -40,7 +40,7 @@ func evaluateForEachExpressionValue(expr hcl.Expression, ctx EvalContext, allowU
 	return evalchecks.EvaluateForEachExpressionValue(expr, evalContextScope(ctx), allowUnknown, allowTuple, excludeableAddr)
 }
 
-func EvaluateCountExpression(expr hcl.Expression, ctx EvalContext, excludeableAddr addrs.Targetable) (int, tfdiags.Diagnostics) {
+func evaluateCountExpression(expr hcl.Expression, ctx EvalContext, excludeableAddr addrs.Targetable) (int, tfdiags.Diagnostics) {
 	return evalchecks.EvaluateCountExpression(expr, evalContextEvaluate(ctx), excludeableAddr)
 }
 

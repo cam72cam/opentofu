@@ -32,7 +32,7 @@ func WalkValidate(ctx context.Context, config *configs.Config, tofuCtx *Context)
 
 	root := NewModule(ctx, addrs.RootModuleInstance, config, inputs, scope)
 
-	p := NewManager(tofuCtx.Semaphore())
+	p := NewManager(tofuCtx.parallelSem)
 	root.Collect(p)
 	edges, diags := p.Wait()
 	//spew.Dump(edges)

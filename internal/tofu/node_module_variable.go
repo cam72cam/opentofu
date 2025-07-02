@@ -51,7 +51,7 @@ func (n *nodeExpandModuleVariable) DynamicExpand(ctx EvalContext) (*Graph, error
 	expander := ctx.InstanceExpander()
 	for _, module := range expander.ExpandModule(n.Module) {
 		addr := n.Addr.Absolute(module)
-		o := &NodeModuleVariable{
+		o := &nodeModuleVariable{
 			Addr:           addr,
 			Config:         n.Config,
 			Expr:           n.Expr,
@@ -110,9 +110,9 @@ func (n *nodeExpandModuleVariable) ReferenceableAddrs() []addrs.Referenceable {
 	return []addrs.Referenceable{n.Addr}
 }
 
-// NodeModuleVariable represents a module variable input during
+// nodeModuleVariable represents a module variable input during
 // the apply step.
-type NodeModuleVariable struct {
+type nodeModuleVariable struct {
 	Addr   addrs.AbsInputVariableInstance
 	Config *configs.Variable // Config is the var in the config
 	Expr   hcl.Expression    // Expr is the value expression given in the call
@@ -124,34 +124,34 @@ type NodeModuleVariable struct {
 // Ensure that we are implementing all of the interfaces we think we are
 // implementing.
 var (
-	_ GraphNodeModuleInstance = (*NodeModuleVariable)(nil)
-	_ GraphNodeExecutable     = (*NodeModuleVariable)(nil)
-	_ graphNodeTemporaryValue = (*NodeModuleVariable)(nil)
-	_ dag.GraphNodeDotter     = (*NodeModuleVariable)(nil)
+	_ GraphNodeModuleInstance = (*nodeModuleVariable)(nil)
+	_ GraphNodeExecutable     = (*nodeModuleVariable)(nil)
+	_ graphNodeTemporaryValue = (*nodeModuleVariable)(nil)
+	_ dag.GraphNodeDotter     = (*nodeModuleVariable)(nil)
 )
 
-func (n *NodeModuleVariable) temporaryValue() bool {
+func (n *nodeModuleVariable) temporaryValue() bool {
 	return true
 }
 
-func (n *NodeModuleVariable) Name() string {
+func (n *nodeModuleVariable) Name() string {
 	return n.Addr.String() + "(input)"
 }
 
 // GraphNodeModuleInstance
-func (n *NodeModuleVariable) Path() addrs.ModuleInstance {
+func (n *nodeModuleVariable) Path() addrs.ModuleInstance {
 	// We execute in the parent scope (above our own module) because
 	// expressions in our value are resolved in that context.
 	return n.Addr.Module.Parent()
 }
 
 // GraphNodeModulePath
-func (n *NodeModuleVariable) ModulePath() addrs.Module {
+func (n *nodeModuleVariable) ModulePath() addrs.Module {
 	return n.Addr.Module.Module()
 }
 
 // GraphNodeExecutable
-func (n *NodeModuleVariable) Execute(_ context.Context, evalCtx EvalContext, op WalkOperation) (diags tfdiags.Diagnostics) {
+func (n *nodeModuleVariable) Execute(_ context.Context, evalCtx EvalContext, op walkOperation) (diags tfdiags.Diagnostics) {
 	log.Printf("[TRACE] nodeModuleVariable: evaluating %s", n.Addr)
 
 	val, err := n.evalModuleVariable(evalCtx, op == walkValidate)
@@ -168,7 +168,7 @@ func (n *NodeModuleVariable) Execute(_ context.Context, evalCtx EvalContext, op 
 }
 
 // dag.GraphNodeDotter impl.
-func (n *NodeModuleVariable) DotNode(name string, opts *dag.DotOpts) *dag.DotNode {
+func (n *nodeModuleVariable) DotNode(name string, opts *dag.DotOpts) *dag.DotNode {
 	return &dag.DotNode{
 		Name: name,
 		Attrs: map[string]string{
@@ -190,7 +190,7 @@ func (n *NodeModuleVariable) DotNode(name string, opts *dag.DotOpts) *dag.DotNod
 // validateOnly indicates that this evaluation is only for config
 // validation, and we will not have any expansion module instance
 // repetition data.
-func (n *NodeModuleVariable) evalModuleVariable(ctx EvalContext, validateOnly bool) (cty.Value, error) {
+func (n *nodeModuleVariable) evalModuleVariable(ctx EvalContext, validateOnly bool) (cty.Value, error) {
 	var diags tfdiags.Diagnostics
 	var givenVal cty.Value
 	var errSourceRange tfdiags.SourceRange
