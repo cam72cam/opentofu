@@ -14,6 +14,7 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/encryption"
 	"github.com/opentofu/opentofu/internal/logging"
@@ -40,14 +41,17 @@ const (
 // ContextOpts are the user-configurable options to create a context with
 // NewContext.
 type ContextOpts struct {
-	Meta         *ContextMeta
-	Hooks        []Hook
-	Parallelism  int
-	Providers    func(context.Context, *configs.Config, *states.State) (providers.Manager, error)
-	Provisioners func() (provisioners.Manager, error)
-	Encryption   encryption.Encryption
+	Meta           *ContextMeta
+	Hooks          []Hook
+	Parallelism    int
+	ProvidersFn    func(context.Context, *configs.Config, *states.State) (providers.Manager, error)
+	ProvisionersFn func() (provisioners.Manager, error)
+	Encryption     encryption.Encryption
 
 	UIInput UIInput
+	// LEGACY FOR TEST ONLY
+	Providers    map[addrs.Provider]providers.Factory
+	Provisioners map[string]provisioners.Factory
 }
 
 // ContextMeta is metadata about the running context. This is information
@@ -135,13 +139,25 @@ func NewContext(opts *ContextOpts, config *configs.Config, state *states.State) 
 		par = 10
 	}
 
+	// TODO hack for testing
+	if opts.ProvidersFn == nil {
+		opts.ProvidersFn = func(context.Context, *configs.Config, *states.State) (providers.Manager, error) {
+			return providers.NewManager(opts.Providers), nil
+		}
+	}
 	// TODO plumb in context
-	providers, err := opts.Providers(context.TODO(), config, state)
+	providers, err := opts.ProvidersFn(context.TODO(), config, state)
 	if err != nil {
 		diags = diags.Append(err)
 	}
 
-	provisioners, err := opts.Provisioners()
+	// TODO hack for testing
+	if opts.ProvisionersFn == nil {
+		opts.ProvisionersFn = func() (provisioners.Manager, error) {
+			return provisioners.NewManager(opts.Provisioners)
+		}
+	}
+	provisioners, err := opts.ProvisionersFn()
 	if err != nil {
 		diags = diags.Append(err)
 	}

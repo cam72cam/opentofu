@@ -1319,7 +1319,7 @@ func TestContext2Refresh_unknownProvider(t *testing.T) {
 
 	c, diags := NewContext(&ContextOpts{
 		Providers: map[addrs.Provider]providers.Factory{},
-	})
+	}, m, state)
 	assertNoDiagnostics(t, diags)
 
 	_, diags = c.Refresh(context.Background(), m, states.NewState(), &PlanOpts{Mode: plans.NormalMode})

@@ -6,10 +6,13 @@
 package tofu
 
 import (
+	"context"
+
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs/configschema"
+	"github.com/opentofu/opentofu/internal/plugins"
 	"github.com/opentofu/opentofu/internal/providers"
 	"github.com/opentofu/opentofu/internal/provisioners"
 )
@@ -24,26 +27,39 @@ import (
 // Each call to this function produces an entirely-separate set of objects,
 // so the caller can feel free to modify the returned value to further
 // customize the mocks contained within.
-func simpleMockPluginLibrary() *contextPlugins {
+func simpleMockPluginLibrary() plugins.Manager {
 	// We create these out here, rather than in the factory functions below,
 	// because we want each call to the factory to return the _same_ instance,
 	// so that test code can customize it before passing this component
 	// factory into real code under test.
 	provider := simpleMockProvider()
 	provisioner := simpleMockProvisioner()
-	ret := &contextPlugins{
-		providerFactories: map[addrs.Provider]providers.Factory{
-			addrs.NewDefaultProvider("test"): func() (providers.Interface, error) {
-				return provider, nil
-			},
+	providerManager := providers.NewManager(map[addrs.Provider]providers.Factory{
+		addrs.NewDefaultProvider("test"): mockPluginFactory{func() (providers.Interface, error) {
+			return provider, nil
+		}},
+	})
+	provisionerManager, _ := provisioners.NewManager(map[string]provisioners.Factory{
+		"test": func() (provisioners.Interface, error) {
+			return provisioner, nil
 		},
-		provisionerFactories: map[string]provisioners.Factory{
-			"test": func() (provisioners.Interface, error) {
-				return provisioner, nil
-			},
-		},
+	})
+	return plugins.NewManager(providerManager, provisionerManager)
+}
+
+type mockPluginFactory struct {
+	fn func() (providers.Interface, error)
+}
+
+func (f mockPluginFactory) Instance() (providers.Interface, error) {
+	return f.fn()
+}
+func (f mockPluginFactory) Schema() providers.ProviderSchema {
+	p, err := f.fn()
+	if err != nil {
+		panic(err)
 	}
-	return ret
+	return p.GetProviderSchema(context.Background())
 }
 
 // simpleTestSchema returns a block schema that contains a few optional

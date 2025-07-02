@@ -288,26 +288,27 @@ func TestContext2Plan_escapedVar(t *testing.T) {
 		t.Error("expected 1 resource in plan, got", len(plan.Changes.Resources))
 	}
 
-	res := plan.Changes.Resources[0]
-	if res.Action != plans.Create {
-		t.Fatalf("expected resource creation, got %s", res.Action)
+	for _, res := range plan.Changes.Resources {
+		if res.Action != plans.Create {
+			t.Fatalf("expected resource creation, got %s", res.Action)
+		}
+
+		schema := p.GetProviderSchemaResponse.ResourceTypes["aws_instance"].Block
+		ty := schema.ImpliedType()
+
+		ric, err := res.Decode(ty)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		expected := objectVal(t, schema, map[string]cty.Value{
+			"id":   cty.UnknownVal(cty.String),
+			"foo":  cty.StringVal("bar-${baz}"),
+			"type": cty.UnknownVal(cty.String),
+		})
+
+		checkVals(t, expected, ric.After)
 	}
-
-	schema := p.GetProviderSchemaResponse.ResourceTypes["aws_instance"].Block
-	ty := schema.ImpliedType()
-
-	ric, err := res.Decode(ty)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	expected := objectVal(t, schema, map[string]cty.Value{
-		"id":   cty.UnknownVal(cty.String),
-		"foo":  cty.StringVal("bar-${baz}"),
-		"type": cty.UnknownVal(cty.String),
-	})
-
-	checkVals(t, expected, ric.After)
 }
 
 func TestContext2Plan_minimal(t *testing.T) {
@@ -983,7 +984,7 @@ func TestContext2Plan_moduleProviderInherit(t *testing.T) {
 	m := testModule(t, "plan-module-provider-inherit")
 	ctx := testContext2(t, &ContextOpts{
 		Providers: map[addrs.Provider]providers.Factory{
-			addrs.NewDefaultProvider("aws"): func() (providers.Interface, error) {
+			addrs.NewDefaultProvider("aws"): mockPluginFactory{func() (providers.Interface, error) {
 				l.Lock()
 				defer l.Unlock()
 
@@ -1020,7 +1021,7 @@ func TestContext2Plan_moduleProviderInherit(t *testing.T) {
 				}
 				return p, nil
 			},
-		},
+			}},
 	})
 
 	_, err := ctx.Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
@@ -1044,7 +1045,7 @@ func TestContext2Plan_moduleProviderInheritDeep(t *testing.T) {
 	m := testModule(t, "plan-module-provider-inherit-deep")
 	ctx := testContext2(t, &ContextOpts{
 		Providers: map[addrs.Provider]providers.Factory{
-			addrs.NewDefaultProvider("aws"): func() (providers.Interface, error) {
+			addrs.NewDefaultProvider("aws"): mockPluginFactory{func() (providers.Interface, error) {
 				l.Lock()
 				defer l.Unlock()
 
@@ -1084,7 +1085,7 @@ func TestContext2Plan_moduleProviderInheritDeep(t *testing.T) {
 				}
 				return p, nil
 			},
-		},
+			}},
 	})
 
 	_, err := ctx.Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
@@ -1100,7 +1101,7 @@ func TestContext2Plan_moduleProviderDefaultsVar(t *testing.T) {
 	m := testModule(t, "plan-module-provider-defaults-var")
 	ctx := testContext2(t, &ContextOpts{
 		Providers: map[addrs.Provider]providers.Factory{
-			addrs.NewDefaultProvider("aws"): func() (providers.Interface, error) {
+			addrs.NewDefaultProvider("aws"): mockPluginFactory{func() (providers.Interface, error) {
 				l.Lock()
 				defer l.Unlock()
 
@@ -1139,7 +1140,7 @@ func TestContext2Plan_moduleProviderDefaultsVar(t *testing.T) {
 
 				return p, nil
 			},
-		},
+			}},
 	})
 
 	_, err := ctx.Plan(context.Background(), m, states.NewState(), &PlanOpts{
@@ -2536,22 +2537,23 @@ func TestContext2Plan_countZero(t *testing.T) {
 		t.Fatal("expected 1 changes, got", len(plan.Changes.Resources))
 	}
 
-	res := plan.Changes.Resources[0]
+	for _, res := range plan.Changes.Resources {
 
-	if res.Action != plans.Create {
-		t.Fatalf("expected resource creation, got %s", res.Action)
-	}
-	ric, err := res.Decode(ty)
-	if err != nil {
-		t.Fatal(err)
-	}
+		if res.Action != plans.Create {
+			t.Fatalf("expected resource creation, got %s", res.Action)
+		}
+		ric, err := res.Decode(ty)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	expected := cty.TupleVal(nil)
+		expected := cty.TupleVal(nil)
 
-	foo := ric.After.GetAttr("foo")
+		foo := ric.After.GetAttr("foo")
 
-	if !cmp.Equal(expected, foo, valueComparer) {
-		t.Fatal(cmp.Diff(expected, foo, valueComparer))
+		if !cmp.Equal(expected, foo, valueComparer) {
+			t.Fatal(cmp.Diff(expected, foo, valueComparer))
+		}
 	}
 }
 
@@ -4285,14 +4287,15 @@ func TestContext2Plan_targetedModuleWithProvider(t *testing.T) {
 		t.Fatal("expected 1 changes, got", len(plan.Changes.Resources))
 	}
 
-	res := plan.Changes.Resources[0]
-	ric, err := res.Decode(ty)
-	if err != nil {
-		t.Fatal(err)
-	}
+	for _, res := range plan.Changes.Resources {
+		ric, err := res.Decode(ty)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	if ric.Addr.String() != "module.child2.null_resource.foo" {
-		t.Fatalf("unexpcetd resource: %s", ric.Addr)
+		if ric.Addr.String() != "module.child2.null_resource.foo" {
+			t.Fatalf("unexpcetd resource: %s", ric.Addr)
+		}
 	}
 }
 
@@ -4335,14 +4338,15 @@ func TestContext2Plan_excludedModuleWithProvider(t *testing.T) {
 		t.Fatal("expected 1 changes, got", len(plan.Changes.Resources))
 	}
 
-	res := plan.Changes.Resources[0]
-	ric, err := res.Decode(ty)
-	if err != nil {
-		t.Fatal(err)
-	}
+	for _, res := range plan.Changes.Resources {
+		ric, err := res.Decode(ty)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	if ric.Addr.String() != "module.child2.null_resource.foo" {
-		t.Fatalf("unexpected resource: %s", ric.Addr)
+		if ric.Addr.String() != "module.child2.null_resource.foo" {
+			t.Fatalf("unexpected resource: %s", ric.Addr)
+		}
 	}
 }
 
@@ -4531,17 +4535,18 @@ func TestContext2Plan_targetedModuleOrphan(t *testing.T) {
 		t.Fatal("expected 1 changes, got", len(plan.Changes.Resources))
 	}
 
-	res := plan.Changes.Resources[0]
-	ric, err := res.Decode(ty)
-	if err != nil {
-		t.Fatal(err)
-	}
+	for _, res := range plan.Changes.Resources {
+		ric, err := res.Decode(ty)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	if ric.Addr.String() != "module.child.aws_instance.orphan" {
-		t.Fatalf("unexpected resource :%s", ric.Addr)
-	}
-	if res.Action != plans.Delete {
-		t.Fatalf("resource %s should be deleted", ric.Addr)
+		if ric.Addr.String() != "module.child.aws_instance.orphan" {
+			t.Fatalf("unexpected resource :%s", ric.Addr)
+		}
+		if res.Action != plans.Delete {
+			t.Fatalf("resource %s should be deleted", ric.Addr)
+		}
 	}
 }
 
@@ -4595,17 +4600,18 @@ func TestContext2Plan_excludedModuleOrphan(t *testing.T) {
 		t.Fatal("expected 1 changes, got", len(plan.Changes.Resources))
 	}
 
-	res := plan.Changes.Resources[0]
-	ric, err := res.Decode(ty)
-	if err != nil {
-		t.Fatal(err)
-	}
+	for _, res := range plan.Changes.Resources {
+		ric, err := res.Decode(ty)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	if ric.Addr.String() != "module.child.aws_instance.orphan" {
-		t.Fatalf("unexpected resource :%s", ric.Addr)
-	}
-	if res.Action != plans.Delete {
-		t.Fatalf("resource %s should be deleted", ric.Addr)
+		if ric.Addr.String() != "module.child.aws_instance.orphan" {
+			t.Fatalf("unexpected resource :%s", ric.Addr)
+		}
+		if res.Action != plans.Delete {
+			t.Fatalf("resource %s should be deleted", ric.Addr)
+		}
 	}
 }
 
@@ -4758,17 +4764,18 @@ func TestContext2Plan_outputContainsUntargetedResource(t *testing.T) {
 	schema := p.GetProviderSchemaResponse.ResourceTypes["aws_instance"].Block
 	ty := schema.ImpliedType()
 
-	res := plan.Changes.Resources[0]
-	ric, err := res.Decode(ty)
-	if err != nil {
-		t.Fatal(err)
-	}
+	for _, res := range plan.Changes.Resources {
+		ric, err := res.Decode(ty)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	if ric.Addr.String() != "module.mod.aws_instance.a[0]" {
-		t.Fatalf("unexpected resource :%s", ric.Addr)
-	}
-	if res.Action != plans.Create {
-		t.Fatalf("resource %s should be deleted", ric.Addr)
+		if ric.Addr.String() != "module.mod.aws_instance.a[0]" {
+			t.Fatalf("unexpected resource :%s", ric.Addr)
+		}
+		if res.Action != plans.Create {
+			t.Fatalf("resource %s should be deleted", ric.Addr)
+		}
 	}
 }
 
@@ -4809,17 +4816,18 @@ func TestContext2Plan_outputContainsExcludedResource(t *testing.T) {
 	schema := p.GetProviderSchemaResponse.ResourceTypes["aws_instance"].Block
 	ty := schema.ImpliedType()
 
-	res := plan.Changes.Resources[0]
-	ric, err := res.Decode(ty)
-	if err != nil {
-		t.Fatal(err)
-	}
+	for _, res := range plan.Changes.Resources {
+		ric, err := res.Decode(ty)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	if ric.Addr.String() != "module.mod.aws_instance.a[0]" {
-		t.Fatalf("unexpected resource :%s", ric.Addr)
-	}
-	if res.Action != plans.Create {
-		t.Fatalf("resource %s should be deleted", ric.Addr)
+		if ric.Addr.String() != "module.mod.aws_instance.a[0]" {
+			t.Fatalf("unexpected resource :%s", ric.Addr)
+		}
+		if res.Action != plans.Create {
+			t.Fatalf("resource %s should be deleted", ric.Addr)
+		}
 	}
 }
 
@@ -5026,21 +5034,22 @@ func TestContext2Plan_ignoreChanges(t *testing.T) {
 		t.Fatal("expected 1 changes, got", len(plan.Changes.Resources))
 	}
 
-	res := plan.Changes.Resources[0]
-	ric, err := res.Decode(ty)
-	if err != nil {
-		t.Fatal(err)
-	}
+	for _, res := range plan.Changes.Resources {
+		ric, err := res.Decode(ty)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	if ric.Addr.String() != "aws_instance.foo" {
-		t.Fatalf("unexpected resource: %s", ric.Addr)
-	}
+		if ric.Addr.String() != "aws_instance.foo" {
+			t.Fatalf("unexpected resource: %s", ric.Addr)
+		}
 
-	checkVals(t, objectVal(t, schema, map[string]cty.Value{
-		"id":   cty.StringVal("bar"),
-		"ami":  cty.StringVal("ami-abcd1234"),
-		"type": cty.StringVal("aws_instance"),
-	}), ric.After)
+		checkVals(t, objectVal(t, schema, map[string]cty.Value{
+			"id":   cty.StringVal("bar"),
+			"ami":  cty.StringVal("ami-abcd1234"),
+			"type": cty.StringVal("aws_instance"),
+		}), ric.After)
+	}
 }
 
 func TestContext2Plan_ignoreChangesWildcard(t *testing.T) {
@@ -5159,25 +5168,26 @@ func TestContext2Plan_ignoreChangesInMap(t *testing.T) {
 		t.Fatalf("wrong number of changes %d; want %d", got, want)
 	}
 
-	res := plan.Changes.Resources[0]
-	ric, err := res.Decode(ty)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res.Action != plans.Update {
-		t.Fatalf("resource %s should be updated, got %s", ric.Addr, res.Action)
-	}
+	for _, res := range plan.Changes.Resources {
+		ric, err := res.Decode(ty)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Action != plans.Update {
+			t.Fatalf("resource %s should be updated, got %s", ric.Addr, res.Action)
+		}
 
-	if got, want := ric.Addr.String(), "test_ignore_changes_map.foo"; got != want {
-		t.Fatalf("unexpected resource address %s; want %s", got, want)
-	}
+		if got, want := ric.Addr.String(), "test_ignore_changes_map.foo"; got != want {
+			t.Fatalf("unexpected resource address %s; want %s", got, want)
+		}
 
-	checkVals(t, objectVal(t, schema, map[string]cty.Value{
-		"tags": cty.MapVal(map[string]cty.Value{
-			"ignored": cty.StringVal("from state"),
-			"other":   cty.StringVal("from config"),
-		}),
-	}), ric.After)
+		checkVals(t, objectVal(t, schema, map[string]cty.Value{
+			"tags": cty.MapVal(map[string]cty.Value{
+				"ignored": cty.StringVal("from state"),
+				"other":   cty.StringVal("from config"),
+			}),
+		}), ric.After)
+	}
 }
 
 func TestContext2Plan_ignoreChangesSensitive(t *testing.T) {
@@ -5223,21 +5233,22 @@ func TestContext2Plan_ignoreChangesSensitive(t *testing.T) {
 		t.Fatal("expected 1 changes, got", len(plan.Changes.Resources))
 	}
 
-	res := plan.Changes.Resources[0]
-	ric, err := res.Decode(ty)
-	if err != nil {
-		t.Fatal(err)
-	}
+	for _, res := range plan.Changes.Resources {
+		ric, err := res.Decode(ty)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	if ric.Addr.String() != "aws_instance.foo" {
-		t.Fatalf("unexpected resource: %s", ric.Addr)
-	}
+		if ric.Addr.String() != "aws_instance.foo" {
+			t.Fatalf("unexpected resource: %s", ric.Addr)
+		}
 
-	checkVals(t, objectVal(t, schema, map[string]cty.Value{
-		"id":   cty.StringVal("bar"),
-		"ami":  cty.StringVal("ami-abcd1234"),
-		"type": cty.StringVal("aws_instance"),
-	}), ric.After)
+		checkVals(t, objectVal(t, schema, map[string]cty.Value{
+			"id":   cty.StringVal("bar"),
+			"ami":  cty.StringVal("ami-abcd1234"),
+			"type": cty.StringVal("aws_instance"),
+		}), ric.After)
+	}
 }
 
 func TestContext2Plan_moduleMapLiteral(t *testing.T) {
@@ -5604,34 +5615,35 @@ func TestContext2Plan_ignoreChangesWithFlatmaps(t *testing.T) {
 		t.Fatal("expected 1 changes, got", len(plan.Changes.Resources))
 	}
 
-	res := plan.Changes.Resources[0]
-	schema := p.GetProviderSchemaResponse.ResourceTypes[res.Addr.Resource.Resource.Type].Block
+	for _, res := range plan.Changes.Resources {
+		schema := p.GetProviderSchemaResponse.ResourceTypes[res.Addr.Resource.Resource.Type].Block
 
-	ric, err := res.Decode(schema.ImpliedType())
-	if err != nil {
-		t.Fatal(err)
+		ric, err := res.Decode(schema.ImpliedType())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if res.Action != plans.Update {
+			t.Fatalf("resource %s should be updated, got %s", ric.Addr, ric.Action)
+		}
+
+		if ric.Addr.String() != "aws_instance.foo" {
+			t.Fatalf("unknown resource: %s", ric.Addr)
+		}
+
+		checkVals(t, objectVal(t, schema, map[string]cty.Value{
+			"lst": cty.ListVal([]cty.Value{
+				cty.StringVal("j"),
+				cty.StringVal("k"),
+			}),
+			"require_new": cty.StringVal(""),
+			"user_data":   cty.StringVal("x"),
+			"set": cty.ListVal([]cty.Value{cty.MapVal(map[string]cty.Value{
+				"a": cty.StringVal("1"),
+				"b": cty.StringVal("2"),
+			})}),
+		}), ric.After)
 	}
-
-	if res.Action != plans.Update {
-		t.Fatalf("resource %s should be updated, got %s", ric.Addr, ric.Action)
-	}
-
-	if ric.Addr.String() != "aws_instance.foo" {
-		t.Fatalf("unknown resource: %s", ric.Addr)
-	}
-
-	checkVals(t, objectVal(t, schema, map[string]cty.Value{
-		"lst": cty.ListVal([]cty.Value{
-			cty.StringVal("j"),
-			cty.StringVal("k"),
-		}),
-		"require_new": cty.StringVal(""),
-		"user_data":   cty.StringVal("x"),
-		"set": cty.ListVal([]cty.Value{cty.MapVal(map[string]cty.Value{
-			"a": cty.StringVal("1"),
-			"b": cty.StringVal("2"),
-		})}),
-	}), ric.After)
 }
 
 // TestContext2Plan_resourceNestedCount ensures resource sets that depend on

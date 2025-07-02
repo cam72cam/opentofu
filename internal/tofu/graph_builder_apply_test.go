@@ -15,6 +15,7 @@ import (
 
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/opentofu/opentofu/internal/plugins"
 	"github.com/opentofu/opentofu/internal/providers"
 	"github.com/opentofu/opentofu/internal/states"
 )
@@ -24,34 +25,32 @@ func TestApplyGraphBuilder_impl(t *testing.T) {
 }
 
 func TestApplyGraphBuilder(t *testing.T) {
-	changes := &plans.Changes{
-		Resources: []*plans.ResourceInstanceChangeSrc{
-			{
-				Addr: mustResourceInstanceAddr("test_object.create"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Create,
-				},
-			},
-			{
-				Addr: mustResourceInstanceAddr("test_object.other"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Update,
-				},
-			},
-			{
-				Addr: mustResourceInstanceAddr("module.child.test_object.create"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Create,
-				},
-			},
-			{
-				Addr: mustResourceInstanceAddr("module.child.test_object.other"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Create,
-				},
+	changes := plans.NewChangesPopulated([]*plans.ResourceInstanceChangeSrc{
+		{
+			Addr: mustResourceInstanceAddr("test_object.create"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Create,
 			},
 		},
-	}
+		{
+			Addr: mustResourceInstanceAddr("test_object.other"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Update,
+			},
+		},
+		{
+			Addr: mustResourceInstanceAddr("module.child.test_object.create"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Create,
+			},
+		},
+		{
+			Addr: mustResourceInstanceAddr("module.child.test_object.other"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Create,
+			},
+		},
+	}, nil)
 
 	b := &ApplyGraphBuilder{
 		Config:  testModule(t, "graph-builder-apply-basic"),
@@ -78,22 +77,20 @@ func TestApplyGraphBuilder(t *testing.T) {
 // This tests the ordering of two resources where a non-CBD depends
 // on a CBD. GH-11349.
 func TestApplyGraphBuilder_depCbd(t *testing.T) {
-	changes := &plans.Changes{
-		Resources: []*plans.ResourceInstanceChangeSrc{
-			{
-				Addr: mustResourceInstanceAddr("test_object.A"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.CreateThenDelete,
-				},
-			},
-			{
-				Addr: mustResourceInstanceAddr("test_object.B"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Update,
-				},
+	changes := plans.NewChangesPopulated([]*plans.ResourceInstanceChangeSrc{
+		{
+			Addr: mustResourceInstanceAddr("test_object.A"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.CreateThenDelete,
 			},
 		},
-	}
+		{
+			Addr: mustResourceInstanceAddr("test_object.B"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Update,
+			},
+		},
+	}, nil)
 
 	state := states.NewState()
 	root := state.EnsureModule(addrs.RootModuleInstance)
@@ -173,22 +170,20 @@ func TestApplyGraphBuilder_depCbd(t *testing.T) {
 // This tests the ordering of two resources that are both CBD that
 // require destroy/create.
 func TestApplyGraphBuilder_doubleCBD(t *testing.T) {
-	changes := &plans.Changes{
-		Resources: []*plans.ResourceInstanceChangeSrc{
-			{
-				Addr: mustResourceInstanceAddr("test_object.A"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.CreateThenDelete,
-				},
-			},
-			{
-				Addr: mustResourceInstanceAddr("test_object.B"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.CreateThenDelete,
-				},
+	changes := plans.NewChangesPopulated([]*plans.ResourceInstanceChangeSrc{
+		{
+			Addr: mustResourceInstanceAddr("test_object.A"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.CreateThenDelete,
 			},
 		},
-	}
+		{
+			Addr: mustResourceInstanceAddr("test_object.B"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.CreateThenDelete,
+			},
+		},
+	}, nil)
 
 	b := &ApplyGraphBuilder{
 		Config:  testModule(t, "graph-builder-apply-double-cbd"),
@@ -245,22 +240,20 @@ func TestApplyGraphBuilder_doubleCBD(t *testing.T) {
 // This tests the ordering of two resources being destroyed that depend
 // on each other from only state. GH-11749
 func TestApplyGraphBuilder_destroyStateOnly(t *testing.T) {
-	changes := &plans.Changes{
-		Resources: []*plans.ResourceInstanceChangeSrc{
-			{
-				Addr: mustResourceInstanceAddr("module.child.test_object.A"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Delete,
-				},
-			},
-			{
-				Addr: mustResourceInstanceAddr("module.child.test_object.B"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Delete,
-				},
+	changes := plans.NewChangesPopulated([]*plans.ResourceInstanceChangeSrc{
+		{
+			Addr: mustResourceInstanceAddr("module.child.test_object.A"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Delete,
 			},
 		},
-	}
+		{
+			Addr: mustResourceInstanceAddr("module.child.test_object.B"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Delete,
+			},
+		},
+	}, nil)
 
 	state := states.NewState()
 	root := state.EnsureModule(addrs.RootModuleInstance)
@@ -309,22 +302,20 @@ func TestApplyGraphBuilder_destroyStateOnly(t *testing.T) {
 
 // This tests the ordering of destroying a single count of a resource.
 func TestApplyGraphBuilder_destroyCount(t *testing.T) {
-	changes := &plans.Changes{
-		Resources: []*plans.ResourceInstanceChangeSrc{
-			{
-				Addr: mustResourceInstanceAddr("test_object.A[1]"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Delete,
-				},
-			},
-			{
-				Addr: mustResourceInstanceAddr("test_object.B"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Update,
-				},
+	changes := plans.NewChangesPopulated([]*plans.ResourceInstanceChangeSrc{
+		{
+			Addr: mustResourceInstanceAddr("test_object.A[1]"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Delete,
 			},
 		},
-	}
+		{
+			Addr: mustResourceInstanceAddr("test_object.B"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Update,
+			},
+		},
+	}, nil)
 
 	state := states.NewState()
 	root := state.RootModule()
@@ -373,22 +364,20 @@ func TestApplyGraphBuilder_destroyCount(t *testing.T) {
 }
 
 func TestApplyGraphBuilder_moduleDestroy(t *testing.T) {
-	changes := &plans.Changes{
-		Resources: []*plans.ResourceInstanceChangeSrc{
-			{
-				Addr: mustResourceInstanceAddr("module.A.test_object.foo"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Delete,
-				},
-			},
-			{
-				Addr: mustResourceInstanceAddr("module.B.test_object.foo"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Delete,
-				},
+	changes := plans.NewChangesPopulated([]*plans.ResourceInstanceChangeSrc{
+		{
+			Addr: mustResourceInstanceAddr("module.A.test_object.foo"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Delete,
 			},
 		},
-	}
+		{
+			Addr: mustResourceInstanceAddr("module.B.test_object.foo"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Delete,
+			},
+		},
+	}, nil)
 
 	state := states.NewState()
 	modA := state.EnsureModule(addrs.RootModuleInstance.Child("A", addrs.NoKey))
@@ -433,22 +422,20 @@ func TestApplyGraphBuilder_moduleDestroy(t *testing.T) {
 }
 
 func TestApplyGraphBuilder_targetModule(t *testing.T) {
-	changes := &plans.Changes{
-		Resources: []*plans.ResourceInstanceChangeSrc{
-			{
-				Addr: mustResourceInstanceAddr("test_object.foo"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Update,
-				},
-			},
-			{
-				Addr: mustResourceInstanceAddr("module.child2.test_object.foo"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Update,
-				},
+	changes := plans.NewChangesPopulated([]*plans.ResourceInstanceChangeSrc{
+		{
+			Addr: mustResourceInstanceAddr("test_object.foo"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Update,
 			},
 		},
-	}
+		{
+			Addr: mustResourceInstanceAddr("module.child2.test_object.foo"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Update,
+			},
+		},
+	}, nil)
 
 	b := &ApplyGraphBuilder{
 		Config:  testModule(t, "graph-builder-apply-target-module"),
@@ -468,22 +455,20 @@ func TestApplyGraphBuilder_targetModule(t *testing.T) {
 }
 
 func TestApplyGraphBuilder_excludeModule(t *testing.T) {
-	changes := &plans.Changes{
-		Resources: []*plans.ResourceInstanceChangeSrc{
-			{
-				Addr: mustResourceInstanceAddr("test_object.foo"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Update,
-				},
-			},
-			{
-				Addr: mustResourceInstanceAddr("module.child2.test_object.foo"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Update,
-				},
+	changes := plans.NewChangesPopulated([]*plans.ResourceInstanceChangeSrc{
+		{
+			Addr: mustResourceInstanceAddr("test_object.foo"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Update,
 			},
 		},
-	}
+		{
+			Addr: mustResourceInstanceAddr("module.child2.test_object.foo"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Update,
+			},
+		},
+	}, nil)
 
 	b := &ApplyGraphBuilder{
 		Config:  testModule(t, "graph-builder-apply-target-module"),
@@ -506,37 +491,35 @@ func TestApplyGraphBuilder_excludeModule(t *testing.T) {
 // that resource is destroyed.
 func TestApplyGraphBuilder_updateFromOrphan(t *testing.T) {
 	schemas := simpleTestSchemas()
-	instanceSchema := schemas.Providers[addrs.NewDefaultProvider("test")].ResourceTypes["test_object"]
+	instanceSchema, _, _ := schemas.ResourceTypeSchema(addrs.NewDefaultProvider("test"), addrs.ManagedResourceMode, "test_object")
 
 	bBefore, _ := plans.NewDynamicValue(
 		cty.ObjectVal(map[string]cty.Value{
 			"id":          cty.StringVal("b_id"),
 			"test_string": cty.StringVal("a_id"),
-		}), instanceSchema.Block.ImpliedType())
+		}), instanceSchema.ImpliedType())
 	bAfter, _ := plans.NewDynamicValue(
 		cty.ObjectVal(map[string]cty.Value{
 			"id":          cty.StringVal("b_id"),
 			"test_string": cty.StringVal("changed"),
-		}), instanceSchema.Block.ImpliedType())
+		}), instanceSchema.ImpliedType())
 
-	changes := &plans.Changes{
-		Resources: []*plans.ResourceInstanceChangeSrc{
-			{
-				Addr: mustResourceInstanceAddr("test_object.a"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Delete,
-				},
-			},
-			{
-				Addr: mustResourceInstanceAddr("test_object.b"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Update,
-					Before: bBefore,
-					After:  bAfter,
-				},
+	changes := plans.NewChangesPopulated([]*plans.ResourceInstanceChangeSrc{
+		{
+			Addr: mustResourceInstanceAddr("test_object.a"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Delete,
 			},
 		},
-	}
+		{
+			Addr: mustResourceInstanceAddr("test_object.b"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Update,
+				Before: bBefore,
+				After:  bAfter,
+			},
+		},
+	}, nil)
 
 	state := states.NewState()
 	root := state.EnsureModule(addrs.RootModuleInstance)
@@ -613,37 +596,35 @@ test_object.b
 // a CBD resource is destroyed.
 func TestApplyGraphBuilder_updateFromCBDOrphan(t *testing.T) {
 	schemas := simpleTestSchemas()
-	instanceSchema := schemas.Providers[addrs.NewDefaultProvider("test")].ResourceTypes["test_object"]
+	instanceSchema, _, _ := schemas.ResourceTypeSchema(addrs.NewDefaultProvider("test"), addrs.ManagedResourceMode, "test_object")
 
 	bBefore, _ := plans.NewDynamicValue(
 		cty.ObjectVal(map[string]cty.Value{
 			"id":          cty.StringVal("b_id"),
 			"test_string": cty.StringVal("a_id"),
-		}), instanceSchema.Block.ImpliedType())
+		}), instanceSchema.ImpliedType())
 	bAfter, _ := plans.NewDynamicValue(
 		cty.ObjectVal(map[string]cty.Value{
 			"id":          cty.StringVal("b_id"),
 			"test_string": cty.StringVal("changed"),
-		}), instanceSchema.Block.ImpliedType())
+		}), instanceSchema.ImpliedType())
 
-	changes := &plans.Changes{
-		Resources: []*plans.ResourceInstanceChangeSrc{
-			{
-				Addr: mustResourceInstanceAddr("test_object.a"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Delete,
-				},
-			},
-			{
-				Addr: mustResourceInstanceAddr("test_object.b"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Update,
-					Before: bBefore,
-					After:  bAfter,
-				},
+	changes := plans.NewChangesPopulated([]*plans.ResourceInstanceChangeSrc{
+		{
+			Addr: mustResourceInstanceAddr("test_object.a"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Delete,
 			},
 		},
-	}
+		{
+			Addr: mustResourceInstanceAddr("test_object.b"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Update,
+				Before: bBefore,
+				After:  bAfter,
+			},
+		},
+	}, nil)
 
 	state := states.NewState()
 	root := state.EnsureModule(addrs.RootModuleInstance)
@@ -713,16 +694,14 @@ test_object.b
 
 // The orphan clean up node should not be connected to a provider
 func TestApplyGraphBuilder_orphanedWithProvider(t *testing.T) {
-	changes := &plans.Changes{
-		Resources: []*plans.ResourceInstanceChangeSrc{
-			{
-				Addr: mustResourceInstanceAddr("test_object.A"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Delete,
-				},
+	changes := plans.NewChangesPopulated([]*plans.ResourceInstanceChangeSrc{
+		{
+			Addr: mustResourceInstanceAddr("test_object.A"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Delete,
 			},
 		},
-	}
+	}, nil)
 
 	state := states.NewState()
 	root := state.EnsureModule(addrs.RootModuleInstance)
@@ -756,33 +735,31 @@ func TestApplyGraphBuilder_orphanedWithProvider(t *testing.T) {
 func TestApplyGraphBuilder_withChecks(t *testing.T) {
 	awsProvider := mockProviderWithResourceTypeSchema("aws_instance", simpleTestSchema())
 
-	changes := &plans.Changes{
-		Resources: []*plans.ResourceInstanceChangeSrc{
-			{
-				Addr: mustResourceInstanceAddr("aws_instance.foo"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Create,
-				},
-			},
-			{
-				Addr: mustResourceInstanceAddr("aws_instance.baz"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Create,
-				},
-			},
-			{
-				Addr: mustResourceInstanceAddr("data.aws_data_source.bar"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Read,
-				},
-				ActionReason: plans.ResourceInstanceReadBecauseCheckNested,
+	changes := plans.NewChangesPopulated([]*plans.ResourceInstanceChangeSrc{
+		{
+			Addr: mustResourceInstanceAddr("aws_instance.foo"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Create,
 			},
 		},
-	}
-
-	plugins := newContextPlugins(map[addrs.Provider]providers.Factory{
-		addrs.NewDefaultProvider("aws"): providers.FactoryFixed(awsProvider),
+		{
+			Addr: mustResourceInstanceAddr("aws_instance.baz"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Create,
+			},
+		},
+		{
+			Addr: mustResourceInstanceAddr("data.aws_data_source.bar"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Read,
+			},
+			ActionReason: plans.ResourceInstanceReadBecauseCheckNested,
+		},
 	}, nil)
+
+	plugins := plugins.NewManager(providers.NewManager(map[addrs.Provider]providers.Factory{
+		addrs.NewDefaultProvider("aws"): providers.FactoryFixed(awsProvider),
+	}), nil)
 
 	b := &ApplyGraphBuilder{
 		Config:    testModule(t, "apply-with-checks"),

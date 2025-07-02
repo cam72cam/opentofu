@@ -187,9 +187,9 @@ func testProviderFuncFixed(rp providers.Interface) providers.Factory {
 		p.CloseCalled = false
 	}
 
-	return func() (providers.Interface, error) {
+	return mockPluginFactory{func() (providers.Interface, error) {
 		return rp, nil
-	}
+	}}
 }
 
 func testProvisionerFuncFixed(rp *MockProvisioner) provisioners.Factory {

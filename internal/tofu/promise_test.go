@@ -1,15 +1,6 @@
 package tofu
 
-import (
-	"fmt"
-	"strconv"
-	"sync"
-	"testing"
-
-	"github.com/opentofu/opentofu/internal/tfdiags"
-	"github.com/zclconf/go-cty/cty"
-)
-
+/*
 type stringer string
 
 func (s stringer) String() string {

@@ -79,22 +79,20 @@ func filterInstances(g *Graph) *Graph {
 }
 
 func TestCBDEdgeTransformer(t *testing.T) {
-	changes := &plans.Changes{
-		Resources: []*plans.ResourceInstanceChangeSrc{
-			{
-				Addr: mustResourceInstanceAddr("test_object.A"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.CreateThenDelete,
-				},
-			},
-			{
-				Addr: mustResourceInstanceAddr("test_object.B"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Update,
-				},
+	changes := plans.NewChangesPopulated([]*plans.ResourceInstanceChangeSrc{
+		{
+			Addr: mustResourceInstanceAddr("test_object.A"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.CreateThenDelete,
 			},
 		},
-	}
+		{
+			Addr: mustResourceInstanceAddr("test_object.B"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Update,
+			},
+		},
+	}, nil)
 
 	state := states.NewState()
 	root := state.EnsureModule(addrs.RootModuleInstance)
@@ -136,28 +134,26 @@ test_object.B
 }
 
 func TestCBDEdgeTransformerMulti(t *testing.T) {
-	changes := &plans.Changes{
-		Resources: []*plans.ResourceInstanceChangeSrc{
-			{
-				Addr: mustResourceInstanceAddr("test_object.A"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.CreateThenDelete,
-				},
-			},
-			{
-				Addr: mustResourceInstanceAddr("test_object.B"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.CreateThenDelete,
-				},
-			},
-			{
-				Addr: mustResourceInstanceAddr("test_object.C"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Update,
-				},
+	changes := plans.NewChangesPopulated([]*plans.ResourceInstanceChangeSrc{
+		{
+			Addr: mustResourceInstanceAddr("test_object.A"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.CreateThenDelete,
 			},
 		},
-	}
+		{
+			Addr: mustResourceInstanceAddr("test_object.B"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.CreateThenDelete,
+			},
+		},
+		{
+			Addr: mustResourceInstanceAddr("test_object.C"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Update,
+			},
+		},
+	}, nil)
 
 	state := states.NewState()
 	root := state.EnsureModule(addrs.RootModuleInstance)
@@ -215,28 +211,26 @@ test_object.C
 }
 
 func TestCBDEdgeTransformer_depNonCBDCount(t *testing.T) {
-	changes := &plans.Changes{
-		Resources: []*plans.ResourceInstanceChangeSrc{
-			{
-				Addr: mustResourceInstanceAddr("test_object.A"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.CreateThenDelete,
-				},
-			},
-			{
-				Addr: mustResourceInstanceAddr("test_object.B[0]"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Update,
-				},
-			},
-			{
-				Addr: mustResourceInstanceAddr("test_object.B[1]"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Update,
-				},
+	changes := plans.NewChangesPopulated([]*plans.ResourceInstanceChangeSrc{
+		{
+			Addr: mustResourceInstanceAddr("test_object.A"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.CreateThenDelete,
 			},
 		},
-	}
+		{
+			Addr: mustResourceInstanceAddr("test_object.B[0]"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Update,
+			},
+		},
+		{
+			Addr: mustResourceInstanceAddr("test_object.B[1]"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Update,
+			},
+		},
+	}, nil)
 
 	state := states.NewState()
 	root := state.EnsureModule(addrs.RootModuleInstance)
@@ -289,34 +283,32 @@ test_object.B\[1\]
 }
 
 func TestCBDEdgeTransformer_depNonCBDCountBoth(t *testing.T) {
-	changes := &plans.Changes{
-		Resources: []*plans.ResourceInstanceChangeSrc{
-			{
-				Addr: mustResourceInstanceAddr("test_object.A[0]"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.CreateThenDelete,
-				},
-			},
-			{
-				Addr: mustResourceInstanceAddr("test_object.A[1]"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.CreateThenDelete,
-				},
-			},
-			{
-				Addr: mustResourceInstanceAddr("test_object.B[0]"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Update,
-				},
-			},
-			{
-				Addr: mustResourceInstanceAddr("test_object.B[1]"),
-				ChangeSrc: plans.ChangeSrc{
-					Action: plans.Update,
-				},
+	changes := plans.NewChangesPopulated([]*plans.ResourceInstanceChangeSrc{
+		{
+			Addr: mustResourceInstanceAddr("test_object.A[0]"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.CreateThenDelete,
 			},
 		},
-	}
+		{
+			Addr: mustResourceInstanceAddr("test_object.A[1]"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.CreateThenDelete,
+			},
+		},
+		{
+			Addr: mustResourceInstanceAddr("test_object.B[0]"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Update,
+			},
+		},
+		{
+			Addr: mustResourceInstanceAddr("test_object.B[1]"),
+			ChangeSrc: plans.ChangeSrc{
+				Action: plans.Update,
+			},
+		},
+	}, nil)
 
 	state := states.NewState()
 	root := state.EnsureModule(addrs.RootModuleInstance)

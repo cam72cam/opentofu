@@ -14,6 +14,7 @@ import (
 
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs/configschema"
+	"github.com/opentofu/opentofu/internal/plugins"
 	"github.com/opentofu/opentofu/internal/providers"
 )
 
@@ -33,10 +34,10 @@ func TestPlanGraphBuilder(t *testing.T) {
 		},
 	}
 	openstackProvider := mockProviderWithResourceTypeSchema("openstack_floating_ip", simpleTestSchema())
-	plugins := newContextPlugins(map[addrs.Provider]providers.Factory{
+	plugins := plugins.NewManager(providers.NewManager(map[addrs.Provider]providers.Factory{
 		addrs.NewDefaultProvider("aws"):       providers.FactoryFixed(awsProvider),
 		addrs.NewDefaultProvider("openstack"): providers.FactoryFixed(openstackProvider),
-	}, nil)
+	}), nil)
 
 	b := &PlanGraphBuilder{
 		Config:    testModule(t, "graph-builder-plan-basic"),
@@ -77,9 +78,9 @@ func TestPlanGraphBuilder_dynamicBlock(t *testing.T) {
 			},
 		},
 	})
-	plugins := newContextPlugins(map[addrs.Provider]providers.Factory{
+	plugins := plugins.NewManager(providers.NewManager(map[addrs.Provider]providers.Factory{
 		addrs.NewDefaultProvider("test"): providers.FactoryFixed(provider),
-	}, nil)
+	}), nil)
 
 	b := &PlanGraphBuilder{
 		Config:    testModule(t, "graph-builder-plan-dynblock"),
@@ -133,9 +134,9 @@ func TestPlanGraphBuilder_attrAsBlocks(t *testing.T) {
 			},
 		},
 	})
-	plugins := newContextPlugins(map[addrs.Provider]providers.Factory{
+	plugins := plugins.NewManager(providers.NewManager(map[addrs.Provider]providers.Factory{
 		addrs.NewDefaultProvider("test"): providers.FactoryFixed(provider),
-	}, nil)
+	}), nil)
 
 	b := &PlanGraphBuilder{
 		Config:    testModule(t, "graph-builder-plan-attr-as-blocks"),
@@ -219,9 +220,9 @@ func TestPlanGraphBuilder_excludeModule(t *testing.T) {
 func TestPlanGraphBuilder_forEach(t *testing.T) {
 	awsProvider := mockProviderWithResourceTypeSchema("aws_instance", simpleTestSchema())
 
-	plugins := newContextPlugins(map[addrs.Provider]providers.Factory{
+	plugins := plugins.NewManager(providers.NewManager(map[addrs.Provider]providers.Factory{
 		addrs.NewDefaultProvider("aws"): providers.FactoryFixed(awsProvider),
-	}, nil)
+	}), nil)
 
 	b := &PlanGraphBuilder{
 		Config:    testModule(t, "plan-for-each"),

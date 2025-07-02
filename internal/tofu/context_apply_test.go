@@ -775,7 +775,7 @@ func TestContext2Apply_providerAlias(t *testing.T) {
 	}
 	ctx := testContext2(t, &ContextOpts{
 		Providers: map[addrs.Provider]providers.Factory{
-			addrs.NewDefaultProvider("aws"): p,
+			addrs.NewDefaultProvider("aws"): mockPluginFactory{p},
 		},
 	})
 
@@ -814,7 +814,7 @@ func TestContext2Apply_providerAliasConfigure(t *testing.T) {
 
 	ctx := testContext2(t, &ContextOpts{
 		Providers: map[addrs.Provider]providers.Factory{
-			addrs.NewDefaultProvider("another"): p,
+			addrs.NewDefaultProvider("another"): mockPluginFactory{p},
 		},
 	})
 
@@ -846,7 +846,7 @@ func TestContext2Apply_providerAliasConfigure(t *testing.T) {
 
 	ctx = testContext2(t, &ContextOpts{
 		Providers: map[addrs.Provider]providers.Factory{
-			addrs.NewDefaultProvider("another"): p,
+			addrs.NewDefaultProvider("another"): mockPluginFactory{p},
 		},
 	})
 
@@ -1803,7 +1803,7 @@ func TestContext2Apply_destroyModuleVarProviderConfig(t *testing.T) {
 	)
 	ctx := testContext2(t, &ContextOpts{
 		Providers: map[addrs.Provider]providers.Factory{
-			addrs.NewDefaultProvider("aws"): p,
+			addrs.NewDefaultProvider("aws"): mockPluginFactory{p},
 		},
 	})
 
@@ -2571,7 +2571,7 @@ func TestContext2Apply_provisionerInterpCount(t *testing.T) {
 	}
 	ctxOpts.Providers = Providers
 	ctxOpts.Provisioners = provisioners
-	ctx, diags = NewContext(ctxOpts)
+	ctx, diags = NewContext(ctxOpts, m, nil)
 	if diags.HasErrors() {
 		t.Fatalf("failed to create context for plan: %s", diags.Err())
 	}
@@ -5977,7 +5977,7 @@ func TestContext2Apply_destroyModuleWithAttrsReferencingResource(t *testing.T) {
 			addrs.NewDefaultProvider("aws"): testProviderFuncFixed(p),
 		}
 
-		ctx, diags = NewContext(ctxOpts)
+		ctx, diags = NewContext(ctxOpts, m, state)
 		if diags.HasErrors() {
 			t.Fatalf("err: %s", diags.Err())
 		}
@@ -6048,7 +6048,7 @@ func TestContext2Apply_destroyWithModuleVariableAndCount(t *testing.T) {
 				addrs.NewDefaultProvider("aws"): testProviderFuncFixed(p),
 			}
 
-		ctx, diags = NewContext(ctxOpts)
+		ctx, diags = NewContext(ctxOpts, m, nil)
 		if diags.HasErrors() {
 			t.Fatalf("err: %s", diags.Err())
 		}
@@ -6192,7 +6192,7 @@ func TestContext2Apply_destroyWithModuleVariableAndCountNested(t *testing.T) {
 				addrs.NewDefaultProvider("aws"): testProviderFuncFixed(p),
 			}
 
-		ctx, diags = NewContext(ctxOpts)
+		ctx, diags = NewContext(ctxOpts, m, nil)
 		if diags.HasErrors() {
 			t.Fatalf("err: %s", diags.Err())
 		}
@@ -8194,7 +8194,7 @@ func TestContext2Apply_issue7824(t *testing.T) {
 			addrs.NewDefaultProvider("template"): testProviderFuncFixed(p),
 		}
 
-	ctx, diags = NewContext(ctxOpts)
+	ctx, diags = NewContext(ctxOpts, m, nil)
 	if diags.HasErrors() {
 		t.Fatalf("err: %s", diags.Err())
 	}
@@ -8268,7 +8268,7 @@ func TestContext2Apply_issue5254(t *testing.T) {
 		addrs.NewDefaultProvider("template"): testProviderFuncFixed(p),
 	}
 
-	ctx, diags = NewContext(ctxOpts)
+	ctx, diags = NewContext(ctxOpts, m, state)
 	if diags.HasErrors() {
 		t.Fatalf("err: %s", diags.Err())
 	}
@@ -8346,7 +8346,7 @@ func TestContext2Apply_targetedWithTaintedInState(t *testing.T) {
 		addrs.NewDefaultProvider("aws"): testProviderFuncFixed(p),
 	}
 
-	ctx, diags = NewContext(ctxOpts)
+	ctx, diags = NewContext(ctxOpts, m, state)
 	if diags.HasErrors() {
 		t.Fatalf("err: %s", diags.Err())
 	}
@@ -8613,7 +8613,7 @@ func TestContext2Apply_destroyNestedModuleWithAttrsReferencingResource(t *testin
 			addrs.NewDefaultProvider("null"): testProviderFuncFixed(p),
 		}
 
-		ctx, diags = NewContext(ctxOpts)
+		ctx, diags = NewContext(ctxOpts, m, nil)
 		if diags.HasErrors() {
 			t.Fatalf("err: %s", diags.Err())
 		}
@@ -9199,7 +9199,7 @@ func TestContext2Apply_plannedInterpolatedCount(t *testing.T) {
 	}
 
 	ctxOpts.Providers = Providers
-	ctx, diags = NewContext(ctxOpts)
+	ctx, diags = NewContext(ctxOpts, m, nil)
 	if diags.HasErrors() {
 		t.Fatalf("err: %s", diags.Err())
 	}
@@ -9260,7 +9260,7 @@ func TestContext2Apply_plannedDestroyInterpolatedCount(t *testing.T) {
 	}
 
 	ctxOpts.Providers = providers
-	ctx, diags = NewContext(ctxOpts)
+	ctx, diags = NewContext(ctxOpts, m, state)
 	if diags.HasErrors() {
 		t.Fatalf("err: %s", diags.Err())
 	}
@@ -9633,42 +9633,40 @@ func TestContext2Apply_moduleReplaceCycle(t *testing.T) {
 			},
 		})
 
-		changes := &plans.Changes{
-			Resources: []*plans.ResourceInstanceChangeSrc{
-				{
-					Addr: addrs.Resource{
-						Mode: addrs.ManagedResourceMode,
-						Type: "aws_instance",
-						Name: "a",
-					}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance.Child("a", addrs.NoKey)),
-					ProviderAddr: addrs.AbsProviderConfig{
-						Provider: addrs.NewDefaultProvider("aws"),
-						Module:   addrs.RootModule,
-					},
-					ChangeSrc: plans.ChangeSrc{
-						Action: aAction,
-						Before: aBefore,
-						After:  aAfter,
-					},
+		changes := plans.NewChangesPopulated([]*plans.ResourceInstanceChangeSrc{
+			{
+				Addr: addrs.Resource{
+					Mode: addrs.ManagedResourceMode,
+					Type: "aws_instance",
+					Name: "a",
+				}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance.Child("a", addrs.NoKey)),
+				ProviderAddr: addrs.AbsProviderConfig{
+					Provider: addrs.NewDefaultProvider("aws"),
+					Module:   addrs.RootModule,
 				},
-				{
-					Addr: addrs.Resource{
-						Mode: addrs.ManagedResourceMode,
-						Type: "aws_instance",
-						Name: "b",
-					}.Instance(addrs.IntKey(0)).Absolute(addrs.RootModuleInstance.Child("b", addrs.NoKey)),
-					ProviderAddr: addrs.AbsProviderConfig{
-						Provider: addrs.NewDefaultProvider("aws"),
-						Module:   addrs.RootModule,
-					},
-					ChangeSrc: plans.ChangeSrc{
-						Action: plans.DeleteThenCreate,
-						Before: bBefore,
-						After:  bAfter,
-					},
+				ChangeSrc: plans.ChangeSrc{
+					Action: aAction,
+					Before: aBefore,
+					After:  aAfter,
 				},
 			},
-		}
+			{
+				Addr: addrs.Resource{
+					Mode: addrs.ManagedResourceMode,
+					Type: "aws_instance",
+					Name: "b",
+				}.Instance(addrs.IntKey(0)).Absolute(addrs.RootModuleInstance.Child("b", addrs.NoKey)),
+				ProviderAddr: addrs.AbsProviderConfig{
+					Provider: addrs.NewDefaultProvider("aws"),
+					Module:   addrs.RootModule,
+				},
+				ChangeSrc: plans.ChangeSrc{
+					Action: plans.DeleteThenCreate,
+					Before: bBefore,
+					After:  bAfter,
+				},
+			},
+		}, nil)
 
 		plan := &plans.Plan{
 			UIMode:       plans.NormalMode,
@@ -9788,7 +9786,7 @@ func TestContext2Apply_destroyDataCycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctxOpts.Providers = Providers
-	ctx, diags = NewContext(ctxOpts)
+	ctx, diags = NewContext(ctxOpts, m, state)
 	if diags.HasErrors() {
 		t.Fatalf("failed to create context for plan: %s", diags.Err())
 	}
@@ -10145,7 +10143,7 @@ func TestContext2Apply_cbdCycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctxOpts.Providers = Providers
-	ctx, diags = NewContext(ctxOpts)
+	ctx, diags = NewContext(ctxOpts, m, state)
 	if diags.HasErrors() {
 		t.Fatalf("failed to create context for plan: %s", diags.Err())
 	}
@@ -11665,7 +11663,7 @@ func TestContext2Apply_destroyProviderReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctxOpts.Providers = providers
-	ctx, diags = NewContext(ctxOpts)
+	ctx, diags = NewContext(ctxOpts, m, state)
 
 	if diags.HasErrors() {
 		t.Fatalf("failed to create context for plan: %s", diags.Err())
@@ -12905,6 +12903,10 @@ func TestContext2Apply_errorRestoreStatus(t *testing.T) {
 
 	state, diags = ctx.Apply(context.Background(), plan, m)
 
+	if !diags.HasErrors() {
+		t.Fatal("Expected errors!")
+	}
+
 	errString := diags.ErrWithWarnings().Error()
 	if !strings.Contains(errString, "oops") || !strings.Contains(errString, "warned") {
 		t.Fatalf("error missing expected info: %q", errString)
@@ -12966,6 +12968,11 @@ resource "test_object" "a" {
 	}
 
 	_, diags = ctx.Apply(context.Background(), plan, m)
+
+	if !diags.HasErrors() {
+		t.Fatal("Expected errors!")
+	}
+
 	errString := diags.ErrWithWarnings().Error()
 	if !strings.Contains(errString, "oops") || !strings.Contains(errString, "warned") {
 		t.Fatalf("error missing expected info: %q", errString)

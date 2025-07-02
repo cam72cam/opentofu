@@ -177,7 +177,7 @@ func (h *testHook) Stopping() {
 	h.Calls = append(h.Calls, &testHookCall{"Stopping", ""})
 }
 
-func (h *testHook) PostStateUpdate(new *states.State) (HookAction, error) {
+func (h *testHook) PostStateUpdate(addr addrs.AbsResourceInstance, new *states.ResourceInstance, provider addrs.AbsProviderConfig) (HookAction, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.Calls = append(h.Calls, &testHookCall{"PostStateUpdate", ""})

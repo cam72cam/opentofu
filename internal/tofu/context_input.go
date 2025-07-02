@@ -126,6 +126,10 @@ func (c *Context) Input(ctx context.Context, config *configs.Config, mode InputM
 				log.Printf("[TRACE] Context.Input: No schema available for provider type %q: %s", pa.LocalName, err.Error())
 				continue
 			}
+			if schema == nil {
+				log.Printf("TODO DECIDE IF THIS IS IMPORTANT")
+				continue
+			}
 
 			// For our purposes here we just want to detect if attributes are
 			// set in config at all, so rather than doing a full decode

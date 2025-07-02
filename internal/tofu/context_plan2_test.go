@@ -1109,14 +1109,14 @@ import {
 		t.Fatal("only a single resource should be changed in the plan")
 	}
 
-	changedResource := plan.Changes.Resources[0]
+	for _, changedResource := range plan.Changes.Resources {
+		if changedResource.Action != plans.Delete {
+			t.Errorf("unexpected %s change for %s", changedResource.Action, changedResource.Addr)
+		}
 
-	if changedResource.Action != plans.Delete {
-		t.Errorf("unexpected %s change for %s", changedResource.Action, changedResource.Addr)
-	}
-
-	if !changedResource.Addr.Equal(expectedDestroyedAddr) {
-		t.Errorf("unexpected change for resource %s instead of %s", changedResource.Addr, expectedDestroyedAddr)
+		if !changedResource.Addr.Equal(expectedDestroyedAddr) {
+			t.Errorf("unexpected change for resource %s instead of %s", changedResource.Addr, expectedDestroyedAddr)
+		}
 	}
 }
 

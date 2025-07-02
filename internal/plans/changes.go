@@ -39,6 +39,16 @@ func NewChanges() *Changes {
 	}
 }
 
+func NewChangesPopulated(resources []*ResourceInstanceChangeSrc, outputs []*OutputChangeSrc) *Changes {
+	changes := NewChanges()
+	for _, resource := range resources {
+		changes.Resources[ResourceChangeKey(resource.Addr, resource.DeposedKey)] = resource
+	}
+	changes.Outputs = outputs
+
+	return changes
+}
+
 func ResourceChangeKey(addr addrs.AbsResourceInstance, gen states.Generation) string {
 	if gen == nil {
 		return addr.String() + ":"

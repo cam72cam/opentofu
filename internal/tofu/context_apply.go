@@ -100,7 +100,8 @@ func (c *Context) Apply(ctx context.Context, plan *plans.Plan, config *configs.C
 	} else {
 		providerFunctionTracker := make(ProviderFunctionMapping)
 
-		graph, operation, diags := c.applyGraph(ctx, plan, config, providerFunctionTracker)
+		graph, operation, applyDiags := c.applyGraph(ctx, plan, config, providerFunctionTracker)
+		diags = diags.Append(applyDiags)
 		if diags.HasErrors() {
 			return nil, diags
 		}

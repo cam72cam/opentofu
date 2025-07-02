@@ -506,14 +506,12 @@ func TestDestroyEdgeTransformer_noOp(t *testing.T) {
 	tf := &DestroyEdgeTransformer{
 		// We only need a minimal object to indicate GraphNodeCreator change is
 		// a NoOp here.
-		Changes: &plans.Changes{
-			Resources: []*plans.ResourceInstanceChangeSrc{
-				{
-					Addr:      mustResourceInstanceAddr("test_object.B"),
-					ChangeSrc: plans.ChangeSrc{Action: plans.NoOp},
-				},
+		Changes: plans.NewChangesPopulated([]*plans.ResourceInstanceChangeSrc{
+			{
+				Addr:      mustResourceInstanceAddr("test_object.B"),
+				ChangeSrc: plans.ChangeSrc{Action: plans.NoOp},
 			},
-		},
+		}, nil),
 	}
 	if err := tf.Transform(t.Context(), &g); err != nil {
 		t.Fatalf("err: %s", err)

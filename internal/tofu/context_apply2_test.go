@@ -4292,7 +4292,7 @@ func TestContext2Apply_excludedWithTaintedInState(t *testing.T) {
 		addrs.NewDefaultProvider("aws"): testProviderFuncFixed(p),
 	}
 
-	ctx, diags = NewContext(ctxOpts)
+	ctx, diags = NewContext(ctxOpts, m, state)
 	if diags.HasErrors() {
 		t.Fatalf("err: %s", diags.Err())
 	}

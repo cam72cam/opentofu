@@ -448,39 +448,36 @@ func TestEvaluatorGetResource_changes(t *testing.T) {
 		},
 	}
 
-	// Set up our schemas
-	schemas := &Schemas{
-		Providers: map[addrs.Provider]providers.ProviderSchema{
-			addrs.NewDefaultProvider("test"): {
-				ResourceTypes: map[string]providers.Schema{
-					"test_resource": {
-						Block: &configschema.Block{
-							Attributes: map[string]*configschema.Attribute{
-								"id": {
-									Type:     cty.String,
-									Computed: true,
-								},
-								"to_mark_val": {
-									Type:     cty.String,
-									Computed: true,
-								},
-								"sensitive_value": {
-									Type:      cty.String,
-									Computed:  true,
-									Sensitive: true,
-								},
-								"sensitive_collection": {
-									Type:      cty.Map(cty.String),
-									Computed:  true,
-									Sensitive: true,
-								},
+	plugins := schemaOnlyProvidersForTesting(map[addrs.Provider]providers.ProviderSchema{
+		addrs.NewDefaultProvider("test"): {
+			ResourceTypes: map[string]providers.Schema{
+				"test_resource": {
+					Block: &configschema.Block{
+						Attributes: map[string]*configschema.Attribute{
+							"id": {
+								Type:     cty.String,
+								Computed: true,
+							},
+							"to_mark_val": {
+								Type:     cty.String,
+								Computed: true,
+							},
+							"sensitive_value": {
+								Type:      cty.String,
+								Computed:  true,
+								Sensitive: true,
+							},
+							"sensitive_collection": {
+								Type:      cty.Map(cty.String),
+								Computed:  true,
+								Sensitive: true,
 							},
 						},
 					},
 				},
 			},
 		},
-	}
+	}, nil)
 
 	// The resource we'll inspect
 	addr := addrs.Resource{
@@ -488,7 +485,7 @@ func TestEvaluatorGetResource_changes(t *testing.T) {
 		Type: "test_resource",
 		Name: "foo",
 	}
-	schema, _ := schemas.ResourceTypeConfig(addrs.NewDefaultProvider("test"), addr.Mode, addr.Type)
+	schema, _, _ := plugins.ResourceTypeSchema(addrs.NewDefaultProvider("test"), addr.Mode, addr.Type)
 	// This encoding separates out the After's marks into its AfterValMarks
 	csrc, _ := change.Encode(schema.ImpliedType())
 	changesSync.AppendResourceInstanceChange(csrc)
@@ -515,7 +512,7 @@ func TestEvaluatorGetResource_changes(t *testing.T) {
 			},
 		},
 		State:   stateSync,
-		Plugins: schemaOnlyProvidersForTesting(schemas.Providers, t),
+		Plugins: plugins,
 	}
 
 	data := &evaluationStateData{

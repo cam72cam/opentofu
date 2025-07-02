@@ -584,15 +584,15 @@ func (m *Meta) contextOpts(ctx context.Context) (*tofu.ContextOpts, error) {
 	// and just work with what we've been given, thus allowing the tests
 	// to provide mock providers and provisioners.
 	if m.testingOverrides != nil {
-		opts.Providers = func(context.Context, *configs.Config, *states.State) (providers.Manager, error) {
+		opts.ProvidersFn = func(context.Context, *configs.Config, *states.State) (providers.Manager, error) {
 			return m.testingOverrides.Providers, nil
 		}
-		opts.Provisioners = func() (provisioners.Manager, error) {
+		opts.ProvisionersFn = func() (provisioners.Manager, error) {
 			return m.testingOverrides.Provisioners, nil
 		}
 	} else {
-		opts.Providers = m.providerManager
-		opts.Provisioners = m.provisionerManager
+		opts.ProvidersFn = m.providerManager
+		opts.ProvisionersFn = m.provisionerManager
 	}
 
 	opts.Meta = &tofu.ContextMeta{

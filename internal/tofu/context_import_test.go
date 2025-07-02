@@ -244,7 +244,7 @@ func TestContextImport_multiInstanceProviderConfig(t *testing.T) {
 
 	ctx := testContext2(t, &ContextOpts{
 		Providers: map[addrs.Provider]providers.Factory{
-			addrs.NewBuiltInProvider("test"): providerFactory,
+			addrs.NewBuiltInProvider("test"): mockPluginFactory{providerFactory},
 		},
 	})
 

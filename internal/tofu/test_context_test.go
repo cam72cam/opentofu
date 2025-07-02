@@ -441,28 +441,26 @@ run "test_case" {
 					}, addrs.NoKey)
 			}),
 			plan: &plans.Plan{
-				Changes: &plans.Changes{
-					Resources: []*plans.ResourceInstanceChangeSrc{
-						{
-							Addr: addrs.Resource{
-								Mode: addrs.ManagedResourceMode,
-								Type: "test_resource",
-								Name: "a",
-							}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance),
-							ProviderAddr: addrs.AbsProviderConfig{
-								Module:   addrs.RootModule,
-								Provider: addrs.NewDefaultProvider("test"),
-							},
-							ChangeSrc: plans.ChangeSrc{
-								Action: plans.Create,
-								Before: nil,
-								After: encodeDynamicValue(t, cty.ObjectVal(map[string]cty.Value{
-									"value": cty.StringVal("Hello, world!"),
-								})),
-							},
+				Changes: plans.NewChangesPopulated([]*plans.ResourceInstanceChangeSrc{
+					{
+						Addr: addrs.Resource{
+							Mode: addrs.ManagedResourceMode,
+							Type: "test_resource",
+							Name: "a",
+						}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance),
+						ProviderAddr: addrs.AbsProviderConfig{
+							Module:   addrs.RootModule,
+							Provider: addrs.NewDefaultProvider("test"),
+						},
+						ChangeSrc: plans.ChangeSrc{
+							Action: plans.Create,
+							Before: nil,
+							After: encodeDynamicValue(t, cty.ObjectVal(map[string]cty.Value{
+								"value": cty.StringVal("Hello, world!"),
+							})),
 						},
 					},
-				},
+				}, nil),
 			},
 			provider: &MockProvider{
 				GetProviderSchemaResponse: &providers.GetProviderSchemaResponse{
@@ -517,28 +515,26 @@ run "test_case" {
 					}, addrs.NoKey)
 			}),
 			plan: &plans.Plan{
-				Changes: &plans.Changes{
-					Resources: []*plans.ResourceInstanceChangeSrc{
-						{
-							Addr: addrs.Resource{
-								Mode: addrs.ManagedResourceMode,
-								Type: "test_resource",
-								Name: "a",
-							}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance),
-							ProviderAddr: addrs.AbsProviderConfig{
-								Module:   addrs.RootModule,
-								Provider: addrs.NewDefaultProvider("test"),
-							},
-							ChangeSrc: plans.ChangeSrc{
-								Action: plans.Create,
-								Before: nil,
-								After: encodeDynamicValue(t, cty.ObjectVal(map[string]cty.Value{
-									"value": cty.StringVal("Hello, world!"),
-								})),
-							},
+				Changes: plans.NewChangesPopulated([]*plans.ResourceInstanceChangeSrc{
+					{
+						Addr: addrs.Resource{
+							Mode: addrs.ManagedResourceMode,
+							Type: "test_resource",
+							Name: "a",
+						}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance),
+						ProviderAddr: addrs.AbsProviderConfig{
+							Module:   addrs.RootModule,
+							Provider: addrs.NewDefaultProvider("test"),
+						},
+						ChangeSrc: plans.ChangeSrc{
+							Action: plans.Create,
+							Before: nil,
+							After: encodeDynamicValue(t, cty.ObjectVal(map[string]cty.Value{
+								"value": cty.StringVal("Hello, world!"),
+							})),
 						},
 					},
-				},
+				}, nil),
 			},
 			provider: &MockProvider{
 				GetProviderSchemaResponse: &providers.GetProviderSchemaResponse{

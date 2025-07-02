@@ -103,7 +103,7 @@ func TestNewContextRequiredVersion(t *testing.T) {
 					Required: constraint,
 				})
 			}
-			c, diags := NewContext(&ContextOpts{})
+			c, diags := NewContext(&ContextOpts{}, mod, nil)
 			if diags.HasErrors() {
 				t.Fatalf("unexpected NewContext errors: %s", diags.Err())
 			}
@@ -162,7 +162,7 @@ terraform {}
 					Required: constraint,
 				})
 			}
-			c, diags := NewContext(&ContextOpts{})
+			c, diags := NewContext(&ContextOpts{}, mod, nil)
 			if diags.HasErrors() {
 				t.Fatalf("unexpected NewContext errors: %s", diags.Err())
 			}
@@ -176,9 +176,6 @@ terraform {}
 }
 
 func TestContext_missingPlugins(t *testing.T) {
-	ctx, diags := NewContext(&ContextOpts{})
-	assertNoDiagnostics(t, diags)
-
 	configSrc := `
 terraform {
 	required_providers {
@@ -204,6 +201,9 @@ resource "implicit_thing" "b" {
 	cfg := testModuleInline(t, map[string]string{
 		"main.tf": configSrc,
 	})
+
+	ctx, diags := NewContext(&ContextOpts{}, cfg, nil)
+	assertNoDiagnostics(t, diags)
 
 	// Validate and Plan are the two entry points where we explicitly verify
 	// the available plugins match what the configuration needs. For other
@@ -258,7 +258,7 @@ resource "implicit_thing" "b" {
 func testContext2(t testing.TB, opts *ContextOpts) *Context {
 	t.Helper()
 
-	ctx, diags := NewContext(opts)
+	ctx, diags := NewContext(opts, nil, nil) // TODO this probably breaks stuff
 	if diags.HasErrors() {
 		t.Fatalf("failed to create test context\n\n%s\n", diags.Err())
 	}

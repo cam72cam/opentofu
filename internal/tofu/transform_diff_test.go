@@ -46,26 +46,24 @@ func TestDiffTransformer(t *testing.T) {
 	}
 
 	tf := &DiffTransformer{
-		Changes: &plans.Changes{
-			Resources: []*plans.ResourceInstanceChangeSrc{
-				{
-					Addr: addrs.Resource{
-						Mode: addrs.ManagedResourceMode,
-						Type: "aws_instance",
-						Name: "foo",
-					}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance),
-					ProviderAddr: addrs.AbsProviderConfig{
-						Provider: addrs.NewDefaultProvider("aws"),
-						Module:   addrs.RootModule,
-					},
-					ChangeSrc: plans.ChangeSrc{
-						Action: plans.Update,
-						Before: beforeVal,
-						After:  afterVal,
-					},
+		Changes: plans.NewChangesPopulated([]*plans.ResourceInstanceChangeSrc{
+			{
+				Addr: addrs.Resource{
+					Mode: addrs.ManagedResourceMode,
+					Type: "aws_instance",
+					Name: "foo",
+				}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance),
+				ProviderAddr: addrs.AbsProviderConfig{
+					Provider: addrs.NewDefaultProvider("aws"),
+					Module:   addrs.RootModule,
+				},
+				ChangeSrc: plans.ChangeSrc{
+					Action: plans.Update,
+					Before: beforeVal,
+					After:  afterVal,
 				},
 			},
-		},
+		}, nil),
 	}
 	if err := tf.Transform(t.Context(), &g); err != nil {
 		t.Fatalf("err: %s", err)
@@ -121,46 +119,44 @@ resource "aws_instance" "foo" {
 
 	tf := &DiffTransformer{
 		Config: m,
-		Changes: &plans.Changes{
-			Resources: []*plans.ResourceInstanceChangeSrc{
-				{
-					Addr: addrs.Resource{
-						Mode: addrs.ManagedResourceMode,
-						Type: "aws_instance",
-						Name: "foo",
-					}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance),
-					ProviderAddr: addrs.AbsProviderConfig{
-						Provider: addrs.NewDefaultProvider("aws"),
-						Module:   addrs.RootModule,
-					},
-					ChangeSrc: plans.ChangeSrc{
-						// A "no-op" change has the no-op action and has the
-						// same object as both Before and After.
-						Action: plans.NoOp,
-						Before: beforeVal,
-						After:  beforeVal,
-					},
+		Changes: plans.NewChangesPopulated([]*plans.ResourceInstanceChangeSrc{
+			{
+				Addr: addrs.Resource{
+					Mode: addrs.ManagedResourceMode,
+					Type: "aws_instance",
+					Name: "foo",
+				}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance),
+				ProviderAddr: addrs.AbsProviderConfig{
+					Provider: addrs.NewDefaultProvider("aws"),
+					Module:   addrs.RootModule,
 				},
-				{
-					Addr: addrs.Resource{
-						Mode: addrs.ManagedResourceMode,
-						Type: "aws_instance",
-						Name: "bar",
-					}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance),
-					ProviderAddr: addrs.AbsProviderConfig{
-						Provider: addrs.NewDefaultProvider("aws"),
-						Module:   addrs.RootModule,
-					},
-					ChangeSrc: plans.ChangeSrc{
-						// A "no-op" change has the no-op action and has the
-						// same object as both Before and After.
-						Action: plans.NoOp,
-						Before: beforeVal,
-						After:  beforeVal,
-					},
+				ChangeSrc: plans.ChangeSrc{
+					// A "no-op" change has the no-op action and has the
+					// same object as both Before and After.
+					Action: plans.NoOp,
+					Before: beforeVal,
+					After:  beforeVal,
 				},
 			},
-		},
+			{
+				Addr: addrs.Resource{
+					Mode: addrs.ManagedResourceMode,
+					Type: "aws_instance",
+					Name: "bar",
+				}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance),
+				ProviderAddr: addrs.AbsProviderConfig{
+					Provider: addrs.NewDefaultProvider("aws"),
+					Module:   addrs.RootModule,
+				},
+				ChangeSrc: plans.ChangeSrc{
+					// A "no-op" change has the no-op action and has the
+					// same object as both Before and After.
+					Action: plans.NoOp,
+					Before: beforeVal,
+					After:  beforeVal,
+				},
+			},
+		}, nil),
 	}
 	if err := tf.Transform(t.Context(), &g); err != nil {
 		t.Fatalf("err: %s", err)
@@ -190,16 +186,14 @@ func TestTransformRemovedProvisioners(t *testing.T) {
 	resAddr := mustResourceInstanceAddr("module.child.tfcoremock_simple_resource.example")
 	err = (&DiffTransformer{
 		Config: module,
-		Changes: &plans.Changes{
-			Resources: []*plans.ResourceInstanceChangeSrc{
-				{
-					Addr: resAddr,
-					ChangeSrc: plans.ChangeSrc{
-						Action: plans.Delete,
-					},
+		Changes: plans.NewChangesPopulated([]*plans.ResourceInstanceChangeSrc{
+			{
+				Addr: resAddr,
+				ChangeSrc: plans.ChangeSrc{
+					Action: plans.Delete,
 				},
 			},
-		},
+		}, nil),
 	}).Transform(t.Context(), &g)
 	if err != nil {
 		t.Fatal(err)
