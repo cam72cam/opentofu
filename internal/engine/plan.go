@@ -3,12 +3,10 @@ package engine
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/checks"
 	"github.com/opentofu/opentofu/internal/configs"
-	"github.com/opentofu/opentofu/internal/dag"
 	"github.com/opentofu/opentofu/internal/plans"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/tfdiags"
@@ -54,45 +52,32 @@ func WalkPlan(ctx context.Context, config *configs.Config, tofuCtx *tofu.Context
 	out.Refresh.SyncWrapper().RemovePlannedResourceInstanceObjects()
 
 	// Post-process plan to spread create_before_destroy
-	cbds := map[string]PoolEntry{}
-	for _, mod := range out.Refresh.Modules {
-		for _, res := range mod.Resources {
-			for key, inst := range res.Instances {
-				addr := res.Addr.Instance(key)
-				if inst.Current.CreateBeforeDestroy {
-					fmt.Printf("CBD: %s\n", addr.String())
-					//TODO this is copy paste for now
-					cbds[addr.String()] = nil
+
+	// Figure out which resources are *actively* CreateThenDelete
+	propagateTo := addrs.Set[addrs.ConfigResource]{}
+	for _, change := range out.Changes.Resources {
+		if change.ChangeSrc.Action == plans.CreateThenDelete {
+			println("CTD: " + change.Addr.String())
+
+			changeState := out.Refresh.ResourceInstance(change.Addr)
+
+			if changeState != nil {
+				for _, dep := range changeState.Current.Dependencies {
+					propagateTo.Add(dep)
 				}
 			}
 		}
 	}
 
-	var g dag.AcyclicGraph
-	for _, e := range edges {
-		g.Add(e.Requester)
-		g.Add(e.Requestee)
-		g.Connect(dag.BasicEdge(e.Requester, e.Requestee))
+	for _, target := range propagateTo {
+		for _, res := range state.Resources(target) {
+			for key, inst := range res.Instances {
+				// Legacy marker, not really used anymore
+				inst.Current.CreateBeforeDestroy = true
 
-		_, ok := cbds[e.Requester.Ident().Addr().String()]
-		if ok {
-			cbds[e.Requester.Ident().Addr().String()] = e.Requester
-		}
-	}
-	//println(g.StringWithNodeTypes())
-	for _, cbd := range cbds {
-		prop, _ := g.Ancestors(cbd)
-		for _, p := range prop {
-			id := p.(PoolEntry).Ident()
-			if strings.HasSuffix(id.String(), "(instance)") {
-				if addr, ok := id.Addr().(addrs.AbsResourceInstance); ok {
-					println("Prop -> " + id.String())
-
-					out.Refresh.ResourceInstance(addr).Current.CreateBeforeDestroy = true
-					change := out.Changes.ResourceInstance(addr)
-					if change.ChangeSrc.Action == plans.DeleteThenCreate {
-						change.ChangeSrc.Action = plans.CreateThenDelete
-					}
+				depChange := out.Changes.ResourceInstance(res.Addr.Instance(key))
+				if depChange != nil && depChange.ChangeSrc.Action == plans.DeleteThenCreate {
+					depChange.ChangeSrc.Action = plans.CreateThenDelete
 				}
 			}
 		}
