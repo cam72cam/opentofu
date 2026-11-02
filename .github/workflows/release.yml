@@ -87,6 +87,17 @@ jobs:
         uses: ./.github/actions/release-cache
         with: { goos: "${{ matrix.goos }}", goarch: "${{ matrix.goarch }}", tag: "${{ needs.info.outputs.tag }}" }
 
+      - name: Setup snapcraft
+        run: |
+          sudo snap install snapcraft --classic --channel=7.x/stable
+
+          # See https://github.com/goreleaser/goreleaser/issues/1715
+          # https://bugs.launchpad.net/snapcraft/+bug/1889741
+          mkdir -p "$HOME/.cache/snapcraft/download"
+          mkdir -p "$HOME/.cache/snapcraft/stage-packages"
+        #env:
+        #  SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_TOKEN }}
+
       - name: Import GPG key
         if: matrix.goos == 'linux'
         run: |
