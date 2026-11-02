@@ -52,15 +52,17 @@ archives:
 
 dockers_v2:
   - images:
-      - "ghcr.io/cam72cam/opentofu:{{ .Version }}-minimal"
+      - "ghcr.io/cam72cam/opentofu"
     dockerfile: "Dockerfile.minimal"
     platforms:
       - linux/amd64
       - linux/arm64
     tags:
       - "{{ .Version }}"
+      - "{{ .Version }}-minimal"
       - "{{ .Major }}.{{ .Minor }}"
-      - "{{ .Major }}" # TODO this is super broken for backports!
+      - "{{ .Major }}.{{ .Minor }}-minimal"
+      - "{{ .Major }}-minimal" # TODO this is super broken for backports!
       - "latest" # TODO this is super broken for backports!
     annotations:
       "org.opencontainers.image.title": "{{ .ProjectName }}"
