@@ -22,14 +22,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: "Determine tag from version file"
+      - name: "Determine tag"
         if: ${{ inputs.tag == '' }}
         id: tag
-        run: echo "value=v$(cat version/VERSION)" | tee -a "${GITHUB_OUTPUT}"
-      - name: "Determine tag from input"
-        if: ${{ inputs.tag != '' }}
-        id: tag
-        run: echo "value=${{ inputs.tag }}" | tee -a "${GITHUB_OUTPUT}"
+        run: echo "value=${{ inputs.tag == '' && 'v$(cat version/VERSION)' || inputs.tag }}" | tee -a "${GITHUB_OUTPUT}"
 
       # NOTE: Historically, we have not been great about running the beta workflow on the main branch.
       # This has implications on how we run cosign.
