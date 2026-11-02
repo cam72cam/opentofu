@@ -59,7 +59,7 @@ dockers_v2:
       - linux/arm64
     tags:
       - "{{ .Version }}-minimal"
-      - "{{ .Major }}.{{ .Minor }}-minimal"
+      - '{{ if eq .Env.RELEASE_FLAG_PRERELEASE "false" }}{{ .Major }}.{{ .Minor }}-minimal{{ end }}'
       - '{{ if eq .Env.RELEASE_FLAG_LATEST "true" }}{{ .Major }}-minimal{{ end }}'
       - '{{ if eq .Env.RELEASE_FLAG_LATEST "true" }}latest{{ end }}'
     annotations:
@@ -82,7 +82,7 @@ dockers_v2:
       - linux/arm64
     tags:
       - "{{ .Version }}"
-      - "{{ .Major }}.{{ .Minor }}"
+      - '{{ if eq .Env.RELEASE_FLAG_PRERELEASE "false" }}{{ .Major }}.{{ .Minor }}{{ end }}'
       - '{{ if eq .Env.RELEASE_FLAG_LATEST "true" }}{{ .Major }}{{ end }}'
     annotations:
       "org.opencontainers.image.title": "{{ .ProjectName }}"
