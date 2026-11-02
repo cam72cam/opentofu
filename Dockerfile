@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: MPL-2.0
 
 FROM alpine:3.20
+ARG TARGETPLATFORM
 
 LABEL maintainer="OpenTofu Core Team <core@opentofu.org>"
 
