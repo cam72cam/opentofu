@@ -35,6 +35,10 @@ jobs:
         if: ${{ !startsWith(steps.tag.outputs.value, github.ref_name) }}
         run: echo "Version tag ${{ steps.tag.outputs.value }} does not match branch ${{ github.ref_name }}!" && exit 1
 
+      - name: "Ensure prerelease is not latest"
+        if: ${{ inputs.latest && steps.prerelease.outputs.value == 1 }}
+        run: echo "Latest and Prerelease conflict" && exit 1
+
       - name: "Summary"
         run: |
           echo "Branch: ${{ github.ref_name }}" | tee "${GITHUB_STEP_SUMMARY}"
@@ -239,11 +243,11 @@ jobs:
             rm -rf "${GPG_KEY_FILE}"
           fi
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
-        with:
-          name: dist
-          path: dist
+#      - name: Upload artifacts
+#       uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+#        with:
+#          name: dist
+#          path: dist
 
 #      - name: Upload Debian packages to PackageCloud
 #        if: 
