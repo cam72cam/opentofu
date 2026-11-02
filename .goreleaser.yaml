@@ -53,6 +53,7 @@ archives:
 dockers_v2:
   - images:
       - "ghcr.io/cam72cam/opentofu"
+    id: tofu
     dockerfile: "Dockerfile.minimal"
     platforms:
       - linux/amd64
@@ -76,6 +77,7 @@ dockers_v2:
 
   - images:
       - "ghcr.io/cam72cam/opentofu"
+    id: tofu-minimal
     dockerfile: "Dockerfile"
     platforms:
       - linux/amd64
