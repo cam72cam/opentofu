@@ -18,10 +18,11 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
+          ref: ${{ needs.info.outputs.tag }}
 
       - name: "Determine tag from version file"
         id: tag
-        run: echo "value=$(cat version/VERSION)" | tee "${GITHUB_OUTPUT}"
+        run: echo "value=v$(cat version/VERSION)" | tee "${GITHUB_OUTPUT}"
 
       # NOTE: Historically, we have not been great about running the beta workflow on the main branch.
       # This has implications on how we run cosign.
