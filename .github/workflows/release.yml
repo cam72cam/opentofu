@@ -21,7 +21,7 @@ jobs:
 
       - name: "Determine tag from version file"
         id: tag
-        run: echo "value=v$(cat version/VERSION)" | tee "${GITHUB_OUTPUT}"
+        run: echo "value=v$(cat version/VERSION)" | tee -a "${GITHUB_OUTPUT}"
 
       # NOTE: Historically, we have not been great about running the beta workflow on the main branch.
       # This has implications on how we run cosign.
@@ -29,7 +29,7 @@ jobs:
       # We should pick one (main vs branch) and stick to it here.
       - name: "Determine Prerelease Status"
         id: prerelease
-        run: echo "value=$(echo "${{ steps.tag.outputs.value }}" | grep ".*[^v\.0-9].*" | wc -l)" | tee "${GITHUB_OUTPUT}"
+        run: echo "value=$(echo "${{ steps.tag.outputs.value }}" | grep ".*[^v\.0-9].*" | wc -l)" | tee -a "${GITHUB_OUTPUT}"
 
       - name: "Ensure tag matches branch"
         if: ${{ !startsWith(steps.tag.outputs.value, github.ref_name) }}
@@ -41,10 +41,10 @@ jobs:
 
       - name: "Summary"
         run: |
-          echo "Branch: ${{ github.ref_name }}" | tee "${GITHUB_STEP_SUMMARY}"
-          echo "Tag: ${{ steps.tag.outputs.value }}" | tee "${GITHUB_STEP_SUMMARY}"
-          echo "Latest: ${{ inputs.latest }}" | tee "${GITHUB_STEP_SUMMARY}"
-          echo "Prerelease: ${{ steps.prerelease.outputs.value }}" | tee "${GITHUB_STEP_SUMMARY}"
+          echo "Branch: ${{ github.ref_name }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Tag: ${{ steps.tag.outputs.value }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Latest: ${{ inputs.latest }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Prerelease: ${{ steps.prerelease.outputs.value }}" | tee -a "${GITHUB_STEP_SUMMARY}"
     outputs:
       branch: ${{ github.ref_name }}
       tag: ${{ steps.tag.outputs.value }}
