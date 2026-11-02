@@ -74,6 +74,7 @@ dockers_v2:
       "org.opencontainers.image.version": "{{ .Version }}"
       "org.opencontainers.image.revision": "{{ .FullCommit }}"
       "org.opencontainers.image.created": "{{ time \"2006-01-02T15:04:05Z07:00\" }}" # TODO why this date?
+    disable: '{{ if eq .Env.CHANNEL "docker" }}false{{ else }}true{{ end }}'
 
   - images:
       - "ghcr.io/cam72cam/opentofu"
@@ -97,6 +98,7 @@ dockers_v2:
       "org.opencontainers.image.version": "{{ .Version }}"
       "org.opencontainers.image.revision": "{{ .FullCommit }}"
       "org.opencontainers.image.created": "{{ time \"2006-01-02T15:04:05Z07:00\" }}" # TODO why this date?
+    disable: '{{ if eq .Env.CHANNEL "docker" }}false{{ else }}true{{ end }}'
 
 nfpms:
   - file_name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Arch }}'
@@ -131,7 +133,7 @@ snapcrafts:
       OpenTofu is an OSS tool for building, changing, and versioning infrastructure
       safely and efficiently. OpenTofu can manage existing and popular service
       providers as well as custom in-house solutions.
-    disable: '{{ if eq .Env.RELEASE_FLAG_LATEST "false" }}true{{ else }}false{{ end }}'
+    disable: '{{ if and (eq .Env.CHANNEL "snapcraft") (eq .Env.RELEASE_FLAG_LATEST "false") }}true{{ else }}false{{ end }}'
     channel_templates:
       - 'latest/stable'
     grade: 'stable'
@@ -147,12 +149,12 @@ checksum:
   name_template: "{{ .ProjectName }}_{{ .Version }}_SHA256SUMS"
 
 signs:
-  - artifacts: all
+  - artifacts: '{{ if eq .Env.CHANNEL "github" }}all{{ else }}none{{ end }}'
     id: cosign
     cmd: cosign
     certificate: "${artifact}.pem"
     args: [ "sign-blob", "--oidc-issuer=https://token.actions.githubusercontent.com", "--output-certificate=${certificate}", "--output-signature=${signature}", "${artifact}", "--yes" ]
-  - artifacts: all
+  - artifacts: '{{ if eq .Env.CHANNEL "github" }}all{{ else }}none{{ end }}'
     signature: "${artifact}.gpgsig"
     id: gpg
     cmd: gpg
@@ -177,3 +179,4 @@ changelog:
 release:
   prerelease: auto
   draft: true
+  disable: '{{ if eq .Env.CHANNEL "github" }}false{{ else }}true{{ end }}'
