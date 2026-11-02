@@ -74,7 +74,6 @@ dockers_v2:
       "org.opencontainers.image.version": "{{ .Version }}"
       "org.opencontainers.image.revision": "{{ .FullCommit }}"
       "org.opencontainers.image.created": "{{ time \"2006-01-02T15:04:05Z07:00\" }}" # TODO why this date?
-    disable: '{{ if ne .Env.CHANNEL "docker" }}true{{ else }}false{{ end }}'
 
   - images:
       - "ghcr.io/cam72cam/opentofu"
@@ -98,7 +97,6 @@ dockers_v2:
       "org.opencontainers.image.version": "{{ .Version }}"
       "org.opencontainers.image.revision": "{{ .FullCommit }}"
       "org.opencontainers.image.created": "{{ time \"2006-01-02T15:04:05Z07:00\" }}" # TODO why this date?
-    disable: '{{ if ne .Env.CHANNEL "docker" }}true{{ else }}false{{ end }}'
 
 nfpms:
   - file_name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Arch }}'
@@ -133,7 +131,7 @@ snapcrafts:
       OpenTofu is an OSS tool for building, changing, and versioning infrastructure
       safely and efficiently. OpenTofu can manage existing and popular service
       providers as well as custom in-house solutions.
-    disable: '{{ if and (ne .Env.CHANNEL "snapcraft") (eq .Env.RELEASE_FLAG_LATEST "false") }}true{{ else }}false{{ end }}'
+    disable: '{{ if eq .Env.RELEASE_FLAG_LATEST "false" }}true{{ else }}false{{ end }}'
     channel_templates:
       - 'latest/stable'
     grade: 'stable'
@@ -151,13 +149,13 @@ checksum:
 signs:
   - artifacts: all
     id: cosign
-    cmd: '{{ if eq .Env.CHANNEL "github" }}cosign{{ else }}true{{ end }}'
+    cmd: cosign 
     certificate: "${artifact}.pem"
     args: [ "sign-blob", "--oidc-issuer=https://token.actions.githubusercontent.com", "--output-certificate=${certificate}", "--output-signature=${signature}", "${artifact}", "--yes" ]
   - artifacts: all
     signature: "${artifact}.gpgsig"
     id: gpg
-    cmd: '{{ if eq .Env.CHANNEL "github" }}gpg{{ else }}true{{ end }}'
+    cmd: gpg 
     args: ["--batch", "-u", "{{ .Env.GPG_FINGERPRINT }}", "--output", "${signature}", "--detach-sign", "${artifact}" ]
 
 docker_signs:
@@ -179,4 +177,6 @@ changelog:
 release:
   prerelease: auto
   draft: true
+  # No option to disable release with --skip
   disable: '{{ if ne .Env.CHANNEL "github" }}true{{ else }}false{{ end }}'
+
