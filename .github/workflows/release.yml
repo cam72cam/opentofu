@@ -98,8 +98,6 @@ jobs:
           # https://bugs.launchpad.net/snapcraft/+bug/1889741
           mkdir -p "$HOME/.cache/snapcraft/download"
           mkdir -p "$HOME/.cache/snapcraft/stage-packages"
-        #env:
-        #  SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_TOKEN }}
 
       - name: Import GPG key
         if: matrix.goos == 'linux'
@@ -193,17 +191,12 @@ jobs:
         uses: ./.github/actions/release-cache
         with: { goos: "windows", goarch: "arm64", tag: "${{ needs.info.outputs.tag }}"}
 
-      #- name: "Configure Go toolchain"
-      #  uses: ./.github/actions/go-toolchain
-      #
-
       - name: Login to Github Container Registry
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
 
       - name: Install cosign
         uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
@@ -218,8 +211,6 @@ jobs:
           # https://bugs.launchpad.net/snapcraft/+bug/1889741
           mkdir -p "$HOME/.cache/snapcraft/download"
           mkdir -p "$HOME/.cache/snapcraft/stage-packages"
-        #env:
-        #  SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_TOKEN }}
 
       - name: Import GPG key
         run: |
@@ -256,12 +247,6 @@ jobs:
           if [ -n "${GPG_KEY_FILE}" ]; then
             rm -rf "${GPG_KEY_FILE}"
           fi
-
-#      - name: Upload artifacts
-#       uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
-#        with:
-#          name: dist
-#          path: dist
 
 #      - name: Upload Debian packages to PackageCloud
 #        if: 
