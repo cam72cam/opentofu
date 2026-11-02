@@ -1,5 +1,11 @@
 name: 'Release Cache'
-inputs: [goos, goarch]
+inputs:
+  goos:
+    required: true
+  goarch:
+    required: true
+  tag:
+    required: true
 
 runs:
   using: 'composite'

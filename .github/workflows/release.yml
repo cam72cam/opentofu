@@ -81,7 +81,7 @@ jobs:
 
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: matrix.goos, goarch: matrix.goarch }
+        with: { goos: matrix.goos, goarch: matrix.goarch, tag: needs.info.outputs.tag }
 
       - name: Run GoReleaser (Build)
         uses: goreleaser/goreleaser-action@5742e2a039330cbb23ebf35f046f814d4c6ff811 # v5.1.0
@@ -123,31 +123,31 @@ jobs:
 
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "linux", goarch: "amd64" }
+        with: { goos: "linux", goarch: "amd64", tag: needs.info.outputs.tag }
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "linux", goarch: "arm64" }
+        with: { goos: "linux", goarch: "arm64", tag: needs.info.outputs.tag }
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "freebsd", goarch: "amd64" }
+        with: { goos: "freebsd", goarch: "amd64", tag: needs.info.outputs.tag }
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "opensd", goarch: "amd64" }
+        with: { goos: "opensd", goarch: "amd64", tag: needs.info.outputs.tag }
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "solaris", goarch: "amd64" }
+        with: { goos: "solaris", goarch: "amd64", tag: needs.info.outputs.tag }
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "darwin", goarch: "amd64" }
+        with: { goos: "darwin", goarch: "amd64", tag: needs.info.outputs.tag }
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "darwin", goarch: "arm64" }
+        with: { goos: "darwin", goarch: "arm64", tag: needs.info.outputs.tag }
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "windows", goarch: "amd64" }
+        with: { goos: "windows", goarch: "amd64", tag: needs.info.outputs.tag }
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "windows", goarch: "arm64" }
+        with: { goos: "windows", goarch: "arm64", tag: needs.info.outputs.tag }
 
       #- name: "Configure Go toolchain"
       #  uses: ./.github/actions/go-toolchain
