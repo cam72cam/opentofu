@@ -57,7 +57,7 @@ archives:
 
 dockers_v2:
   - images:
-      - "ghcr.io/opentofu/opentofu:{{ .Version }}-minimal"
+      - "ghcr.io/cam72cam/opentofu:{{ .Version }}-minimal"
     dockerfile: "Dockerfile.minimal"
     platforms:
       - linux/amd64
