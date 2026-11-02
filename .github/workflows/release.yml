@@ -236,7 +236,7 @@ jobs:
         with:
           version: v2.19.0
           distribution: goreleaser-pro
-          args: continue --merge --timeout=60m "${{ matrix.channel != 'github' && '--skip=sign' }}" "${{ matrix.channel != 'snapcraft' && '--skip=snapcraft' }}" "${{ matrix.channel != 'docker' && '--skip=docker' }}"
+          args: continue --merge --timeout=60m "${{ matrix.channel != 'github' && '--skip=sign' || '' }}" "${{ matrix.channel != 'snapcraft' && '--skip=snapcraft' || '' }}" "${{ matrix.channel != 'docker' && '--skip=docker' || '' }}"
         env:
           # Note: the GPG_FINGERPRINT and GPG_KEY_FILE are defined in the task above. If they are not set,
           # goreleaser won't sign the packages.
