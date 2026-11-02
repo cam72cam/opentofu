@@ -68,16 +68,16 @@ dockers_v2:
       - "{{ .Major }}" # TODO this is super broken for backports!
       - "latest" # TODO this is super broken for backports!
     annotations:
-      - "org.opencontainers.image.title": "{{ .ProjectName }}"
-      - "org.opencontainers.image.vendor": "OpenTofu"
-      - "org.opencontainers.image.description": "OpenTofu {{ .Version }}"
-      - "org.opencontainers.image.url": "https://github.com/opentofu/opentofu"
-      - "org.opencontainers.image.documentation": "https://github.com/opentofu/opentofu/blob/main/README.md"
-      - "org.opencontainers.image.source": "https://github.com/opentofu/opentofu"
-      - "org.opencontainers.image.licenses": "MPL-2.0"
-      - "org.opencontainers.image.version": "{{ .Version }}"
-      - "org.opencontainers.image.revision": "{{ .FullCommit }}"
-      - "org.opencontainers.image.created": "{{ time \"2006-01-02T15:04:05Z07:00\" }}" # TODO why this date?
+      "org.opencontainers.image.title": "{{ .ProjectName }}"
+      "org.opencontainers.image.vendor": "OpenTofu"
+      "org.opencontainers.image.description": "OpenTofu {{ .Version }}"
+      "org.opencontainers.image.url": "https://github.com/opentofu/opentofu"
+      "org.opencontainers.image.documentation": "https://github.com/opentofu/opentofu/blob/main/README.md"
+      "org.opencontainers.image.source": "https://github.com/opentofu/opentofu"
+      "org.opencontainers.image.licenses": "MPL-2.0"
+      "org.opencontainers.image.version": "{{ .Version }}"
+      "org.opencontainers.image.revision": "{{ .FullCommit }}"
+      "org.opencontainers.image.created": "{{ time \"2006-01-02T15:04:05Z07:00\" }}" # TODO why this date?
 
 nfpms:
   - file_name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Arch }}'
