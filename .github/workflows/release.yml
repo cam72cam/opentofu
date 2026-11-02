@@ -23,7 +23,6 @@ jobs:
           fetch-depth: 0
 
       - name: "Determine tag"
-        if: ${{ inputs.tag == '' }}
         id: tag
         run: echo "value=${{ inputs.tag == '' && 'v$(cat version/VERSION)' || inputs.tag }}" | tee -a "${GITHUB_OUTPUT}"
 
