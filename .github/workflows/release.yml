@@ -129,7 +129,7 @@ jobs:
           BUILD_OPENTOFU_OFFICIAL: '1'
           RELEASE_FLAG_LATEST: ${{ needs.info.outputs.latest }}
           RELEASE_FLAG_PRERELEASE: ${{ needs.info.outputs.prerelease }}
-          CHANNEL: "build"
+          CHANNEL: "snapcraft" # pre-builds the snaps
 
   release:
     needs: [info, build]
