@@ -95,6 +95,8 @@ jobs:
           # This causes version.IsOfficialBuild to return true when someone is
           # running one of our official release builds.
           BUILD_OPENTOFU_OFFICIAL: '1'
+          RELEASE_FLAG_LATEST: ${{ needs.info.outputs.latest }}
+          RELEASE_FLAG_PRERELEASE: ${{ needs.info.outputs.prerelease }}
 
   release:
     needs: [info, build]
