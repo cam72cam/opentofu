@@ -7,6 +7,9 @@ on:
         description: "Release as latest?"
         required: true
         type: boolean
+      tag:
+        description: "Override tag? (vM.N.P)"
+        required: false
 
 jobs:
   info:
@@ -20,8 +23,13 @@ jobs:
           fetch-depth: 0
 
       - name: "Determine tag from version file"
+        if: ${{ inputs.tag == '' }}
         id: tag
         run: echo "value=v$(cat version/VERSION)" | tee -a "${GITHUB_OUTPUT}"
+      - name: "Determine tag from input"
+        if: ${{ inputs.tag != '' }}
+        id: tag
+        run: echo "value=${{ inputs.tag }}" | tee -a "${GITHUB_OUTPUT}"
 
       # NOTE: Historically, we have not been great about running the beta workflow on the main branch.
       # This has implications on how we run cosign.
