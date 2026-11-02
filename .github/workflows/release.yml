@@ -65,6 +65,7 @@ jobs:
     
     name: Build for ${{ matrix.goos }}_${{ matrix.goarch }}
     runs-on: ubuntu-latest
+    environment: gpg
     env:
       GOOS: ${{ matrix.goos }}
       GOARCH: ${{ matrix.goarch }}
