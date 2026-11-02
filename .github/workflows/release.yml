@@ -18,7 +18,6 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
-          ref: ${{ needs.info.outputs.tag }}
 
       - name: "Determine tag from version file"
         id: tag
@@ -84,6 +83,20 @@ jobs:
         uses: ./.github/actions/release-cache
         with: { goos: matrix.goos, goarch: matrix.goarch, tag: needs.info.outputs.tag }
 
+      - name: Import GPG key
+        if: matrix.goos == 'linux'
+        run: |
+          GPG_KEY_FILE=/tmp/signing-key.gpg
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | base64 --decode > "${GPG_KEY_FILE}"
+          
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | base64 --decode | gpg --import
+          GPG_FINGERPRINT=$(gpg --list-secret-keys --keyid-format LONG | awk '/^sec/{sub(/.*\//, "", $2); print $2; exit}')
+          
+          echo "GPG_FINGERPRINT=${GPG_FINGERPRINT}" >>"${GITHUB_ENV}"
+          echo "GPG_KEY_FILE=${GPG_KEY_FILE}" >> "${GITHUB_ENV}"
+        env:
+          GPG_TTY: /dev/ttys000  # Set the GPG_TTY to avoid issues with pinentry
+
       - name: Run GoReleaser (Build)
         uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
@@ -91,12 +104,22 @@ jobs:
           distribution: goreleaser-pro
           args: release --split --clean --timeout=60m
         env:
+          # Note: the GPG_FINGERPRINT and GPG_KEY_FILE are defined in the task above. If they are not set,
+          # goreleaser won't sign the packages.
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
           # This causes version.IsOfficialBuild to return true when someone is
           # running one of our official release builds.
           BUILD_OPENTOFU_OFFICIAL: '1'
           RELEASE_FLAG_LATEST: ${{ needs.info.outputs.latest }}
           RELEASE_FLAG_PRERELEASE: ${{ needs.info.outputs.prerelease }}
+
+      - name: Remove GPG key
+        if: matrix.goos == 'linux'
+        run: |
+          rm -rf ~/.gnupg
+          if [ -n "${GPG_KEY_FILE}" ]; then
+            rm -rf "${GPG_KEY_FILE}"
+          fi
 
   release:
     needs: [info, build]
