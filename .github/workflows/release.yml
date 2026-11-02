@@ -81,7 +81,7 @@ jobs:
 
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: matrix.goos, goarch: matrix.goarch, tag: needs.info.outputs.tag }
+        with: { goos: "${{ matrix.goos }}", goarch: "${{ matrix.goarch }}", tag: "${{ needs.info.outputs.tag }}" }
 
       - name: Import GPG key
         if: matrix.goos == 'linux'
@@ -149,31 +149,31 @@ jobs:
 
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "linux", goarch: "amd64", tag: needs.info.outputs.tag }
+        with: { goos: "linux", goarch: "amd64", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "linux", goarch: "arm64", tag: needs.info.outputs.tag }
+        with: { goos: "linux", goarch: "arm64", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "freebsd", goarch: "amd64", tag: needs.info.outputs.tag }
+        with: { goos: "freebsd", goarch: "amd64", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "opensd", goarch: "amd64", tag: needs.info.outputs.tag }
+        with: { goos: "opensd", goarch: "amd64", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "solaris", goarch: "amd64", tag: needs.info.outputs.tag }
+        with: { goos: "solaris", goarch: "amd64", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "darwin", goarch: "amd64", tag: needs.info.outputs.tag }
+        with: { goos: "darwin", goarch: "amd64", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "darwin", goarch: "arm64", tag: needs.info.outputs.tag }
+        with: { goos: "darwin", goarch: "arm64", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "windows", goarch: "amd64", tag: needs.info.outputs.tag }
+        with: { goos: "windows", goarch: "amd64", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "windows", goarch: "arm64", tag: needs.info.outputs.tag }
+        with: { goos: "windows", goarch: "arm64", tag: "${{ needs.info.outputs.tag }}"}
 
       #- name: "Configure Go toolchain"
       #  uses: ./.github/actions/go-toolchain
