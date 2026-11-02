@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: MPL-2.0
 
 project_name: tofu
-
+version: 2
 builds:
   - env:
       - CGO_ENABLED=0
