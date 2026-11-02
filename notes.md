@@ -2,7 +2,7 @@ Testing the release process:
 * Generate GPG Key:
   - `gpg --full-generate-key`
   - `gpg --list-secret-keys --keyid-format=long`
-  - `gpg --armor --export-secret-keys <ID>`
+  - `gpg --armor --export-secret-keys <ID> | base64`
   - Add gpg environment in github project settings
   - Paste full output of export command into `GPG_PRIVATE_KEY`
 * Add go-release pro key as `GORELEASER_KEY`

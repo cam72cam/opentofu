@@ -221,7 +221,7 @@ jobs:
         with:
           version: v2.19.0
           distribution: goreleaser-pro
-          args: release continue --clean --timeout=60m
+          args: continue --merge --timeout=60m
         env:
           # Note: the GPG_FINGERPRINT and GPG_KEY_FILE are defined in the task above. If they are not set,
           # goreleaser won't sign the packages.
