@@ -11,18 +11,18 @@ jobs:
       fail-fast: false
       matrix:
         include: # NOTE: Ensure this list EXACTLY matches the cache steps below and the release action 
-          - {goos: "linux",   goarch: "amd64", runson: "ubuntu-26.04"}
-          - {goos: "linux",   goarch: "arm64", runson: "ubuntu-26.04-arm"}
-          - {goos: "freebsd", goarch: "amd64", runson: "ubuntu-26.04"}
-          - {goos: "openbsd", goarch: "amd64", runson: "ubuntu-26.04"}
-          - {goos: "solaris", goarch: "amd64", runson: "ubuntu-26.04"}
-          - {goos: "darwin",  goarch: "amd64", runson: "macos-26-intel"}
-          - {goos: "darwin",  goarch: "arm64", runson: "macos-26"}
-          - {goos: "windows", goarch: "amd64", runson: "windows-2025"}
-          - {goos: "windows", goarch: "arm64", runson: "windows-11-arm"}
+          - {goos: "linux",   goarch: "amd64"}
+          - {goos: "linux",   goarch: "arm64"}
+          - {goos: "freebsd", goarch: "amd64"}
+          - {goos: "openbsd", goarch: "amd64"}
+          - {goos: "solaris", goarch: "amd64"}
+          - {goos: "darwin",  goarch: "amd64"}
+          - {goos: "darwin",  goarch: "arm64"}
+          - {goos: "windows", goarch: "amd64"}
+          - {goos: "windows", goarch: "arm64"}
     
     name: Build for ${{ matrix.goos }}_${{ matrix.goarch }}
-    runs-on: ${{ matrix.runson }} 
+    runs-on: "ubuntu-latest" 
     environment: gpg
     env:
       GOOS: ${{ matrix.goos }}
