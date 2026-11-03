@@ -52,7 +52,7 @@ jobs:
       branch: ${{ github.ref_name }}
       tag: ${{ steps.tag.outputs.value }}
       latest: ${{ inputs.latest }}
-      prerelease: ${{ steps.prerelease.outputs.value == 1 && "true" || "false" }}
+      prerelease: ${{ steps.prerelease.outputs.value == 1 && 'true' || 'false' }}
 
   build:
     needs: [info]
@@ -227,7 +227,7 @@ jobs:
   snapcraft-release:
     needs: [info, build]
     # TODO: we could actually support release channels properly in the future
-    if: ${{ needs.info.outputs.latest == "true" }}
+    if: ${{ needs.info.outputs.latest == 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -273,7 +273,7 @@ jobs:
     needs: [info, build]
     runs-on: "ubuntu-latest"
     name: "PackageCloud Release"
-    if: ${{ needs.info.outputs.prerelease == "false" && false}}
+    if: ${{ needs.info.outputs.prerelease == 'false' && false}}
 
     steps:
       - name: Checkout
