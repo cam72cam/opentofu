@@ -59,7 +59,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: # NOTE: Ensure this list EXACTLY matches the cache logic below AND the GoReleaser config.
+        include: # NOTE: Ensure this list EXACTLY matches the cache steps below
           - {goos: "linux", goarch: "amd64", runson: "ubuntu-latest"}
           - {goos: "linux", goarch: "arm64", runson: "ubuntu-latest"}
           - {goos: "freebsd", goarch: "amd64", runson: "ubuntu-latest"}
@@ -118,7 +118,8 @@ jobs:
         with:
           version: v2.19.0
           distribution: goreleaser-pro
-          args: release --split --clean --single-target --timeout=60m
+          # Without single-target, only GOOS is used as a filter, not GOARCH
+          args: release --split --clean --single-target --timeout=60m --config=release/.goreleaser.yaml
         env:
           # Note: the GPG_FINGERPRINT and GPG_KEY_FILE are defined in the task above. If they are not set,
           # goreleaser won't sign the packages.
@@ -128,7 +129,6 @@ jobs:
           BUILD_OPENTOFU_OFFICIAL: '1'
           RELEASE_FLAG_LATEST: ${{ needs.info.outputs.latest }}
           RELEASE_FLAG_PRERELEASE: ${{ needs.info.outputs.prerelease }}
-          CHANNEL: "build"
 
   github-release:
     needs: [info, build]
@@ -231,7 +231,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: # NOTE: Ensure this list EXACTLY matches the cache logic below AND the GoReleaser config.
+        include:
           - {goarch: "amd64"}
           - {goarch: "arm64"}
     runs-on: "ubuntu-latest"
@@ -256,6 +256,11 @@ jobs:
         id: snapdist
         run: echo "value=$(find dist/*/*.snap)" | tee -a "${GITHUB_OUTPUT}"
 
+      # We use the snapcraft action here instead of go-releaser because split goreleaser
+      # builds are *incredibly* broken when you try to split out the release channels.
+      #
+      # Given snapcraft's recent stability issues, having these as a distinct step allows
+      # the failed jobs in a release run to be re-triggered without having to cut a new release
       - name: Release
         uses: snapcore/action-publish@214b86e5ca036ead1668c79afb81e550e6c54d40 # v1
         env:
