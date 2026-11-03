@@ -226,9 +226,16 @@ jobs:
 
   snapcraft-release:
     needs: [info, build]
+    # TODO: we could actually support release channels properly in the future
+    if: ${{ needs.info.outputs.latest }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: # NOTE: Ensure this list EXACTLY matches the cache logic below AND the GoReleaser config.
+          - {goarch: "amd64"}
+          - {goarch: "arm64"}
     runs-on: "ubuntu-latest"
-    #TODO runs-on: larger-runners
-    name: "Snapcraft Release"
+    name: "Snapcraft Release ${{ matrix.goarch }}"
     environment: gpg
 
     steps:
@@ -243,47 +250,19 @@ jobs:
 
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "linux", goarch: "amd64", tag: "${{ needs.info.outputs.tag }}"}
-      - name: Cache
-        uses: ./.github/actions/release-cache
-        with: { goos: "linux", goarch: "arm64", tag: "${{ needs.info.outputs.tag }}"}
+        with: { goos: "linux", goarch: "${{ matrix.goarch }}", tag: "${{ needs.info.outputs.tag }}"}
 
-      - name: Setup snapcraft
-        run: |
-          sudo snap install snapcraft --classic --channel=7.x/stable
+      - name: Locate snap
+        id: snapdist
+        run: echo "value=$(find dist/*/*.snap) | tee -a "${GITHUB_OUTPUT}"
 
-          # See https://github.com/goreleaser/goreleaser/issues/1715
-          # https://bugs.launchpad.net/snapcraft/+bug/1889741
-          mkdir -p "$HOME/.cache/snapcraft/download"
-          mkdir -p "$HOME/.cache/snapcraft/stage-packages"
-
-      #- name: GoReleaser config workaround
-      #  # For some stupid reason continue does NOT support --config...
-      #  run: cp .github/goreleaser/snapcraft.yml .goreleaser.yaml
-
-      #- name: Run GoReleaser
-      #  uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
-      #  with:
-      #    version: v2.19.0
-      #    distribution: goreleaser-pro
-      #    args: continue --merge --timeout=60m --skip=sign,publish
-      #  env:
-      #    # Note: the GPG_FINGERPRINT and GPG_KEY_FILE are defined in the task above. If they are not set,
-      #    # goreleaser won't sign the packages.
-      #    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #    GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
-      #    SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_TOKEN }}
-      #    RELEASE_FLAG_LATEST: ${{ needs.info.outputs.latest }}
-      #    RELEASE_FLAG_PRERELEASE: ${{ needs.info.outputs.prerelease }}
-      #    GPG_FINGERPRINT: "NA"
-      #    GPG_KEY_FILE: "NA"
-      - name: Run snapcraft
+      - name: Release
+        uses: snapcore/action-publish@214b86e5ca036ead1668c79afb81e550e6c54d40 # v1
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_TOKEN }}
-        run: |
-          # TODO tune the release channels
-          snapcraft upload dist/linux/*_amd64.snap --release "latest/stable"
-          snapcraft upload dist/linux/*_arm64.snap --release "latest/stable"
+        with:
+          snap: ${{ steps.snapdist.outputs.value }}
+          release: latest
 
   packagecloud-release:
     needs: [info, build]
