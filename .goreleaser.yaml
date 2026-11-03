@@ -124,6 +124,7 @@ nfpms:
         key_file: "{{.Env.GPG_KEY_FILE}}"
 
 snapcrafts:
+  # NOTE: this is duplicated in .github/goreleaser/snapcraft.yml and should be kept up to date
   - name: christianm-opentofu
     publish: true
     summary: OpenTofu lets you declaratively manage your cloud infrastructure.
@@ -131,9 +132,7 @@ snapcrafts:
       OpenTofu is an OSS tool for building, changing, and versioning infrastructure
       safely and efficiently. OpenTofu can manage existing and popular service
       providers as well as custom in-house solutions.
-    #disable: '{{ if eq .Env.RELEASE_FLAG_LATEST "false" }}true{{ else }}false{{ end }}'
-    # bug in goreleaser, --skip=snapcraft breaks release
-    disable: '{{ if or (ne .Env.CHANNEL "snapcraft") (eq .Env.RELEASE_FLAG_LATEST "false") }}true{{ else }}false{{ end }}'
+    disable: '{{ if eq .Env.RELEASE_FLAG_LATEST "false" }}true{{ else }}false{{ end }}'
     channel_templates:
       - 'latest/stable'
     grade: 'stable'
@@ -179,8 +178,8 @@ changelog:
 release:
   prerelease: auto
   draft: true
-  # No option to disable release with --skip
-  disable: '{{ if ne .Env.CHANNEL "github" }}true{{ else }}false{{ end }}'
-  github: 
-    owner: cam72cam
-    name: opentofu
+  # TODO: No option to disable release with --skip
+  # BUG: goreleaser's default injection completely breaks when disable is set here
+  # Ideally we'd be able to use the same goreleaser file for all builds, but
+  # that's not really possible given the missing feature and bug.
+  #disable: '{{ if ne .Env.CHANNEL "github" }}true{{ else }}false{{ end }}'

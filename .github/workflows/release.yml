@@ -235,11 +235,10 @@ jobs:
         with:
           version: v2.19.0
           distribution: goreleaser-pro
-          args: continue --merge --timeout=60m "${{ matrix.channel != 'github' && '--skip=sign,docker' || '' }}" # snapcraft bug, unreported "${{ matrix.channel != 'snapcraft' && '--skip=snapcraft' || '' }}"
+          args: continue --merge --timeout=60m "${{ matrix.channel != 'snapcraft' && '--skip=snapcraft' || '--config .github/goreleaser/snapcraft.yml' }}"
         env:
           # Note: the GPG_FINGERPRINT and GPG_KEY_FILE are defined in the task above. If they are not set,
           # goreleaser won't sign the packages.
-          CHANNEL: ${{ matrix.channel }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_TOKEN }}

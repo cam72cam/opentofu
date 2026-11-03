@@ -1,0 +1,27 @@
+# Copyright (c) The OpenTofu Authors
+# SPDX-License-Identifier: MPL-2.0
+# Copyright (c) 2023 HashiCorp, Inc.
+# SPDX-License-Identifier: MPL-2.0
+
+project_name: tofu
+version: 2
+snapcrafts:
+  # NOTE: this is duplicated in .goreleaser.yml and should be kept up to date
+  - name: christianm-opentofu
+    publish: true
+    summary: OpenTofu lets you declaratively manage your cloud infrastructure.
+    description: |
+      OpenTofu is an OSS tool for building, changing, and versioning infrastructure
+      safely and efficiently. OpenTofu can manage existing and popular service
+      providers as well as custom in-house solutions.
+    disable: '{{ if eq .Env.RELEASE_FLAG_LATEST "false" }}true{{ else }}false{{ end }}'
+    channel_templates:
+      - 'latest/stable'
+    grade: 'stable'
+    confinement: classic
+    license: MPL-2.0
+    base: core22
+    apps:
+      tofu:
+        command: tofu
+        aliases: [tofu]
