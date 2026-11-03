@@ -61,7 +61,7 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552 # v6.3.0
         with:
-          version: v1.21.2
+          version: v2.19.0
           distribution: goreleaser-pro
           # Without single-target, only GOOS is used as a filter, not GOARCH
           args: release --nightly --clean --single-target --timeout=60m --skip=docker --config=release/.goreleaser.yaml
