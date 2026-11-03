@@ -214,6 +214,7 @@ jobs:
         with:
           version: v2.19.0
           distribution: goreleaser-pro
+          # No need to specify config file here (not allowed) as it uses the config from the dists (undocumented)
           args: continue --merge --timeout=60m
         env:
           # Note: the GPG_FINGERPRINT and GPG_KEY_FILE are defined in the task above. If they are not set,
