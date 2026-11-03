@@ -56,7 +56,7 @@ jobs:
           version: v2.19.0
           distribution: goreleaser-pro
           # Without single-target, only GOOS is used as a filter, not GOARCH
-          args: release --nightly --skip=docker --split --clean --single-target --timeout=60m --config=release/.goreleaser.yaml
+          args: release --nightly --skip=docker,sign --split --clean --single-target --timeout=60m --config=release/.goreleaser.yaml
         env:
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
           RELEASE_FLAG_LATEST: "false" 
