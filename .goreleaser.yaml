@@ -25,27 +25,6 @@ builds:
       # are intended only for users of the official release builds.
       - "-X 'github.com/opentofu/opentofu/version.officialBuild={{if index .Env \"BUILD_OPENTOFU_OFFICIAL\" }}{{ .Env.BUILD_OPENTOFU_OFFICIAL }}{{end}}'"
 
-    # NOTE: Ensure this list EXACTLY matches the cache logic below AND the GoReleaser config.
-    goos:
-      - linux
-      - freebsd
-      - openbsd
-      - solaris
-      - darwin
-      - windows
-
-    goarch:
-      - amd64
-      - arm64
-
-    ignore:
-      - goos: freebsd
-        goarch: arm64
-      - goos: openbsd
-        goarch: arm64
-      - goos: solaris
-        goarch: arm64
-
 archives:
   - formats: ["zip", "tar.gz"]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{- .Os }}_{{- .Arch }}"
