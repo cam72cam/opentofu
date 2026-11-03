@@ -259,7 +259,7 @@ jobs:
 
       - name: GoReleaser config workaround
         # For some stupid reason continue does NOT support --config...
-        run: cp .github/goreleaser/snapcraft.yml .goreleaser.yml
+        run: cp .github/goreleaser/snapcraft.yml .goreleaser.yaml
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
