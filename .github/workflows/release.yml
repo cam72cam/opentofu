@@ -215,7 +215,7 @@ jobs:
         with:
           version: v2.19.0
           distribution: goreleaser-pro
-          args: continue --merge --timeout=60m --skip=snapcraft
+          args: continue --merge --timeout=60m
         env:
           # Note: the GPG_FINGERPRINT and GPG_KEY_FILE are defined in the task above. If they are not set,
           # goreleaser won't sign the packages.
@@ -261,22 +261,29 @@ jobs:
       #  # For some stupid reason continue does NOT support --config...
       #  run: cp .github/goreleaser/snapcraft.yml .goreleaser.yaml
 
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
-        with:
-          version: v2.19.0
-          distribution: goreleaser-pro
-          args: continue --merge --timeout=60m --skip=sign,publish
+      #- name: Run GoReleaser
+      #  uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+      #  with:
+      #    version: v2.19.0
+      #    distribution: goreleaser-pro
+      #    args: continue --merge --timeout=60m --skip=sign,publish
+      #  env:
+      #    # Note: the GPG_FINGERPRINT and GPG_KEY_FILE are defined in the task above. If they are not set,
+      #    # goreleaser won't sign the packages.
+      #    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #    GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+      #    SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_TOKEN }}
+      #    RELEASE_FLAG_LATEST: ${{ needs.info.outputs.latest }}
+      #    RELEASE_FLAG_PRERELEASE: ${{ needs.info.outputs.prerelease }}
+      #    GPG_FINGERPRINT: "NA"
+      #    GPG_KEY_FILE: "NA"
+      - name: Run snapcraft
         env:
-          # Note: the GPG_FINGERPRINT and GPG_KEY_FILE are defined in the task above. If they are not set,
-          # goreleaser won't sign the packages.
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_TOKEN }}
-          RELEASE_FLAG_LATEST: ${{ needs.info.outputs.latest }}
-          RELEASE_FLAG_PRERELEASE: ${{ needs.info.outputs.prerelease }}
-          GPG_FINGERPRINT: "NA"
-          GPG_KEY_FILE: "NA"
+        run: |
+          # TODO tune the release channels
+          snapcraft upload dist/linux/*_amd64.snap --release "latest/stable"
+          snapcraft upload dist/linux/*_arm64.snap --release "latest/stable"
 
   packagecloud-release:
     needs: [info, build]
