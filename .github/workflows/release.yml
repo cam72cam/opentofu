@@ -168,34 +168,44 @@ jobs:
         uses: ./.github/actions/release-cache
         with: { goos: "linux", goarch: "arm64", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
+        if: ${{ matrix.channel == 'github' }}
         uses: ./.github/actions/release-cache
         with: { goos: "freebsd", goarch: "amd64", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
+        if: ${{ matrix.channel == 'github' }}
         uses: ./.github/actions/release-cache
         with: { goos: "opensd", goarch: "amd64", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
+        if: ${{ matrix.channel == 'github' }}
         uses: ./.github/actions/release-cache
         with: { goos: "solaris", goarch: "amd64", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
+        if: ${{ matrix.channel == 'github' }}
         uses: ./.github/actions/release-cache
         with: { goos: "darwin", goarch: "amd64", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
+        if: ${{ matrix.channel == 'github' }}
         uses: ./.github/actions/release-cache
         with: { goos: "darwin", goarch: "arm64", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
+        if: ${{ matrix.channel == 'github' }}
         uses: ./.github/actions/release-cache
         with: { goos: "windows", goarch: "amd64", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
+        if: ${{ matrix.channel == 'github' }}
         uses: ./.github/actions/release-cache
         with: { goos: "windows", goarch: "arm64", tag: "${{ needs.info.outputs.tag }}"}
 
       - name: Set up QEMU cross build support
+        if: ${{ matrix.channel == 'github' }}
         uses: docker/setup-qemu-action@53851d14592bedcffcf25ea515637cff71ef929a # v3.3.0
       - name: Set up Docker Buildx
+        if: ${{ matrix.channel == 'github' }}
         uses: docker/setup-buildx-action@6524bf65af31da8d45b59e8c27de4bd072b392f5 # v3.8.0
       
 
       - name: Login to Github Container Registry
+        if: ${{ matrix.channel == 'github' }}
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           registry: ghcr.io
@@ -203,11 +213,13 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install cosign
+        if: ${{ matrix.channel == 'github' }}
         uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
         with:
           cosign-release: v2.4.3
 
       - name: Setup snapcraft
+        if: ${{ matrix.channel == 'snapcraft' }}
         run: |
           sudo snap install snapcraft --classic --channel=7.x/stable
 
@@ -217,6 +229,7 @@ jobs:
           mkdir -p "$HOME/.cache/snapcraft/stage-packages"
 
       - name: Import GPG key
+        if: ${{ matrix.channel == 'github' }}
         run: |
           GPG_KEY_FILE=/tmp/signing-key.gpg
           echo "${{ secrets.GPG_PRIVATE_KEY }}" | base64 --decode > "${GPG_KEY_FILE}"
@@ -235,7 +248,7 @@ jobs:
         with:
           version: v2.19.0
           distribution: goreleaser-pro
-          args: continue --merge --timeout=60m "${{ matrix.channel != 'snapcraft' && '--skip=snapcraft' || '--config .github/goreleaser/snapcraft.yml' }}"
+          args: continue --merge --timeout=60m "${{ matrix.channel != 'snapcraft' && '--skip=snapcraft' || '--config=.github/goreleaser/snapcraft.yml' }}"
         env:
           # Note: the GPG_FINGERPRINT and GPG_KEY_FILE are defined in the task above. If they are not set,
           # goreleaser won't sign the packages.
