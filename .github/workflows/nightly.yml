@@ -112,7 +112,7 @@ jobs:
           version: v2.19.0
           distribution: goreleaser-pro
           # No need to specify config file here (not allowed) as it uses the config from the dists (undocumented)
-          args: continue --merge --timeout=60m
+          args: continue --skip=docker,sign --merge --timeout=60m
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
