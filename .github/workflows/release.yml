@@ -254,7 +254,7 @@ jobs:
 
       - name: Locate snap
         id: snapdist
-        run: echo "value=$(find dist/*/*.snap) | tee -a "${GITHUB_OUTPUT}"
+        run: echo "value=$(find dist/*/*.snap)" | tee -a "${GITHUB_OUTPUT}"
 
       - name: Release
         uses: snapcore/action-publish@214b86e5ca036ead1668c79afb81e550e6c54d40 # v1
