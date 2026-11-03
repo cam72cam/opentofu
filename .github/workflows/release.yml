@@ -32,7 +32,7 @@ jobs:
       # We should pick one (main vs branch) and stick to it here.
       - name: "Determine Prerelease Status"
         id: prerelease
-        run: echo "value=$(echo "${{ steps.tag.outputs.value }}" | grep ".*[^v\.0-9].*" | wc -l)" | tee -a "${GITHUB_OUTPUT}"
+        run: echo "value=$(echo "${{ steps.tag.outputs.value }}" | grep -c "-")" | tee -a "${GITHUB_OUTPUT}"
 
       - name: "Ensure tag matches branch"
         if: ${{ !startsWith(steps.tag.outputs.value, github.ref_name) }}
@@ -60,18 +60,18 @@ jobs:
       fail-fast: false
       matrix:
         include: # NOTE: Ensure this list EXACTLY matches the cache steps below and the nightly action 
-          - {goos: "linux", goarch: "amd64", runson: "ubuntu-latest"}
-          - {goos: "linux", goarch: "arm64", runson: "ubuntu-latest"}
-          - {goos: "freebsd", goarch: "amd64", runson: "ubuntu-latest"}
-          - {goos: "openbsd", goarch: "amd64", runson: "ubuntu-latest"}
-          - {goos: "solaris", goarch: "amd64", runson: "ubuntu-latest"}
-          - {goos: "darwin", goarch: "amd64", runson: "macos-latest"}
-          - {goos: "darwin", goarch: "arm64", runson: "macos-latest"}
-          - {goos: "windows", goarch: "amd64", runson: "windows-latest"}
-          - {goos: "windows", goarch: "arm64", runson: "windows-latest"}
+          - {goos: "linux",   goarch: "amd64", runson: "ubuntu-26.04"}
+          - {goos: "linux",   goarch: "arm64", runson: "ubuntu-26.04-arm"}
+          - {goos: "freebsd", goarch: "amd64", runson: "ubuntu-26.04"}
+          - {goos: "openbsd", goarch: "amd64", runson: "ubuntu-26.04"}
+          - {goos: "solaris", goarch: "amd64", runson: "ubuntu-26.04"}
+          - {goos: "darwin",  goarch: "amd64", runson: "macos-26-intel"}
+          - {goos: "darwin",  goarch: "arm64", runson: "macos-26"}
+          - {goos: "windows", goarch: "amd64", runson: "windows-2025"}
+          - {goos: "windows", goarch: "arm64", runson: "windows-11-arm"}
     
     name: Build for ${{ matrix.goos }}_${{ matrix.goarch }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runson }} 
     environment: gpg
     env:
       GOOS: ${{ matrix.goos }}
@@ -103,6 +103,7 @@ jobs:
           mkdir -p "$HOME/.cache/snapcraft/stage-packages"
 
           # Ensure that our credentials are valid (not expired)
+          set -o pipefail
           snapcraft whoami | grep email
 
       - name: Import GPG key
@@ -278,6 +279,7 @@ jobs:
     needs: [info, build]
     runs-on: "ubuntu-latest"
     name: "PackageCloud Release"
+    environment: gpg
     if: ${{ needs.info.outputs.prerelease == 'false' && false}}
 
     steps:

@@ -32,7 +32,7 @@ archives:
 dockers_v2:
   - images:
       - "ghcr.io/cam72cam/opentofu"
-    id: tofu
+    id: tofu-minimal
     dockerfile: "release/Dockerfile.minimal"
     platforms:
       - linux/amd64
@@ -52,11 +52,11 @@ dockers_v2:
       "org.opencontainers.image.licenses": "MPL-2.0"
       "org.opencontainers.image.version": "{{ .Version }}"
       "org.opencontainers.image.revision": "{{ .FullCommit }}"
-      "org.opencontainers.image.created": "{{ time \"2006-01-02T15:04:05Z07:00\" }}" # TODO why this date?
+      "org.opencontainers.image.created": "{{ time \"2006-01-02T15:04:05Z07:00\" }}"
 
   - images:
       - "ghcr.io/cam72cam/opentofu"
-    id: tofu-minimal
+    id: tofu
     dockerfile: "release/Dockerfile"
     platforms:
       - linux/amd64
@@ -75,7 +75,7 @@ dockers_v2:
       "org.opencontainers.image.licenses": "MPL-2.0"
       "org.opencontainers.image.version": "{{ .Version }}"
       "org.opencontainers.image.revision": "{{ .FullCommit }}"
-      "org.opencontainers.image.created": "{{ time \"2006-01-02T15:04:05Z07:00\" }}" # TODO why this date?
+      "org.opencontainers.image.created": "{{ time \"2006-01-02T15:04:05Z07:00\" }}"
 
 nfpms:
   - file_name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Arch }}'
@@ -157,8 +157,5 @@ changelog:
 release:
   prerelease: auto
   draft: true
-  # TODO: No option to disable release with --skip
-  # BUG: goreleaser's default injection completely breaks when disable is set here
-  # Ideally we'd be able to use the same goreleaser file for all builds, but
-  # that's not really possible given the missing feature and bug.
-  #disable: '{{ if ne .Env.CHANNEL "github" }}true{{ else }}false{{ end }}'
+  # WARNING: goreleaser's default injection completely breaks when disable is set
+  # disable: '{{ some_condition }}true{{ else }}false{{ end }}'
