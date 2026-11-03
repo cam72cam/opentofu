@@ -59,7 +59,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: # NOTE: Ensure this list EXACTLY matches the cache steps below
+        include: # NOTE: Ensure this list EXACTLY matches the cache steps below and the nightly action 
           - {goos: "linux", goarch: "amd64", runson: "ubuntu-latest"}
           - {goos: "linux", goarch: "arm64", runson: "ubuntu-latest"}
           - {goos: "freebsd", goarch: "amd64", runson: "ubuntu-latest"}
@@ -133,7 +133,6 @@ jobs:
   github-release:
     needs: [info, build]
     runs-on: "ubuntu-latest"
-    #TODO runs-on: larger-runners
     name: "Github Release"
 
     environment: gpg
