@@ -92,6 +92,8 @@ jobs:
         with: { goos: "${{ matrix.goos }}", goarch: "${{ matrix.goarch }}", tag: "${{ needs.info.outputs.tag }}" }
 
       - name: Setup snapcraft
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_TOKEN }}
         run: |
           sudo snap install snapcraft --classic --channel=7.x/stable
 
@@ -99,6 +101,9 @@ jobs:
           # https://bugs.launchpad.net/snapcraft/+bug/1889741
           mkdir -p "$HOME/.cache/snapcraft/download"
           mkdir -p "$HOME/.cache/snapcraft/stage-packages"
+
+          # Ensure that our credentials are valid (not expired)
+          snapcraft whoami | grep email
 
       - name: Import GPG key
         run: |
