@@ -181,4 +181,6 @@ release:
   draft: true
   # No option to disable release with --skip
   disable: '{{ if ne .Env.CHANNEL "github" }}true{{ else }}false{{ end }}'
-
+  github: 
+    owner: cam72cam
+    repo: opentofu
