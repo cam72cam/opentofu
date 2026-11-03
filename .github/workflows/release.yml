@@ -100,20 +100,6 @@ jobs:
           mkdir -p "$HOME/.cache/snapcraft/download"
           mkdir -p "$HOME/.cache/snapcraft/stage-packages"
 
-      - name: Import GPG key
-        if: matrix.goos == 'linux'
-        run: |
-          GPG_KEY_FILE=/tmp/signing-key.gpg
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" | base64 --decode > "${GPG_KEY_FILE}"
-          
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" | base64 --decode | gpg --import
-          GPG_FINGERPRINT=$(gpg --list-secret-keys --keyid-format LONG | awk '/^sec/{sub(/.*\//, "", $2); print $2; exit}')
-          
-          echo "GPG_FINGERPRINT=${GPG_FINGERPRINT}" >>"${GITHUB_ENV}"
-          echo "GPG_KEY_FILE=${GPG_KEY_FILE}" >> "${GITHUB_ENV}"
-        env:
-          GPG_TTY: /dev/ttys000  # Set the GPG_TTY to avoid issues with pinentry
-
       - name: Run GoReleaser (Build)
         uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
@@ -131,19 +117,11 @@ jobs:
           RELEASE_FLAG_PRERELEASE: ${{ needs.info.outputs.prerelease }}
           CHANNEL: "build"
 
-  release:
+  github-release:
     needs: [info, build]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { channel: "github" }
-          - { channel: "snapcraft" }
-          - { channel: "packagecloud" }
-
     runs-on: "ubuntu-latest"
     #TODO runs-on: larger-runners
-    name: "Release ${{ matrix.channel }}"
+    name: "Github Release"
 
     environment: gpg
     permissions:
@@ -168,44 +146,33 @@ jobs:
         uses: ./.github/actions/release-cache
         with: { goos: "linux", goarch: "arm64", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
-        if: ${{ matrix.channel == 'github' }}
         uses: ./.github/actions/release-cache
         with: { goos: "freebsd", goarch: "amd64", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
-        if: ${{ matrix.channel == 'github' }}
         uses: ./.github/actions/release-cache
         with: { goos: "opensd", goarch: "amd64", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
-        if: ${{ matrix.channel == 'github' }}
         uses: ./.github/actions/release-cache
         with: { goos: "solaris", goarch: "amd64", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
-        if: ${{ matrix.channel == 'github' }}
         uses: ./.github/actions/release-cache
         with: { goos: "darwin", goarch: "amd64", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
-        if: ${{ matrix.channel == 'github' }}
         uses: ./.github/actions/release-cache
         with: { goos: "darwin", goarch: "arm64", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
-        if: ${{ matrix.channel == 'github' }}
         uses: ./.github/actions/release-cache
         with: { goos: "windows", goarch: "amd64", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
-        if: ${{ matrix.channel == 'github' }}
         uses: ./.github/actions/release-cache
         with: { goos: "windows", goarch: "arm64", tag: "${{ needs.info.outputs.tag }}"}
 
       - name: Set up QEMU cross build support
-        if: ${{ matrix.channel == 'github' }}
         uses: docker/setup-qemu-action@53851d14592bedcffcf25ea515637cff71ef929a # v3.3.0
       - name: Set up Docker Buildx
-        if: ${{ matrix.channel == 'github' }}
         uses: docker/setup-buildx-action@6524bf65af31da8d45b59e8c27de4bd072b392f5 # v3.8.0
-      
 
       - name: Login to Github Container Registry
-        if: ${{ matrix.channel == 'github' }}
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           registry: ghcr.io
@@ -213,23 +180,11 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install cosign
-        if: ${{ matrix.channel == 'github' }}
         uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
         with:
           cosign-release: v2.4.3
 
-      - name: Setup snapcraft
-        if: ${{ matrix.channel == 'snapcraft' }}
-        run: |
-          sudo snap install snapcraft --classic --channel=7.x/stable
-
-          # See https://github.com/goreleaser/goreleaser/issues/1715
-          # https://bugs.launchpad.net/snapcraft/+bug/1889741
-          mkdir -p "$HOME/.cache/snapcraft/download"
-          mkdir -p "$HOME/.cache/snapcraft/stage-packages"
-
       - name: Import GPG key
-        if: ${{ matrix.channel == 'github' }}
         run: |
           GPG_KEY_FILE=/tmp/signing-key.gpg
           echo "${{ secrets.GPG_PRIVATE_KEY }}" | base64 --decode > "${GPG_KEY_FILE}"
@@ -243,12 +198,58 @@ jobs:
           GPG_TTY: /dev/ttys000  # Set the GPG_TTY to avoid issues with pinentry
 
       - name: Run GoReleaser
-        if: ${{ matrix.channel != 'packagecloud' }}
         uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           version: v2.19.0
           distribution: goreleaser-pro
-          args: continue --merge --timeout=60m "${{ matrix.channel != 'snapcraft' && '--skip=snapcraft' || '--config=.github/goreleaser/snapcraft.yml' }}"
+          args: continue --merge --timeout=60m --skip=snapcraft
+        env:
+          # Note: the GPG_FINGERPRINT and GPG_KEY_FILE are defined in the task above. If they are not set,
+          # goreleaser won't sign the packages.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+          RELEASE_FLAG_LATEST: ${{ needs.info.outputs.latest }}
+          RELEASE_FLAG_PRERELEASE: ${{ needs.info.outputs.prerelease }}
+
+  snapcraft-release:
+    needs: [info, build]
+    runs-on: "ubuntu-latest"
+    #TODO runs-on: larger-runners
+    name: "Snapcraft Release"
+    environment: gpg
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.info.outputs.tag }}
+
+      - name: Fetch tags
+        run: git fetch --force --tags
+
+      - name: Cache
+        uses: ./.github/actions/release-cache
+        with: { goos: "linux", goarch: "amd64", tag: "${{ needs.info.outputs.tag }}"}
+      - name: Cache
+        uses: ./.github/actions/release-cache
+        with: { goos: "linux", goarch: "arm64", tag: "${{ needs.info.outputs.tag }}"}
+
+      - name: Setup snapcraft
+        run: |
+          sudo snap install snapcraft --classic --channel=7.x/stable
+
+          # See https://github.com/goreleaser/goreleaser/issues/1715
+          # https://bugs.launchpad.net/snapcraft/+bug/1889741
+          mkdir -p "$HOME/.cache/snapcraft/download"
+          mkdir -p "$HOME/.cache/snapcraft/stage-packages"
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          version: v2.19.0
+          distribution: goreleaser-pro
+          args: continue --merge --timeout=60m --config=.github/goreleaser/snapcraft.yml
         env:
           # Note: the GPG_FINGERPRINT and GPG_KEY_FILE are defined in the task above. If they are not set,
           # goreleaser won't sign the packages.
@@ -258,8 +259,30 @@ jobs:
           RELEASE_FLAG_LATEST: ${{ needs.info.outputs.latest }}
           RELEASE_FLAG_PRERELEASE: ${{ needs.info.outputs.prerelease }}
 
+  packagecloud-release:
+    needs: [info, build]
+    runs-on: "ubuntu-latest"
+    name: "PackageCloud Release"
+    if: ${{ !needs.info.outputs.prerelease && false}}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.info.outputs.tag }}
+
+      - name: Fetch tags
+        run: git fetch --force --tags
+
+      - name: Cache
+        uses: ./.github/actions/release-cache
+        with: { goos: "linux", goarch: "amd64", tag: "${{ needs.info.outputs.tag }}"}
+      - name: Cache
+        uses: ./.github/actions/release-cache
+        with: { goos: "linux", goarch: "arm64", tag: "${{ needs.info.outputs.tag }}"}
+
       - name: Upload Debian packages to PackageCloud
-        if: ${{ matrix.channel == 'packagecloud' && !needs.info.outputs.prerelease && false}}
         uses: computology/packagecloud-github-action@3a3116159414e57767827ed264a6de29a1f86d4c # v0.6
         with:
                 PACKAGE-NAME: dist/*.deb
@@ -268,7 +291,6 @@ jobs:
                 PACKAGECLOUD-DISTRO: any/any
                 PACKAGECLOUD-TOKEN: ${{ secrets.PACKAGECLOUD_TOKEN }}
       - name: Upload RPM packages to PackageCloud
-        if: ${{ matrix.channel == 'packagecloud' && !needs.info.outputs.prerelease && false}}
         uses: computology/packagecloud-github-action@3a3116159414e57767827ed264a6de29a1f86d4c # v0.6
         with:
                 PACKAGE-NAME: dist/*.rpm
