@@ -41,7 +41,7 @@ dockers_v2:
       - "{{ .Version }}-minimal"
       - '{{ if eq .Env.RELEASE_FLAG_PRERELEASE "false" }}{{ .Major }}.{{ .Minor }}-minimal{{ end }}'
       - '{{ if eq .Env.RELEASE_FLAG_LATEST "true" }}{{ .Major }}-minimal{{ end }}'
-      - '{{ if eq .Env.RELEASE_FLAG_LATEST "true" }}latest{{ end }}'
+      - '{{ if eq .Env.RELEASE_FLAG_LATEST "true" }}minimal{{ end }}'
     annotations:
       "org.opencontainers.image.title": "{{ .ProjectName }}"
       "org.opencontainers.image.vendor": "OpenTofu"
@@ -65,6 +65,7 @@ dockers_v2:
       - "{{ .Version }}"
       - '{{ if eq .Env.RELEASE_FLAG_PRERELEASE "false" }}{{ .Major }}.{{ .Minor }}{{ end }}'
       - '{{ if eq .Env.RELEASE_FLAG_LATEST "true" }}{{ .Major }}{{ end }}'
+      - '{{ if eq .Env.RELEASE_FLAG_LATEST "true" }}latest{{ end }}'
     annotations:
       "org.opencontainers.image.title": "{{ .ProjectName }}"
       "org.opencontainers.image.vendor": "OpenTofu"

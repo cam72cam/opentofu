@@ -40,7 +40,7 @@ jobs:
 
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "${{ matrix.goos }}", goarch: "${{ matrix.goarch }}", tag: "nightly" }
+        with: { goos: "${{ matrix.goos }}", goarch: "${{ matrix.goarch }}", tag: "${{ github.sha }}" }
 
       # Prepare the nightly version to be able to have it returned correctly when running `tofu --version`.
       - name: Prepare version file
@@ -80,31 +80,31 @@ jobs:
 
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "linux", goarch: "amd64", tag: "nightly"}
+        with: { goos: "linux", goarch: "amd64", tag: "${{ github.sha }}"}
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "linux", goarch: "arm64", tag: "nightly"}
+        with: { goos: "linux", goarch: "arm64", tag: "${{ github.sha }}"}
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "freebsd", goarch: "amd64", tag: "nightly"}
+        with: { goos: "freebsd", goarch: "amd64", tag: "${{ github.sha }}"}
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "opensd", goarch: "amd64", tag: "nightly"}
+        with: { goos: "openbsd", goarch: "amd64", tag: "${{ github.sha }}"}
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "solaris", goarch: "amd64", tag: "nightly"}
+        with: { goos: "solaris", goarch: "amd64", tag: "${{ github.sha }}"}
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "darwin", goarch: "amd64", tag: "nightly"}
+        with: { goos: "darwin", goarch: "amd64", tag: "${{ github.sha }}"}
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "darwin", goarch: "arm64", tag: "nightly"}
+        with: { goos: "darwin", goarch: "arm64", tag: "${{ github.sha }}"}
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "windows", goarch: "amd64", tag: "nightly"}
+        with: { goos: "windows", goarch: "amd64", tag: "${{ github.sha }}"}
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "windows", goarch: "arm64", tag: "nightly"}
+        with: { goos: "windows", goarch: "arm64", tag: "${{ github.sha }}"}
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
