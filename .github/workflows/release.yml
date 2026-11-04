@@ -62,13 +62,20 @@ jobs:
         include: # NOTE: Ensure this list EXACTLY matches the cache steps below and the nightly action 
           - {goos: "linux",   goarch: "amd64"}
           - {goos: "linux",   goarch: "arm64"}
+          - {goos: "linux",   goarch: "386"}
+          - {goos: "linux",   goarch: "arm"}
           - {goos: "freebsd", goarch: "amd64"}
+          - {goos: "freebsd", goarch: "386"}
+          - {goos: "freebsd", goarch: "arm"}
           - {goos: "openbsd", goarch: "amd64"}
+          - {goos: "openbsd", goarch: "386"}
           - {goos: "solaris", goarch: "amd64"}
           - {goos: "darwin",  goarch: "amd64"}
           - {goos: "darwin",  goarch: "arm64"}
           - {goos: "windows", goarch: "amd64"}
           - {goos: "windows", goarch: "arm64"}
+          - {goos: "windows", goarch: "386"}
+
     
     name: Build for ${{ matrix.goos }}_${{ matrix.goarch }}
     runs-on: "ubuntu-latest"
@@ -165,10 +172,25 @@ jobs:
         with: { goos: "linux", goarch: "arm64", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
         uses: ./.github/actions/release-cache
+        with: { goos: "linux", goarch: "386", tag: "${{ needs.info.outputs.tag }}"}
+      - name: Cache
+        uses: ./.github/actions/release-cache
+        with: { goos: "linux", goarch: "arm", tag: "${{ needs.info.outputs.tag }}"}
+      - name: Cache
+        uses: ./.github/actions/release-cache
         with: { goos: "freebsd", goarch: "amd64", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "opensd", goarch: "amd64", tag: "${{ needs.info.outputs.tag }}"}
+        with: { goos: "freebsd", goarch: "386", tag: "${{ needs.info.outputs.tag }}"}
+      - name: Cache
+        uses: ./.github/actions/release-cache
+        with: { goos: "freebsd", goarch: "arm", tag: "${{ needs.info.outputs.tag }}"}
+      - name: Cache
+        uses: ./.github/actions/release-cache
+        with: { goos: "openbsd", goarch: "amd64", tag: "${{ needs.info.outputs.tag }}"}
+      - name: Cache
+        uses: ./.github/actions/release-cache
+        with: { goos: "openbsd", goarch: "arm", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
         uses: ./.github/actions/release-cache
         with: { goos: "solaris", goarch: "amd64", tag: "${{ needs.info.outputs.tag }}"}
@@ -184,6 +206,11 @@ jobs:
       - name: Cache
         uses: ./.github/actions/release-cache
         with: { goos: "windows", goarch: "arm64", tag: "${{ needs.info.outputs.tag }}"}
+      - name: Cache
+        uses: ./.github/actions/release-cache
+        with: { goos: "windows", goarch: "386", tag: "${{ needs.info.outputs.tag }}"}
+
+
 
       - name: Set up QEMU cross build support
         uses: docker/setup-qemu-action@53851d14592bedcffcf25ea515637cff71ef929a # v3.3.0
@@ -240,6 +267,9 @@ jobs:
         include:
           - {goarch: "amd64"}
           - {goarch: "arm64"}
+          - {goarch: "386"}
+          - {goarch: "arm"}
+
     runs-on: "ubuntu-latest"
     name: "Snapcraft Release ${{ matrix.goarch }}"
     environment: gpg
