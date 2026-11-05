@@ -42,6 +42,8 @@ builds:
         goarch: arm64
       - goos: windows
         goarch: arm
+      - goos: windows
+        goarch: arm64
       - goos: darwin
         goarch: "386"
       - goos: darwin
@@ -144,7 +146,6 @@ nfpms:
         key_file: "{{ if index .Env \"GPG_KEY_FILE\"  }}{{.Env.GPG_KEY_FILE}}{{ end }}"
 
 snapcrafts:
-  # NOTE: this is duplicated in .github/goreleaser/snapcraft.yml and should be kept up to date
   - name: christianm-opentofu
     publish: false 
     summary: OpenTofu lets you declaratively manage your cloud infrastructure.

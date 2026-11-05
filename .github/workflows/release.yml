@@ -59,7 +59,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: # NOTE: Ensure this list EXACTLY matches the cache steps below and the nightly action 
+        include: # NOTE: Ensure this list EXACTLY matches the cache steps below and the nightly action
           - {goos: "linux",   goarch: "amd64"}
           - {goos: "linux",   goarch: "arm64"}
           - {goos: "linux",   goarch: "386"}
@@ -73,12 +73,10 @@ jobs:
           - {goos: "darwin",  goarch: "amd64"}
           - {goos: "darwin",  goarch: "arm64"}
           - {goos: "windows", goarch: "amd64"}
-          - {goos: "windows", goarch: "arm64"}
           - {goos: "windows", goarch: "386"}
-
     
     name: Build for ${{ matrix.goos }}_${{ matrix.goarch }}
-    runs-on: "ubuntu-latest"
+    runs-on: ubuntu-latest
     environment: gpg
     env:
       GOOS: ${{ matrix.goos }}
@@ -205,12 +203,7 @@ jobs:
         with: { goos: "windows", goarch: "amd64", tag: "${{ needs.info.outputs.tag }}"}
       - name: Cache
         uses: ./.github/actions/release-cache
-        with: { goos: "windows", goarch: "arm64", tag: "${{ needs.info.outputs.tag }}"}
-      - name: Cache
-        uses: ./.github/actions/release-cache
         with: { goos: "windows", goarch: "386", tag: "${{ needs.info.outputs.tag }}"}
-
-
 
       - name: Set up QEMU cross build support
         uses: docker/setup-qemu-action@53851d14592bedcffcf25ea515637cff71ef929a # v3.3.0
@@ -269,7 +262,6 @@ jobs:
           - {goarch: "arm64"}
           - {goarch: "386"}
           - {goarch: "arm"}
-
     runs-on: "ubuntu-latest"
     name: "Snapcraft Release ${{ matrix.goarch }}"
     environment: gpg
@@ -310,7 +302,7 @@ jobs:
     runs-on: "ubuntu-latest"
     name: "PackageCloud Release"
     environment: gpg
-    if: ${{ needs.info.outputs.prerelease == 'false' && false}}
+    if: ${{ needs.info.outputs.prerelease == 'false' && false }}
 
     steps:
       - name: Checkout
@@ -328,11 +320,17 @@ jobs:
       - name: Cache
         uses: ./.github/actions/release-cache
         with: { goos: "linux", goarch: "arm64", tag: "${{ needs.info.outputs.tag }}"}
+      - name: Cache
+        uses: ./.github/actions/release-cache
+        with: { goos: "linux", goarch: "386", tag: "${{ needs.info.outputs.tag }}"}
+      - name: Cache
+        uses: ./.github/actions/release-cache
+        with: { goos: "linux", goarch: "arm", tag: "${{ needs.info.outputs.tag }}"}
 
       - name: Upload Debian packages to PackageCloud
         uses: computology/packagecloud-github-action@3a3116159414e57767827ed264a6de29a1f86d4c # v0.6
         with:
-                PACKAGE-NAME: dist/*.deb
+                PACKAGE-NAME: dist/*/*.deb
                 PACKAGECLOUD-USERNAME: opentofu
                 PACKAGECLOUD-REPONAME: tofu
                 PACKAGECLOUD-DISTRO: any/any
@@ -340,9 +338,8 @@ jobs:
       - name: Upload RPM packages to PackageCloud
         uses: computology/packagecloud-github-action@3a3116159414e57767827ed264a6de29a1f86d4c # v0.6
         with:
-                PACKAGE-NAME: dist/*.rpm
+                PACKAGE-NAME: dist/*/*.rpm
                 PACKAGECLOUD-USERNAME: opentofu
                 PACKAGECLOUD-REPONAME: tofu
                 PACKAGECLOUD-DISTRO: rpm_any/rpm_any
                 PACKAGECLOUD-TOKEN: ${{ secrets.PACKAGECLOUD_TOKEN }}
-

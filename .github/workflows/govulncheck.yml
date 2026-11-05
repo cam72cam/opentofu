@@ -23,8 +23,9 @@ jobs:
       matrix:
         include:
           - { branch: main }
-          - { branch: v1.13 }
-          - { branch: v1.12 }
+          - { branch: v1.11 }
+          - { branch: v1.10 }
+          - { branch: v1.9 }
       fail-fast: false
     steps:
       - name: Checkout branch to be scanned
@@ -32,18 +33,16 @@ jobs:
         with:
           ref: ${{matrix.branch}}
 
-      - name: Install Go toolchain
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
-        with:
-          go-version-file: 'go.mod'
+      - name: "Configure Go toolchain"
+        uses: ./.github/actions/go-toolchain
 
       - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@617f44b718537dccdea1915395650e0529e3b72e # v1.7.0
+        run: go install golang.org/x/vuln/cmd/govulncheck@d1f380186385b4f64e00313f31743df8e4b89a77 # v1.1.4
         shell: bash
 
       - name: Run and report govulncheck findings
         run: |
-          govulncheck -format json ./cmd/tofu | tee results
+          govulncheck -format json ./... | tee results
           # This is parsing the output of govulncheck by:
           # * extracting only the findings that are affecting the current branch (.finding | select(.trace | length > 1))
           # * getting only the vulnerability key out of the objects (.osv)
